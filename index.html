@@ -37,6 +37,9 @@
   .look.on{box-shadow:0 0 0 3px var(--gold),0 0 22px #ffcf6b88}
   #go{width:100%;padding:13px;font-weight:700;font-size:16px}
   #toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:20;padding:9px 18px;border-radius:999px;background:#ffcf6bee;color:#1a0d06;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none}
+  #stick{position:absolute;left:22px;bottom:22px;width:120px;height:120px;border-radius:50%;background:#ffffff14;backdrop-filter:blur(6px);z-index:4;display:none;touch-action:none}
+  #knob{position:absolute;left:35px;top:35px;width:50px;height:50px;border-radius:50%;background:#ffcf6bcc;box-shadow:0 0 20px #ff8a3d88;pointer-events:none}
+  #jump{position:absolute;right:22px;bottom:70px;width:70px;height:70px;border-radius:50%;border:0;background:#ffffff1c;color:#ffcf6b;font-size:28px;z-index:4;display:none;place-items:center;touch-action:none}
   #loading{position:absolute;inset:0;display:grid;place-items:center;color:#ffcf6b;opacity:.7;z-index:1;pointer-events:none}
 </style>
 </head><body>
@@ -44,6 +47,8 @@
   <div id="stage">
     <div id="loading">lighting the candles…</div>
     <div class="vig"></div><div class="grain"></div>
+    <div id="stick"><div id="knob"></div></div>
+    <button id="jump">⤒</button>
     <div id="top"><span id="status">…</span><button class="pill" id="invite">💌 Invite link</button></div>
     <div id="actions">
       <button class="pill" id="pov" title="Switch view (V)">👀 3rd person</button>
@@ -52,7 +57,7 @@
     </div>
   </div>
   <div id="places"></div>
-  <div id="hint">drag to look · click to walk · click a seat to sit · WASD/arrows · scroll to zoom · V view · H hearts</div>
+  <div id="hint">WASD move · Space jump · drag to turn · scroll in for 1st person · Shift lock · click a seat to sit · H hearts</div>
 </div>
 <video id="vid" autoplay playsinline style="display:none"></video>
 
@@ -510,7 +515,7 @@ function makeChar(look, name) {
   return g;
 }
 function animChar(c, p, t) {
-  const u = c.userData, sit = p.seat >= 0, walk = p.walking && !sit;
+  const u = c.userData, sit = p.seat >= 0, air = (p.jy || 0) > .02, walk = p.walking && !sit && !air;
   u.body.position.y = walk ? Math.abs(Math.sin(t * 12)) * .06 : sit ? -.12 : Math.sin(t * 2) * .01;
   u.feet.forEach((f, i) => { if (sit) f.position.set(f.position.x, .2, .3); else f.position.set(f.position.x, .05 + (walk ? Math.max(0, Math.sin(t * 12 + i * PI)) * .05 : 0), .04 + (walk ? Math.sin(t * 12 + i * PI) * .08 : 0)); });
   u.arms.forEach((a, i) => { a.rotation.x = walk ? Math.sin(t * 12 + i * PI) * .5 : 0; if (p.share) { a.position.z = .2; a.position.y = .45; } else { a.position.z = .02; a.position.y = .42; } });
@@ -528,7 +533,7 @@ for (const [id, L] of Object.entries(LOOKS)) {
 }
 try { $('name').value = localStorage.getItem('ols-name') || ''; } catch {}
 
-const me = { name: '', look: myLook, x: 0, z: 3, ry: PI, tx: 0, tz: 3, seat: -1, want: -1, walking: false, share: false };
+const me = { name: '', look: myLook, x: 0, z: 3, ry: PI, jy: 0, vy: 0, tx: 0, tz: 3, seat: -1, want: -1, walking: false, share: false };
 let them = null, meMesh = null, themMesh = null;
 let place = null; const built = {};
 let isHost = !ROOM;
@@ -544,54 +549,87 @@ function setPlace(id, broadcast = true) {
   const [mine, theirs] = isHost ? place.spawn : [place.spawn[1], place.spawn[0]];
   Object.assign(me, { x: mine[0], z: mine[1], tx: mine[0], tz: mine[1], seat: -1, want: -1, ry: PI });
   if (them) Object.assign(them, { x: theirs[0], z: theirs[1], rx: theirs[0], rz: theirs[1], seat: -1 });
-  cam.yaw = 0; cam.pitch = .22; cam.fp = 0; snapCam = true;
+  cam.yaw = 0; cam.pitch = .22; cam.fp = 0; snapCam = true; me.jy = 0; me.vy = 0;
   if (broadcast) send({ t: 'place', id: place.id });
 }
 for (const p of PLACES) { const b = document.createElement('button'); b.className = 'pill'; b.textContent = p.name; b.dataset.id = p.id; b.onclick = () => setPlace(p.id); $('places').appendChild(b); }
 
-// ---------- camera ----------
-let pov = 3, snapCam = true;
+// ---------- camera (Roblox-style) ----------
+// 3rd person: drag or right-drag to orbit, scroll to zoom; scroll all the way in = 1st person.
+// 1st person / Shift lock: the mouse is captured and turns the view directly (Esc frees it).
+let pov = 3, snapCam = true, shiftLock = false;
 const cam = { yaw: 0, pitch: .22, dist: 3.4, fp: 0 };
 const camLook = new THREE.Vector3();
-function headOf(p) { return new THREE.Vector3(p.x, (p.seat >= 0 ? place.seats[p.seat].y - .12 : 0) + .88, p.z); }
+const cv = renderer.domElement;
+const isTouch = matchMedia('(pointer: coarse)').matches;
+const locked = () => document.pointerLockElement === cv;
+function lockMouse() { if (!locked() && cv.requestPointerLock && !isTouch) { try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch {} } }
+function unlockMouse() { if (locked()) document.exitPointerLock(); }
+function headOf(p) { return new THREE.Vector3(p.x, (p.seat >= 0 ? place.seats[p.seat].y - .12 : 0) + .88 + (p.jy || 0), p.z); }
 function stepCam(dt) {
-  const head = headOf(me), k = snapCam ? 1 : Math.min(1, dt * 6); snapCam = false;
-  let pos, look;
-  if (pov === 3) {
-    const d = cam.dist, off = new THREE.Vector3(Math.sin(cam.yaw) * Math.cos(cam.pitch), Math.sin(cam.pitch), Math.cos(cam.yaw) * Math.cos(cam.pitch)).multiplyScalar(d);
-    pos = head.clone().add(off); look = head.clone().add(new THREE.Vector3(-Math.sin(cam.yaw) * 1.4, .35, -Math.cos(cam.yaw) * 1.4)); // aim a bit ahead so the screen stays in view
-    const c = place.cam; pos.x = Math.max(c[0], Math.min(c[1], pos.x)); pos.z = Math.max(c[2], Math.min(c[3], pos.z)); pos.y = Math.max(.3, Math.min(c[4], pos.y));
+  const head = headOf(me), k = snapCam ? 1 : Math.min(1, dt * 10); snapCam = false;
+  if (pov === 1) {
+    // no smoothing in 1st person: the view follows the mouse 1:1
+    const look = head.clone().add(new THREE.Vector3(-Math.sin(cam.yaw) * Math.cos(cam.fp), Math.sin(cam.fp), -Math.cos(cam.yaw) * Math.cos(cam.fp)));
+    camera.position.copy(head); camLook.copy(look); camera.lookAt(look);
   } else {
-    pos = head.clone().add(new THREE.Vector3(0, .02, 0));
-    look = pos.clone().add(new THREE.Vector3(-Math.sin(cam.yaw) * Math.cos(cam.fp), Math.sin(cam.fp), -Math.cos(cam.yaw) * Math.cos(cam.fp)));
+    const d = cam.dist, off = new THREE.Vector3(Math.sin(cam.yaw) * Math.cos(cam.pitch), Math.sin(cam.pitch), Math.cos(cam.yaw) * Math.cos(cam.pitch)).multiplyScalar(d);
+    const right = new THREE.Vector3(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw)).multiplyScalar(shiftLock ? .7 : 0);
+    const pos = head.clone().add(off).add(right);
+    const look = head.clone().add(right).add(new THREE.Vector3(-Math.sin(cam.yaw) * 1.4, .35, -Math.cos(cam.yaw) * 1.4)); // aim a bit ahead so the screen stays in view
+    const c = place.cam; pos.x = Math.max(c[0], Math.min(c[1], pos.x)); pos.z = Math.max(c[2], Math.min(c[3], pos.z)); pos.y = Math.max(.3, Math.min(c[4], pos.y));
+    camera.position.lerp(pos, k); camLook.lerp(look, k); camera.lookAt(camLook);
   }
-  camera.position.lerp(pos, k); camLook.lerp(look, k); camera.lookAt(camLook);
-  if (meMesh) meMesh.visible = !(pov === 1 && camera.position.distanceTo(head) < .5);
+  if (meMesh) meMesh.visible = pov !== 1;
 }
-function togglePov() {
-  pov = pov === 3 ? 1 : 3; $('pov').textContent = pov === 3 ? '👀 3rd person' : '👁 1st person';
-  if (pov === 1) { cam.fp = 0; if (me.seat >= 0) cam.yaw = 0; }
+function setPov(p) {
+  pov = p; $('pov').textContent = pov === 3 ? '👀 3rd person' : '👁 1st person';
+  if (pov === 1) { cam.fp = 0; if (me.seat >= 0) cam.yaw = place.seats[me.seat].ry - PI; lockMouse(); toast(isTouch ? 'Drag to look around' : 'Move the mouse to look · Esc frees the mouse'); }
+  else { if (cam.dist < 1.2) cam.dist = 2.4; if (!shiftLock) unlockMouse(); snapCam = true; }
 }
+function togglePov() { setPov(pov === 3 ? 1 : 3); }
 $('pov').onclick = togglePov;
+function setShiftLock(on) {
+  if (pov === 1) return;
+  shiftLock = on; if (on) { lockMouse(); toast('Shift lock on · Shift again to turn off'); } else unlockMouse();
+}
+document.addEventListener('pointerlockchange', () => { if (!locked() && shiftLock) shiftLock = false; });
 
 // ---------- input ----------
-const keys = {};
+const keys = {}, joy = { x: 0, y: 0, on: false };
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
   const k = e.key.toLowerCase(); keys[k] = true;
-  if (k === 'h') sendHeart(); if (k === 'v') togglePov();
+  if (k === ' ') { e.preventDefault(); jump(); }
+  if (e.repeat) return;
+  if (k === 'h') sendHeart(); if (k === 'v') togglePov(); if (k === 'shift') setShiftLock(!shiftLock);
 });
 addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
-const cv = renderer.domElement; let drag = null;
-cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, moved: 0 }; cv.setPointerCapture(e.pointerId); });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+let drag = null;
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('pointerdown', e => {
+  if (!isTouch && (pov === 1 || shiftLock)) { lockMouse(); return; }
+  drag = { x: e.clientX, y: e.clientY, moved: 0, btn: e.button }; cv.setPointerCapture(e.pointerId);
+});
 cv.addEventListener('pointermove', e => {
   if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
-  if (drag.moved < 6) return;
-  cam.yaw -= dx * .006;
-  if (pov === 3) cam.pitch = Math.max(.02, Math.min(1.25, cam.pitch + dy * .004)); else cam.fp = Math.max(-.9, Math.min(.9, cam.fp + dy * .004));
+  if (drag.moved < 6 && drag.btn !== 2) return;
+  turn(dx * 1.6, dy * 1.6);
 });
-cv.addEventListener('pointerup', e => { if (drag && drag.moved < 6) clickWorld(e); drag = null; });
-cv.addEventListener('wheel', e => { e.preventDefault(); cam.dist = Math.max(1.4, Math.min(9, cam.dist * (1 + e.deltaY * .001))); }, { passive: false });
+cv.addEventListener('pointerup', e => { if (drag && drag.moved < 6 && drag.btn === 0 && pov === 3) clickWorld(e); drag = null; });
+document.addEventListener('mousemove', e => { if (locked()) turn(e.movementX, e.movementY); });
+function turn(dx, dy) {
+  cam.yaw -= dx * .0035;
+  if (pov === 1) cam.fp = Math.max(-1.3, Math.min(1.3, cam.fp - dy * .0035));
+  else cam.pitch = Math.max(-.15, Math.min(1.3, cam.pitch + dy * .0035));
+}
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (pov === 1) { if (e.deltaY > 0) { cam.dist = 1.6; setPov(3); } return; }
+  cam.dist *= 1 + e.deltaY * .0012;
+  if (cam.dist < 1.0) setPov(1); else cam.dist = Math.min(12, cam.dist);
+}, { passive: false });
 const ray = new THREE.Raycaster(), floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 function clickWorld(e) {
   const r = cv.getBoundingClientRect(); ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
@@ -600,26 +638,50 @@ function clickWorld(e) {
   if (best >= 0) { me.tx = place.seats[best].x; me.tz = place.seats[best].z + .55; me.want = best; me.seat = -1; return; }
   const hit = new THREE.Vector3(); if (ray.ray.intersectPlane(floorPlane, hit)) { const b = place.bounds; me.tx = Math.max(b[0], Math.min(b[1], hit.x)); me.tz = Math.max(b[2], Math.min(b[3], hit.z)); me.want = -1; me.seat = -1; }
 }
+// phone: thumbstick on the left, jump button on the right, drag anywhere else to look
+if (isTouch) {
+  const stick = $('stick'), knob = $('knob'); stick.style.display = 'block'; $('jump').style.display = 'grid';
+  let id = null, c = null;
+  const move = e => { if (e.pointerId !== id) return; let x = (e.clientX - c[0]) / 50, y = (e.clientY - c[1]) / 50; const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; } joy.x = x; joy.y = y; knob.style.transform = `translate(${x * 34}px, ${y * 34}px)`; };
+  stick.addEventListener('pointerdown', e => { e.stopPropagation(); id = e.pointerId; stick.setPointerCapture(id); const r = stick.getBoundingClientRect(); c = [r.left + r.width / 2, r.top + r.height / 2]; joy.on = true; move(e); });
+  stick.addEventListener('pointermove', move);
+  const end = () => { id = null; joy.on = false; joy.x = joy.y = 0; knob.style.transform = ''; };
+  stick.addEventListener('pointerup', end); stick.addEventListener('pointercancel', end);
+  $('jump').addEventListener('pointerdown', e => { e.stopPropagation(); jump(); });
+}
 
 function angLerp(a, b, k) { let d = ((b - a + PI) % (2 * PI) + 2 * PI) % (2 * PI) - PI; return a + d * k; }
+function jump() {
+  if (me.jy > 0) return;
+  if (me.seat >= 0) { const s = place.seats[me.seat]; me.seat = -1; me.x = s.x; me.z = s.z + .6; me.tx = me.x; me.tz = me.z; }
+  me.want = -1; me.vy = 4.2; me.jy = .001;
+}
 function step(dt) {
-  const b = place.bounds, sp = 2.4;
-  const f = (keys.w || keys.arrowup ? 1 : 0) - (keys.s || keys.arrowdown ? 1 : 0), r = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
-  if (f || r) {
+  const b = place.bounds, sp = 2.6;
+  let f = (keys.w || keys.arrowup ? 1 : 0) - (keys.s || keys.arrowdown ? 1 : 0), r = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
+  if (joy.on) { f = -joy.y; r = joy.x; }
+  const faceCam = pov === 1 || shiftLock;
+  if (Math.hypot(f, r) > .15) {
+    // direct movement relative to the camera, like Roblox
     me.seat = -1; me.want = -1;
-    const vx = -Math.sin(cam.yaw) * f + Math.cos(cam.yaw) * r, vz = -Math.cos(cam.yaw) * f - Math.sin(cam.yaw) * r, l = Math.hypot(vx, vz);
-    me.tx = me.x + vx / l * .4; me.tz = me.z + vz / l * .4;
-  }
-  if (me.seat < 0) {
+    const vx = -Math.sin(cam.yaw) * f + Math.cos(cam.yaw) * r, vz = -Math.cos(cam.yaw) * f - Math.sin(cam.yaw) * r, l = Math.hypot(vx, vz), mag = Math.min(1, l);
+    me.x += vx / l * sp * mag * dt; me.z += vz / l * sp * mag * dt; me.tx = me.x; me.tz = me.z; me.walking = true;
+    if (!faceCam) me.ry = angLerp(me.ry, Math.atan2(vx, vz), Math.min(1, dt * 14));
+  } else if (me.seat < 0) {
     const dx = me.tx - me.x, dz = me.tz - me.z, d = Math.hypot(dx, dz);
     me.walking = d > .03;
-    if (me.walking) { const m = Math.min(d, sp * dt); me.x += dx / d * m; me.z += dz / d * m; me.ry = angLerp(me.ry, Math.atan2(dx, dz), Math.min(1, dt * 12)); }
+    if (me.walking) { const m = Math.min(d, sp * dt); me.x += dx / d * m; me.z += dz / d * m; if (!faceCam) me.ry = angLerp(me.ry, Math.atan2(dx, dz), Math.min(1, dt * 12)); }
     else if (me.want >= 0) { if (them && them.seat === me.want) me.want = -1; else { me.seat = me.want; me.want = -1; } }
-    if (me.want < 0 && me.seat < 0) { me.x = Math.max(b[0], Math.min(b[1], me.x)); me.z = Math.max(b[2], Math.min(b[3], me.z)); }
-  } else { const s = place.seats[me.seat]; me.walking = false; me.x = s.x; me.z = s.z; me.ry = angLerp(me.ry, s.ry, Math.min(1, dt * 10)); }
-  if (them) { const k = Math.min(1, dt * 10); them.x += (them.rx - them.x) * k; them.z += (them.rz - them.z) * k; them.ry = angLerp(them.ry, them.rry, k); }
+  }
+  if (me.seat >= 0) { const s = place.seats[me.seat]; me.walking = false; me.x = s.x; me.z = s.z; me.ry = angLerp(me.ry, s.ry, Math.min(1, dt * 10)); }
+  else {
+    if (faceCam) me.ry = angLerp(me.ry, cam.yaw + PI, Math.min(1, dt * 20));
+    if (me.want < 0) { me.x = Math.max(b[0], Math.min(b[1], me.x)); me.z = Math.max(b[2], Math.min(b[3], me.z)); }
+  }
+  if (me.jy > 0) { me.vy -= 13 * dt; me.jy += me.vy * dt; if (me.jy <= 0) { me.jy = 0; me.vy = 0; } }
+  if (them) { const k = Math.min(1, dt * 10); them.x += (them.rx - them.x) * k; them.z += (them.rz - them.z) * k; them.ry = angLerp(them.ry, them.rry, k); them.jy += ((them.rjy || 0) - (them.jy || 0)) * Math.min(1, dt * 20); }
 }
-function placeChar(mesh, p) { const y = p.seat >= 0 && place.seats[p.seat] ? place.seats[p.seat].y - .05 : 0; mesh.position.set(p.x, y, p.z); mesh.rotation.y = p.ry; }
+function placeChar(mesh, p) { const y = (p.seat >= 0 && place.seats[p.seat] ? place.seats[p.seat].y - .05 : 0) + (p.jy || 0); mesh.position.set(p.x, y, p.z); mesh.rotation.y = p.ry; }
 
 // ---------- hearts ----------
 const heartTex = c => canvasTex(64, 64, (x) => { x.fillStyle = c; x.font = '52px system-ui'; x.textAlign = 'center'; x.fillText('♥', 32, 50); });
@@ -647,7 +709,7 @@ function loop() {
   for (let i = hearts.length - 1; i >= 0; i--) { const h = hearts[i], a = (t - h.t0) / 2.2; if (a > 1) { scene.remove(h.s); hearts.splice(i, 1); continue; } h.s.position.y += dt * .5; h.s.position.x += Math.sin(a * 9 + h.p) * .004; h.s.material.opacity = 1 - a; }
   stepCam(dt);
   composer.render();
-  if (t - lastSent > .066) { lastSent = t; send({ t: 'me', x: +me.x.toFixed(3), z: +me.z.toFixed(3), ry: +me.ry.toFixed(3), seat: me.seat, w: me.walking }); }
+  if (t - lastSent > .066) { lastSent = t; send({ t: 'me', x: +me.x.toFixed(3), z: +me.z.toFixed(3), ry: +me.ry.toFixed(3), seat: me.seat, w: me.walking, j: +me.jy.toFixed(3) }); }
   requestAnimationFrame(loop);
 }
 
@@ -658,14 +720,14 @@ function setStatus(s) { $('status').textContent = s; }
 function onData(m) {
   if (m.t === 'hello') {
     const sp = isHost ? place.spawn[1] : place.spawn[0];
-    them = them || { x: sp[0], z: sp[1], rx: sp[0], rz: sp[1], ry: PI, rry: PI, seat: -1, share: false };
+    them = them || { x: sp[0], z: sp[1], rx: sp[0], rz: sp[1], ry: PI, rry: PI, jy: 0, seat: -1, share: false };
     Object.assign(them, { name: m.name, look: m.look });
     setStatus(`💞 together with ${m.name}`);
     if (m.reply) return;
     send({ t: 'hello', name: me.name, look: me.look, reply: true });
     if (isHost) send({ t: 'place', id: place.id });
     if (myStream) { startCall(); send({ t: 'share', on: true }); }
-  } else if (m.t === 'me' && them) { them.rx = m.x; them.rz = m.z; them.rry = m.ry; them.seat = m.seat; them.walking = m.w; }
+  } else if (m.t === 'me' && them) { them.rx = m.x; them.rz = m.z; them.rry = m.ry; them.seat = m.seat; them.walking = m.w; them.rjy = m.j || 0; }
   else if (m.t === 'place') { if (m.id !== place.id) { setPlace(m.id, false); toast(`${them ? them.name : 'They'} took you to ${place.name}`); } }
   else if (m.t === 'heart' && them) addHeart(them, 'theirs');
   else if (m.t === 'share' && them) {
@@ -734,6 +796,6 @@ $('go').onclick = () => {
   setPlace(PLACES[0].id, false); connect(); loop();
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { me, get them() { return them }, setPlace, togglePov, share, cam, get place() { return place } };
+window.dbg = { me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
