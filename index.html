@@ -40,6 +40,26 @@
   #stick{position:absolute;left:22px;bottom:22px;width:120px;height:120px;border-radius:50%;background:#ffffff14;backdrop-filter:blur(6px);z-index:4;display:none;touch-action:none}
   #knob{position:absolute;left:35px;top:35px;width:50px;height:50px;border-radius:50%;background:#ffcf6bcc;box-shadow:0 0 20px #ff8a3d88;pointer-events:none}
   #jump{position:absolute;right:22px;bottom:70px;width:70px;height:70px;border-radius:50%;border:0;background:#ffffff1c;color:#ffcf6b;font-size:28px;z-index:4;display:none;place-items:center;touch-action:none}
+  #hud{position:absolute;left:50%;top:58px;transform:translateX(-50%);z-index:3;padding:8px 18px;border-radius:999px;background:#000000aa;backdrop-filter:blur(8px);font-weight:700;color:#ffcf6b;display:none;white-space:nowrap;pointer-events:none}
+  #blind{position:absolute;inset:0;z-index:2;background:#050308f2;display:none;align-items:center;justify-content:center;font-size:110px;font-weight:800;color:#ffcf6b;text-shadow:0 0 40px #ff8a3d;pointer-events:none}
+  #panel{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);z-index:5;width:min(94%,560px);max-height:70%;overflow:auto;padding:16px;border-radius:30px;background:#140c18ee;box-shadow:0 0 50px #ff8a3d33;display:none}
+  #panel h3{margin:0 0 10px;font-size:15px;color:#ffcf6b}
+  #panel .grid{display:flex;flex-wrap:wrap;gap:8px}
+  .tile{border:0;border-radius:22px;padding:10px 14px;background:#ffffff12;color:#f6e7cf;font:inherit;cursor:pointer;text-align:left;flex:1 1 150px}
+  .tile:hover{background:#ffffff22}
+  .tile b{display:block;font-size:15px;margin-bottom:2px}.tile span{font-size:12px;opacity:.65}
+  .tile.emo{flex:none;font-size:24px;width:50px;height:50px;border-radius:50%;padding:0;text-align:center}
+  .sw{width:28px;height:28px;border-radius:50%;border:2px solid #ffffff33;cursor:pointer;padding:0;color:#fff;font-size:12px}
+  .sw.on{border-color:#ffcf6b;box-shadow:0 0 12px #ffcf6b88}
+  .row{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;font-size:13px}
+  .hintrow{opacity:.6;font-size:12px}
+  .tile[disabled]{opacity:.45;cursor:default}
+  .tile.sel{box-shadow:0 0 0 2px #ffcf6b}
+  #flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:30}
+  #photo{position:fixed;inset:0;z-index:25;background:#050308cc;display:none;align-items:center;justify-content:center;padding:16px}
+  #photoCard{max-width:min(92vw,560px);text-align:center}
+  #photoImg{width:100%;border-radius:10px;transform:rotate(-2deg);box-shadow:0 20px 60px #000a, 0 0 40px #ff8a3d33}
+  a.pill{text-decoration:none;display:inline-block}
   #loading{position:absolute;inset:0;display:grid;place-items:center;color:#ffcf6b;opacity:.7;z-index:1;pointer-events:none}
 </style>
 </head><body>
@@ -49,15 +69,19 @@
     <div class="vig"></div><div class="grain"></div>
     <div id="stick"><div id="knob"></div></div>
     <button id="jump">⤒</button>
-    <div id="top"><span id="status">…</span><button class="pill" id="invite">💌 Invite link</button></div>
+    <div id="top"><span id="status">…</span><button class="pill" id="invite">💌 Invite link</button><span style="flex:1"></span><button class="pill" id="hats">🎩</button><button class="pill" id="games">🎲 Games</button><button class="pill" id="decor">🛋 Decorate</button></div>
+    <div id="hud"></div><div id="blind"></div><div id="panel"></div>
     <div id="actions">
       <button class="pill" id="pov" title="Switch view (V)">👀 3rd person</button>
+      <button class="pill" id="emote" title="Emotes (1-6)">😊</button>
+      <button class="pill" id="snap" title="Photo booth">📸</button>
+      <button class="pill" id="pop" title="Throw popcorn (F)">🍿</button>
       <button class="pill" id="heart" title="Send a heart (H)">♥</button>
       <button class="pill" id="share" title="Put a Chrome tab on the screen">🎮 Share a tab</button>
     </div>
   </div>
   <div id="places"></div>
-  <div id="hint">WASD move · Space jump · drag to turn · scroll in for 1st person · Shift lock · click a seat to sit · H hearts</div>
+  <div id="hint">WASD move · Space jump · drag to turn · scroll in for 1st person · Shift lock · F popcorn · 1-6 emotes · H hearts</div>
 </div>
 <video id="vid" autoplay playsinline style="display:none"></video>
 
@@ -69,6 +93,8 @@
   <button class="pill on" id="go">Make our room</button>
 </div></div>
 <div id="toast"></div>
+<div id="flash"></div>
+<div id="photo"><div id="photoCard"><img id="photoImg" alt="our photo"><div class="row" style="justify-content:center"><a class="pill on" id="photoSave" download="our-little-screen.png">💾 Save</a><button class="pill" id="photoClose">Close</button></div></div></div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -299,7 +325,7 @@ const PLACES = [
    put(hangingPlant(1.1), 3.6, 2.6, 1.6, g); put(hangingPlant(.9), -3.6, 2.7, -3.2, g);
    for (const [z, c] of [[1.5, '#ff8a3d'], [2.6, '#a77bff']]) { const f = put(rbox(.05, .7, .55, '#3a2418', .03), 4.88, 1.8, z, g); put(rbox(.02, .55, .4, c, .02), 4.85, 1.8, z, g); }
    const fairy = stringLights([-4.8, 3.2, -3.85], [4.8, 3.2, -3.85], .35, 24, '#ffcf6b', g);
-   return { g, scr, seats: [{ x: -.62, z: 1.55, y: .55, ry: PI }, { x: .62, z: 1.55, y: .55, ry: PI }], bounds: [-4.5, 4.5, -3.1, 3.6], cam: [-4.7, 4.7, -3.6, 6, 3.2], spawn: [[-1, 2.9], [1, 2.9]],
+   return { g, scr, wallMats: [wall], seats: [{ x: -.62, z: 1.55, y: .55, ry: PI }, { x: .62, z: 1.55, y: .55, ry: PI }], bounds: [-4.5, 4.5, -3.1, 3.6], cam: [-4.7, 4.7, -3.6, 6, 3.2], spawn: [[-1, 2.9], [1, 2.9]],
      env: { bg: '#1a0f0c', fog: null },
      tick(t) {
        const h = hourNow(), L = daylight(h), dark = 1 - L, [sa, sb] = skyAt(h);
@@ -336,7 +362,7 @@ const PLACES = [
    beam(g, [0, 5, 6.8], [0, 2.9, -6.6], 3.6, .03);
    put(rbox(.6, .5, .2, '#1a0a10', .05), 0, 5, 6.85, g); put(new THREE.Mesh(SPH, GLOW('#fff3c4', 5)), 0, 5, 6.72, g).scale.setScalar(.09);
    const pop = new THREE.Group(); put(cyl(.13, .1, .26, '#fff4e2'), 0, .13, 0, pop); for (let i = 0; i < 8; i++) put(new THREE.Mesh(SPH, M('#ffe7a8')), Math.cos(i) * .07, .27 + (i % 3) * .02, Math.sin(i) * .07, pop).scale.setScalar(.05); pop.position.set(0, .62, 1.95); pop.scale.setScalar(.9); g.add(pop);
-   return { g, scr, seats, bounds: [-6, 6, -5, 6], cam: [-6.6, 6.6, -6, 6.8, 5.5], spawn: [[-1, 5], [1, 5]],
+   return { g, scr, wallMats: [wall], seats, bounds: [-6, 6, -5, 6], cam: [-6.6, 6.6, -6, 6.8, 5.5], spawn: [[-1, 5], [1, 5]],
      env: { bg: '#0d0610', fog: null, hemi: ['#ff9a7a', '#1a0810', .5] }, tick() {} };
  } },
 
@@ -550,6 +576,7 @@ function setPlace(id, broadcast = true) {
   Object.assign(me, { x: mine[0], z: mine[1], tx: mine[0], tz: mine[1], seat: -1, want: -1, ry: PI });
   if (them) Object.assign(them, { x: theirs[0], z: theirs[1], rx: theirs[0], rz: theirs[1], seat: -1 });
   cam.yaw = 0; cam.pitch = .22; cam.fp = 0; snapCam = true; me.jy = 0; me.vy = 0;
+  onPlaceChanged();
   if (broadcast) send({ t: 'place', id: place.id });
 }
 for (const p of PLACES) { const b = document.createElement('button'); b.className = 'pill'; b.textContent = p.name; b.dataset.id = p.id; b.onclick = () => setPlace(p.id); $('places').appendChild(b); }
@@ -617,7 +644,7 @@ cv.addEventListener('pointermove', e => {
   if (drag.moved < 6 && drag.btn !== 2) return;
   turn(dx * 1.6, dy * 1.6);
 });
-cv.addEventListener('pointerup', e => { if (drag && drag.moved < 6 && drag.btn === 0 && pov === 3) clickWorld(e); drag = null; });
+cv.addEventListener('pointerup', e => { if (drag && drag.moved < 6 && drag.btn === 0 && pov === 3) (decorating ? decoClick(e) : clickWorld(e)); drag = null; });
 document.addEventListener('mousemove', e => { if (locked()) turn(e.movementX, e.movementY); });
 function turn(dx, dy) {
   cam.yaw -= dx * .0035;
@@ -657,9 +684,10 @@ function jump() {
   me.want = -1; me.vy = 4.2; me.jy = .001;
 }
 function step(dt) {
-  const b = place.bounds, sp = 2.6;
+  const b = place.bounds, sp = 2.6 * speedMul();
   let f = (keys.w || keys.arrowup ? 1 : 0) - (keys.s || keys.arrowdown ? 1 : 0), r = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
   if (joy.on) { f = -joy.y; r = joy.x; }
+  if (isFrozen()) { f = r = 0; me.tx = me.x; me.tz = me.z; me.want = -1; }
   const faceCam = pov === 1 || shiftLock;
   if (Math.hypot(f, r) > .15) {
     // direct movement relative to the camera, like Roblox
@@ -695,6 +723,414 @@ function sendHeart() { addHeart(me, 'mine'); send({ t: 'heart' }); }
 $('heart').onclick = sendHeart;
 const cuddle = new THREE.Sprite(new THREE.SpriteMaterial({ map: heartTexs.mine, transparent: true, depthWrite: false })); cuddle.scale.setScalar(.35); scene.add(cuddle);
 
+// ---------- fun: popcorn, little games, decorating ----------
+const myRole = () => isHost ? 'host' : 'guest';
+const otherRole = () => isHost ? 'guest' : 'host';
+const nameOf = role => role === myRole() ? me.name : (them ? them.name : '…');
+const fmt = s => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.floor(Math.max(0, s) % 60)).padStart(2, '0')}`;
+const textTexCache = {};
+function textTex(txt, color) {
+  return textTexCache[txt + color] ||= canvasTex(320, 96, (x, w) => { x.font = '700 50px ui-rounded, system-ui'; x.textAlign = 'center'; x.lineWidth = 10; x.strokeStyle = '#1a0d06aa'; x.strokeText(txt, w / 2, 64); x.fillStyle = color; x.fillText(txt, w / 2, 64); });
+}
+function floatText(p, txt, color = '#fff4e2') {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTex(txt, color), transparent: true, depthWrite: false, depthTest: false }));
+  sp.scale.set(1, .3, 1); sp.position.copy(headOf(p)).add(new THREE.Vector3(0, .6, 0)); sp.renderOrder = 11; scene.add(sp);
+  hearts.push({ s: sp, t0: clock.elapsedTime, p: 0 });
+}
+function burst() { for (let i = 0; i < 7; i++) setTimeout(() => addHeart(me, 'mine'), i * 90); }
+
+// popcorn: throw it at them (boop!) or toss it up and catch it in your mouth (nom!)
+const pops = []; let boops = 0;
+const popMats = [M('#fff4e2', { roughness: .7 }), M('#ffe7a8', { roughness: .7 })];
+function popMesh() {
+  const g = new THREE.Group();
+  for (let i = 0; i < 4; i++) put(new THREE.Mesh(SPH, popMats[i % 2]), Math.sin(i * 2.1) * .03, Math.cos(i * 1.7) * .03, Math.sin(i * 3.3) * .03, g).scale.setScalar(.035 + (i % 2) * .012);
+  return g;
+}
+function spawnPop(pos, v, owner) {
+  const m = popMesh(); m.position.copy(pos); scene.add(m);
+  pops.push({ m, v: v.clone(), owner, t0: clock.elapsedTime, landed: false });
+  if (pops.length > 80) scene.remove(pops.shift().m);
+}
+function throwPop() {
+  if (!place) return;
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  const flat = new THREE.Vector3(dir.x, 0, dir.z).normalize();
+  const pos = headOf(me).add(new THREE.Vector3(0, .1, 0)).addScaledVector(flat, .25);
+  const v = dir.clone().multiplyScalar(5.5).add(new THREE.Vector3(0, 2, 0));
+  spawnPop(pos, v, 'mine');
+  send({ t: 'pop', p: pos.toArray().map(n => +n.toFixed(3)), v: v.toArray().map(n => +n.toFixed(3)) });
+}
+function tickPops(dt, t) {
+  const head = headOf(me), body = head.clone().add(new THREE.Vector3(0, -.45, 0));
+  for (let i = pops.length - 1; i >= 0; i--) {
+    const o = pops[i], kill = () => { scene.remove(o.m); pops.splice(i, 1); };
+    if (o.landed) { if (t - o.t0 > 8) kill(); continue; }
+    o.v.y -= 9 * dt; o.m.position.addScaledVector(o.v, dt); o.m.rotation.x += dt * 8; o.m.rotation.z += dt * 6;
+    if (o.v.y < 0 && t - o.t0 > .25 && o.m.position.distanceTo(head) < .38) { floatText(me, 'nom! 🍿', '#ffcf6b'); send({ t: 'nom' }); kill(); continue; }
+    if (o.owner === 'theirs' && (o.m.position.distanceTo(body) < .38 || o.m.position.distanceTo(head) < .32)) { floatText(me, 'boop!', '#ff7a59'); me.squish = 1; send({ t: 'booped' }); kill(); continue; }
+    if (o.m.position.y <= .03) { o.m.position.y = .03; o.landed = true; o.t0 = t; }
+  }
+}
+$('pop').onclick = throwPop;
+
+// little games: tag, hide & seek, star race
+let game = null;
+const hud = $('hud'), blind = $('blind');
+const itRing = new THREE.Mesh(new THREE.TorusGeometry(.17, .03, 8, 32), GLOW('#ff5a3d', 3)); itRing.rotation.x = PI / 2;
+const starGeo = new THREE.OctahedronGeometry(1, 0);
+function speedMul() { return game && game.mode === 'tag' && game.it === myRole() ? 1.18 : 1; }
+function isFrozen() { return !!(game && game.mode === 'hide' && game.seeker === myRole() && clock.elapsedTime - game.t0 < game.count); }
+function newGame(mode) {
+  if (mode !== 'stars' && !them) { toast('Invite them first ♥ this one needs two'); return; }
+  let g;
+  if (mode === 'tag') g = { mode, it: Math.random() < .5 ? 'host' : 'guest', dur: 90 };
+  if (mode === 'hide') g = { mode, seeker: myRole(), dur: 75, count: 12 };
+  if (mode === 'stars') {
+    const b = place.bounds, pts = [];
+    for (let i = 0; i < 12; i++) pts.push([+(b[0] + .4 + Math.random() * (b[1] - b[0] - .8)).toFixed(2), +(b[2] + .4 + Math.random() * (b[3] - b[2] - .8)).toFixed(2)]);
+    g = { mode, pts, dur: 45 };
+  }
+  send({ t: 'game', g }); beginGame(g);
+}
+function beginGame(g) {
+  endGame(true);
+  game = { ...g, t0: clock.elapsedTime, score: { host: 0, guest: 0 }, cool: 0 };
+  closePanel();
+  if (g.mode === 'tag') toast(g.it === myRole() ? '🏃 Tag! You are it, go catch them' : `🏃 Tag! ${nameOf(g.it)} is it, run!`);
+  if (g.mode === 'hide') { if (g.seeker === myRole()) { setPov(1); toast('🙈 Count to 12… no peeking!'); } else toast(`🙈 Hide! ${nameOf(g.seeker)} is counting`); }
+  if (g.mode === 'stars') { game.stars = g.pts.map(([x, z]) => { const st = put(new THREE.Mesh(starGeo, GLOW('#ffcf6b', 3)), x, .7, z, scene); st.scale.setScalar(.15); return st; }); toast('⭐ Star race! Grab the most stars'); }
+}
+function endGame(silent, msg) {
+  if (!game) return;
+  if (game.stars) game.stars.forEach(st => st && scene.remove(st));
+  if (itRing.parent) itRing.parent.remove(itRing);
+  const wasSeeker = game.mode === 'hide' && game.seeker === myRole();
+  game = null; hud.style.display = 'none'; blind.style.display = 'none';
+  if (wasSeeker) setPov(3);
+  if (!silent && msg) { toast(msg); burst(); }
+}
+function tickGame(t) {
+  if (!game) { hud.style.display = 'none'; return; }
+  const el = t - game.t0, left = game.dur - el; let txt = '';
+  if (game.mode === 'tag') {
+    const holder = game.it === myRole() ? meMesh : themMesh;
+    if (holder && itRing.parent !== holder) { holder.add(itRing); itRing.position.set(0, 1.3, 0); }
+    itRing.rotation.z = t * 3;
+    if (game.it === myRole() && them && el > game.cool && Math.hypot(me.x - them.x, me.z - them.z) < .75) { game.it = otherRole(); game.cool = el + 1.5; send({ t: 'tag' }); floatText(them, 'tag!', '#ff7a59'); }
+    txt = `🏃 Tag · ${fmt(left)} · ${game.it === myRole() ? 'you are it!' : nameOf(game.it) + ' is it'}`;
+    if (left <= 0) return endGame(false, game.it === myRole() ? '🏃 You were it at the end… you lose 😝' : `🏃 ${nameOf(game.it)} was it at the end… you win!`);
+  } else if (game.mode === 'hide') {
+    const seeker = game.seeker === myRole();
+    if (el < game.count) {
+      txt = `🙈 ${seeker ? 'Counting' : nameOf(game.seeker) + ' is counting'} · ${Math.ceil(game.count - el)}`;
+      blind.style.display = seeker ? 'flex' : 'none'; blind.textContent = Math.ceil(game.count - el);
+    } else {
+      blind.style.display = 'none';
+      txt = `🙈 ${seeker ? 'Find them!' : 'Stay hidden!'} · ${fmt(left)}`;
+      if (seeker && them && Math.hypot(me.x - them.x, me.z - them.z) < .9) { send({ t: 'found' }); floatText(them, 'found you!', '#ffcf6b'); return endGame(false, '🙈 Found them! You win'); }
+      if (left <= 0) return endGame(false, seeker ? '🙈 Time! They stayed hidden' : '🙈 Time! You stayed hidden, you win');
+    }
+  } else if (game.mode === 'stars') {
+    game.stars.forEach((st, i) => {
+      if (!st) return; st.rotation.y = t * 2 + i; st.position.y = .7 + Math.sin(t * 3 + i) * .08;
+      if (Math.hypot(me.x - st.position.x, me.z - st.position.z) < .6) { scene.remove(st); game.stars[i] = null; game.score[myRole()]++; send({ t: 'star', i }); floatText(me, '+1 ⭐', '#ffcf6b'); }
+    });
+    const a = game.score[myRole()], b = game.score[otherRole()];
+    txt = them ? `⭐ you ${a} · ${nameOf(otherRole())} ${b} · ${fmt(left)}` : `⭐ ${a} stars · ${fmt(left)}`;
+    if (left <= 0 || game.stars.every(st => !st)) return endGame(false, !them ? `⭐ You got ${a} stars!` : a > b ? `⭐ You win ${a}–${b}!` : a < b ? `⭐ ${nameOf(otherRole())} wins ${b}–${a}` : `⭐ Tie ${a}–${b} ♥`);
+  }
+  hud.style.display = 'block'; hud.textContent = txt;
+}
+
+// decorating: cute things you place in each room, plus wall colour and mood light (shared + saved)
+function flowers() { const g = new THREE.Group(); put(cyl(.1, .08, .26, M('#a77bff', { roughness: .3 })), 0, .13, 0, g); const cols = ['#ff9ab8', '#ffcf6b', '#fff4e2', '#ff7a59', '#ffb3c6']; for (let i = 0; i < 7; i++) { const a = i * 2.4; put(cyl(.006, .006, .3, '#5fa04a', 5), Math.cos(a) * .05, .4, Math.sin(a) * .05, g); put(new THREE.Mesh(SPH, M(cols[i % 5], { roughness: .6 })), Math.cos(a) * .12, .56 + (i % 3) * .03, Math.sin(a) * .12, g).scale.setScalar(.05); } return g; }
+function candles() { const g = new THREE.Group(); [[0, 0, .28], [.12, .05, .2], [-.1, .07, .15]].forEach(([x, z, h]) => { put(cyl(.045, .045, h, '#fff4e2', 12), x, h / 2, z, g); put(new THREE.Mesh(SPH, GLOW('#ffcf6b', 5)), x, h + .04, z, g).scale.set(.018, .035, .018); }); return g; }
+function teddy() { const g = new THREE.Group(), c = M('#a8703e', { roughness: 1 }), l = M('#d8a878', { roughness: 1 }), k0 = M('#1a0d06'); put(ell(.17, .19, .15, c), 0, .19, 0, g); put(ell(.14, .13, .13, c), 0, .44, 0, g); for (const k of [-1, 1]) { put(ell(.05, .05, .04, c), k * .1, .56, 0, g); put(ell(.05, .08, .05, c), k * .17, .24, .04, g); put(ell(.06, .05, .08, c), k * .09, .05, .08, g); put(ell(.013, .013, .01, k0), k * .045, .47, .12, g); } put(ell(.06, .045, .04, l), 0, .41, .11, g); put(ell(.018, .014, .01, k0), 0, .43, .15, g); put(ell(.05, .025, .02, M('#ff7a9a')), 0, .33, .13, g); return g; }
+function beanbag() { const g = new THREE.Group(), c = M('#ff9ab8', { roughness: .95 }); put(ell(.5, .3, .5, c), 0, .28, 0, g); put(ell(.36, .28, .16, c), 0, .5, -.34, g); return g; }
+function mushroomLamp() { const g = new THREE.Group(); put(cyl(.05, .07, .3, '#fff4e2', 12), 0, .15, 0, g); put(new THREE.Mesh(new THREE.SphereGeometry(.2, 24, 12, 0, PI * 2, 0, PI / 2), GLOW('#ff8aa8', 1.6)), 0, .28, 0, g); for (let i = 0; i < 5; i++) put(new THREE.Mesh(SPH, GLOW('#fff4e2', 2)), Math.cos(i * 1.3) * .12, .43, Math.sin(i * 1.3) * .12, g).scale.setScalar(.025); return g; }
+function fairyOrb() { const g = new THREE.Group(); put(cyl(.12, .14, .06, '#3a2418', 16), 0, .03, 0, g); put(new THREE.Mesh(SPH, new THREE.MeshStandardMaterial({ color: '#ffffff', transparent: true, opacity: .18, roughness: .05 })), 0, .24, 0, g).scale.setScalar(.18); for (let i = 0; i < 9; i++) put(new THREE.Mesh(SPH, GLOW(i % 2 ? '#ffcf6b' : '#b6ff3b', 4)), Math.sin(i * 2.1) * .1, .24 + Math.cos(i * 1.7) * .09, Math.cos(i * 2.9) * .1, g).scale.setScalar(.013); return g; }
+function books() { const g = new THREE.Group(); ['#a77bff', '#ff8a3d', '#7cc0a0', '#ffcf6b'].forEach((c, i) => { put(rbox(.32 - i * .02, .06, .24, c, .015), 0, .03 + i * .062, 0, g).rotation.y = i % 2 ? .15 : -.1; }); put(cyl(.04, .035, .08, '#fff4e2', 12), .02, .29, 0, g); return g; }
+function sleepyCat() { const g = new THREE.Group(), c = M('#ffb347', { roughness: 1 }); put(cyl(.3, .3, .06, M('#a77bff', { roughness: 1 }), 24), 0, .03, 0, g); put(ell(.2, .12, .16, c), 0, .15, 0, g); put(ell(.1, .09, .09, c), .1, .18, .1, g); for (const k of [-1, 1]) { put(new THREE.Mesh(new THREE.ConeGeometry(.035, .07, 8), c), .1 + k * .05, .28, .1, g); put(rbox(.03, .006, .01, '#1a0d06', .002), .1 + k * .035, .19, .19, g); } const tail = put(new THREE.Mesh(new THREE.TorusGeometry(.17, .03, 8, 20, PI * .9), c), 0, .08, .02, g); tail.rotation.x = PI / 2; return g; }
+function balloons() { const g = new THREE.Group(); put(cyl(.06, .08, .06, '#fff4e2', 12), 0, .03, 0, g); [['#ff7a9a', -.14, 1.5], ['#ffcf6b', .12, 1.6], ['#a77bff', 0, 1.78]].forEach(([c, x, y]) => { const st = put(cyl(.003, .003, y, '#ffffff', 4), x / 2, y / 2, 0, g); st.rotation.z = -x * .5; put(ell(.15, .18, .15, M(c, { roughness: .25 })), x, y, 0, g); }); g.userData.sway = [g]; return g; }
+function popBucket() { const g = new THREE.Group(); put(cyl(.16, .12, .32, '#fff4e2', 16), 0, .16, 0, g); for (let i = 0; i < 6; i++) put(rbox(.04, .31, .02, '#ff5a5a', .01), Math.cos(i * PI / 3) * .145, .16, Math.sin(i * PI / 3) * .145, g).rotation.y = -i * PI / 3 + PI / 2; for (let i = 0; i < 14; i++) put(new THREE.Mesh(SPH, popMats[i % 2]), Math.cos(i * 2.4) * .05 * (i % 3), .34 + (i % 4) * .025, Math.sin(i * 2.4) * .05 * (i % 3), g).scale.setScalar(.045); return g; }
+const DECO = [['plant', '🪴', () => plant(1.1)], ['tall', '🌿', () => plant(1.4, 1)], ['flowers', '🌸', flowers], ['candles', '🕯', candles], ['teddy', '🧸', teddy], ['beanbag', '🫧', beanbag],
+  ['mushroom', '🍄', mushroomLamp], ['orb', '✨', fairyOrb], ['books', '📚', books], ['cat', '🐈', sleepyCat], ['balloons', '🎈', balloons], ['popcorn', '🍿', popBucket]];
+const DECO_BUILD = Object.fromEntries(DECO.map(([k, , f]) => [k, f]));
+const WALLS = ['', '#f2d4d4', '#d4e4c8', '#d8ccf0', '#f6e7cf', '#2a2a4a'];
+const MOODS = ['', '#ff7a9a', '#a77bff', '#5ab0ff', '#b6ff3b', '#ffb347'];
+const moodLight = new THREE.PointLight('#ffffff', 0, 0, 1.6); moodLight.position.set(0, 2.6, .5); scene.add(moodLight);
+let decoState = {}; try { decoState = JSON.parse(localStorage.getItem('ols-deco') || '{}'); } catch {}
+const decoOf = id => decoState[id] ||= { items: [], wall: '', mood: '' };
+function saveDeco() { try { localStorage.setItem('ols-deco', JSON.stringify(decoState)); } catch {} }
+function rebuildDeco(id) {
+  const pl = built[id]; if (!pl) return; const st = decoOf(id);
+  if (pl.deco) pl.g.remove(pl.deco);
+  pl.deco = new THREE.Group(); pl.g.add(pl.deco);
+  st.items.forEach((it, i) => { const f = DECO_BUILD[it.k]; if (!f) return; const m = f(); m.position.set(it.x, 0, it.z); m.rotation.y = it.r || 0; m.userData.decoIndex = i; pl.deco.add(m); });
+  (pl.wallMats || []).forEach(mt => { mt.userData.base ||= '#' + mt.color.getHexString(); mt.color.set(st.wall || mt.userData.base); });
+}
+function applyMood() { const st = decoOf(place.id); moodLight.intensity = st.mood ? 10 : 0; if (st.mood) moodLight.color.set(st.mood); }
+function decoChanged(id = place.id) { saveDeco(); send({ t: 'deco', id, d: decoOf(id) }); rebuildDeco(id); applyMood(); }
+
+let decorating = false, held = null, lastPtr = null;
+const panel = $('panel');
+function closePanel() { panel.style.display = 'none'; panel.dataset.k = ''; }
+function dropHeld() { if (held) { scene.remove(held.mesh); held = null; } }
+function pickCatalog(k) { dropHeld(); held = { k, r: 0, mesh: DECO_BUILD[k]() }; scene.add(held.mesh); }
+function toggleDecorate() {
+  decorating = !decorating; $('decor').classList.toggle('on', decorating);
+  if (!decorating) { dropHeld(); closePanel(); return; }
+  if (pov === 1) setPov(3); if (shiftLock) setShiftLock(false);
+  renderDecoPanel();
+}
+function renderDecoPanel() {
+  const st = decoOf(place.id), walls = place.wallMats;
+  panel.dataset.k = 'deco';
+  panel.innerHTML = `<h3>🛋 Decorate ${place.name}</h3>
+    <div class="grid">${DECO.map(([k, e]) => `<button class="tile emo" data-k="${k}" title="${k}">${e}</button>`).join('')}</div>
+    ${walls ? `<div class="row">Walls ${WALLS.map(c => `<button class="sw${st.wall === c ? ' on' : ''}" data-w="${c}" style="background:${c || walls[0].userData.base || '#e8cfae'}"></button>`).join('')}</div>` : ''}
+    <div class="row">Mood light ${MOODS.map(c => `<button class="sw${st.mood === c ? ' on' : ''}" data-m="${c}" style="background:${c || '#2a2030'}">${c ? '' : '✕'}</button>`).join('')}</div>
+    <div class="row hintrow">Pick something, then click the floor to place it · click a placed thing to move it · R rotates · Delete removes</div>
+    <div class="row"><button class="pill" data-rot>↻ Rotate</button><button class="pill" data-del>🗑 Remove</button><button class="pill" data-clear>Clear room</button><button class="pill on" data-done>Done</button></div>`;
+  panel.style.display = 'block';
+  panel.querySelectorAll('[data-k]').forEach(b => b.onclick = () => pickCatalog(b.dataset.k));
+  panel.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { st.wall = b.dataset.w; decoChanged(); renderDecoPanel(); });
+  panel.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { st.mood = b.dataset.m; decoChanged(); renderDecoPanel(); });
+  panel.querySelector('[data-rot]').onclick = () => { if (held) held.r += PI / 4; };
+  panel.querySelector('[data-del]').onclick = dropHeld;
+  panel.querySelector('[data-clear]').onclick = () => { if (confirm('Remove everything you placed here?')) { st.items = []; decoChanged(); } };
+  panel.querySelector('[data-done]').onclick = toggleDecorate;
+}
+function floorAt(cx, cy) {
+  const r = cv.getBoundingClientRect(); ray.setFromCamera(new THREE.Vector2((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
+  const hit = new THREE.Vector3(); if (!ray.ray.intersectPlane(floorPlane, hit)) return null;
+  const b = place.bounds; return [Math.max(b[0] - .4, Math.min(b[1] + .4, hit.x)), Math.max(b[2] - .6, Math.min(b[3] + .4, hit.z))];
+}
+function decoClick(e) {
+  const st = decoOf(place.id);
+  if (held) { const f = floorAt(e.clientX, e.clientY); if (!f) return; st.items.push({ k: held.k, x: +f[0].toFixed(2), z: +f[1].toFixed(2), r: +held.r.toFixed(2) }); dropHeld(); decoChanged(); return; }
+  if (!place.deco) return;
+  const hit = ray.intersectObject(place.deco, true)[0]; if (!hit) return;
+  let o = hit.object; while (o && o.userData.decoIndex === undefined) o = o.parent;
+  if (!o) return;
+  const [it] = st.items.splice(o.userData.decoIndex, 1); decoChanged();
+  held = { k: it.k, r: it.r || 0, mesh: DECO_BUILD[it.k]() }; scene.add(held.mesh);
+}
+cv.addEventListener('pointermove', e => lastPtr = [e.clientX, e.clientY]);
+cv.addEventListener('pointerdown', e => lastPtr = [e.clientX, e.clientY]);
+$('decor').onclick = toggleDecorate;
+
+function openGames() {
+  if (panel.dataset.k === 'games') return closePanel();
+  if (decorating) toggleDecorate();
+  panel.dataset.k = 'games';
+  panel.innerHTML = `<h3>🎲 Little games</h3><div class="grid">${[['tag', '🏃 Tag', 'Catch each other. Whoever is it at the end loses'], ['hide', '🙈 Hide & seek', 'You count, they hide, then go find them'], ['stars', '⭐ Star race', 'Grab more glowing stars than them']].map(([k, a, b]) => `<button class="tile" data-g="${k}"><b>${a}</b><span>${b}</span></button>`).join('')}</div>
+    ${game ? '<div class="row"><button class="pill" data-stop>Stop the game</button></div>' : ''}
+    <div class="row hintrow">🍿 Press F (or tap 🍿) to throw popcorn: boop them, or toss it up and catch it in your mouth</div>`;
+  panel.style.display = 'block';
+  panel.querySelectorAll('[data-g]').forEach(b => b.onclick = () => newGame(b.dataset.g));
+  const stop = panel.querySelector('[data-stop]'); if (stop) stop.onclick = () => { send({ t: 'gameEnd' }); endGame(true); toast('Game stopped'); closePanel(); };
+}
+$('games').onclick = openGames;
+
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.repeat) return;
+  const k = e.key.toLowerCase();
+  if (k === 'f' && !decorating) throwPop();
+  if (decorating && held) { if (k === 'r') held.r += PI / 4; if (k === 'delete' || k === 'backspace' || k === 'escape') dropHeld(); }
+});
+
+// emotes + hugs
+const EMOTES = [['wave', '👋', 'Wave'], ['dance', '💃', 'Dance'], ['kiss', '😘', 'Blow a kiss'], ['hug', '🤗', 'Hug'], ['laugh', '😂', 'Laugh'], ['sleep', '😴', 'Sleepy']];
+function doEmote(k) {
+  if (k === 'hug') {
+    if (!them || Math.hypot(me.x - them.x, me.z - them.z) > 2.5) { toast('Walk closer to hug 🤗'); return; }
+    const d = Math.hypot(them.x - me.x, them.z - me.z) || 1; me.seat = -1; me.want = -1;
+    me.tx = them.x - (them.x - me.x) / d * .5; me.tz = them.z - (them.z - me.z) / d * .5;
+  }
+  me.emote = { k, t0: clock.elapsedTime }; send({ t: 'emote', k }); emoteFx(me, k); closePanel();
+}
+function emoteFx(p, k) {
+  const mine = p === me ? 'mine' : 'theirs';
+  if (k === 'wave') floatText(p, 'hi!', '#fff4e2');
+  if (k === 'dance') floatText(p, '♪ ♫', '#b6ff3b');
+  if (k === 'laugh') floatText(p, 'hehe!', '#ffcf6b');
+  if (k === 'sleep') floatText(p, 'z z z', '#cdb8ff');
+  if (k === 'kiss') { floatText(p, '😘', '#ff9ab8'); for (let i = 0; i < 4; i++) setTimeout(() => addHeart(p, mine), i * 150); }
+  if (k === 'hug') { floatText(p, '🤗', '#ffcf6b'); for (let i = 0; i < 7; i++) setTimeout(() => addHeart(p, mine), 500 + i * 120); }
+}
+function animEmote(p, mesh, t) {
+  const u = mesh.userData; u.body.rotation.set(0, 0, 0); u.arms.forEach(a => a.rotation.z = 0);
+  const e = p.emote; if (!e) return;
+  const el = t - e.t0, hug = e.k === 'hug' || e.k === 'hug-back', dur = e.k === 'sleep' ? 4.5 : hug ? 3.2 : 2.6;
+  if (el > dur || (p === me && !hug && (me.walking || me.jy > 0))) { p.emote = null; return; }
+  if (e.k === 'wave') { u.arms[1].position.set(.3, .74, .06); u.arms[1].rotation.z = .4 + Math.sin(t * 14) * .5; }
+  if (e.k === 'dance') { u.body.rotation.y = Math.sin(t * 8) * .6; u.body.position.y = Math.abs(Math.sin(t * 8)) * .08; u.arms.forEach((a, i) => a.position.y = .6 + Math.sin(t * 8 + i * PI) * .15); }
+  if (e.k === 'kiss') u.arms[0].position.set(-.06, .78, .28);
+  if (e.k === 'laugh') { u.body.position.y = Math.abs(Math.sin(t * 16)) * .05; u.body.rotation.x = -.2; }
+  if (e.k === 'sleep') { u.body.rotation.z = .35; u.body.position.y = -.05 + Math.sin(t * 2) * .02; const z = Math.floor(el / 1.3); if (z !== e.z) { e.z = z; if (z > 0) floatText(p, 'z', '#cdb8ff'); } }
+  if (hug) {
+    u.arms.forEach((a, i) => { a.position.set(i ? .2 : -.2, .5, .26); a.rotation.z = i ? .9 : -.9; });
+    if (p === me && them) me.ry = Math.atan2(them.x - me.x, them.z - me.z);
+  }
+}
+function openEmotes() {
+  if (panel.dataset.k === 'emotes') return closePanel();
+  if (decorating) toggleDecorate();
+  panel.dataset.k = 'emotes';
+  panel.innerHTML = `<h3>😊 Emotes</h3><div class="grid">${EMOTES.map(([k, e, n], i) => `<button class="tile" data-e="${k}"><b>${e} ${n}</b><span>key ${i + 1}</span></button>`).join('')}</div><div class="row hintrow">Hug works when you're close to them 🤗</div>`;
+  panel.style.display = 'block';
+  panel.querySelectorAll('[data-e]').forEach(b => b.onclick = () => doEmote(b.dataset.e));
+}
+$('emote').onclick = openEmotes;
+
+// hat hunt: little stars hidden in every place unlock hats
+const HIDDEN = {
+  apartment: [[-4.3, -2.9], [4.3, 3.3], [-4.2, 3.2], [3.5, -2.9], [0, 2.3]],
+  cinema: [[-5.8, -4.8], [5.8, 5.8], [0, 4.4], [-5.5, 1], [5.5, -2]],
+  rooftop: [[-5.3, -3.6], [5.3, 4.3], [-5.3, 4.3], [5.3, -3.6], [0, 4.3]],
+  cabin: [[-3.6, -2.9], [4.1, -2.9], [4.2, 3.3], [-3.6, 3.3], [0, 2.3]],
+  beach: [[-4.2, -.6], [5.3, -2.4], [-6.5, 2.3], [6.5, 5.5], [3.2, 2.6]],
+  camping: [[3.9, 1], [-5.5, 5.5], [5.5, -3], [-3, 3], [0, 5.6]],
+  drivein: [[-3.5, -3.4], [3.5, 6.3], [-6.5, 3], [6.5, 0], [0, 9.5]],
+};
+const TOTAL = Object.values(HIDDEN).reduce((n, a) => n + a.length, 0);
+const HATS = [{ k: 'flowers', icon: '🌼', name: 'Flower crown', need: 2 }, { k: 'beanie', icon: '🧶', name: 'Beanie', need: 5 }, { k: 'bow', icon: '🎀', name: 'Bow', need: 9 },
+  { k: 'party', icon: '🥳', name: 'Party hat', need: 14 }, { k: 'shades', icon: '🕶', name: 'Shades', need: 20 }, { k: 'crown', icon: '👑', name: 'Crown', need: 28 }];
+let found = new Set(); try { found = new Set(JSON.parse(localStorage.getItem('ols-stars') || '[]')); } catch {}
+const saveFound = () => { try { localStorage.setItem('ols-stars', JSON.stringify([...found])); } catch {} };
+try { me.hat = localStorage.getItem('ols-hat') || ''; } catch { me.hat = ''; }
+let hiddenMeshes = [];
+const hidMat = GLOW('#ffe27a', 3.5);
+function buildHiddenStars() {
+  hiddenMeshes.forEach(m => m && scene.remove(m));
+  hiddenMeshes = (HIDDEN[place.id] || []).map(([x, z], i) => {
+    const id = place.id + i; if (found.has(id)) return null;
+    const m = put(new THREE.Mesh(starGeo, hidMat), x, .35, z, scene); m.userData.id = id; return m;
+  });
+}
+function tickHidden(t) {
+  hiddenMeshes.forEach((m, i) => {
+    if (!m) return;
+    m.rotation.y = t * 2; m.position.y = .35 + Math.sin(t * 3 + i) * .05; m.scale.setScalar(.08 + .02 * Math.sin(t * 5 + i));
+    if (Math.hypot(me.x - m.position.x, me.z - m.position.z) < .6) {
+      found.add(m.userData.id); saveFound(); scene.remove(m); hiddenMeshes[i] = null;
+      floatText(me, `⭐ ${found.size}/${TOTAL}`, '#ffcf6b');
+      const h = HATS.find(h => h.need === found.size); if (h) { toast(`New hat unlocked: ${h.icon} ${h.name}! Tap 🎩`); burst(); }
+    }
+  });
+}
+function hatMesh(k) {
+  const g = new THREE.Group();
+  if (k === 'flowers') { put(new THREE.Mesh(new THREE.TorusGeometry(.2, .02, 8, 32), M('#5fa04a')), 0, 1.08, 0, g).rotation.x = PI / 2; ['#ff9ab8', '#ffcf6b', '#fff4e2', '#cdb8ff', '#ff7a59', '#ffb3c6', '#ffcf6b', '#ff9ab8'].forEach((c, i) => put(new THREE.Mesh(SPH, M(c, { roughness: .6 })), Math.cos(i * PI / 4) * .2, 1.1, Math.sin(i * PI / 4) * .2, g).scale.setScalar(.045)); }
+  if (k === 'beanie') { put(new THREE.Mesh(new THREE.SphereGeometry(.31, 24, 12, 0, PI * 2, 0, PI / 2), M('#ff8a3d', { roughness: 1 })), 0, .95, 0, g); put(new THREE.Mesh(new THREE.TorusGeometry(.295, .04, 8, 32), M('#e8702a', { roughness: 1 })), 0, .97, 0, g).rotation.x = PI / 2; put(new THREE.Mesh(SPH, M('#fff4e2', { roughness: 1 })), 0, 1.27, 0, g).scale.setScalar(.07); }
+  if (k === 'bow') { for (const s of [-1, 1]) put(ell(.09, .06, .04, M('#ff7a9a', { roughness: .5 })), s * .09, 1.13, .06, g).rotation.z = s * .3; put(ell(.035, .035, .035, M('#ff5a8a')), 0, 1.13, .07, g); }
+  if (k === 'party') { put(new THREE.Mesh(new THREE.ConeGeometry(.12, .3, 20), M('#a77bff', { roughness: .5 })), 0, 1.26, 0, g); put(new THREE.Mesh(SPH, GLOW('#ffcf6b', 2)), 0, 1.42, 0, g).scale.setScalar(.045); }
+  if (k === 'shades') { const m = M('#1a1020', { roughness: .15, metalness: .5 }); for (const s of [-1, 1]) put(ell(.08, .055, .03, m), s * .1, .9, .29, g); put(rbox(.06, .015, .015, m, .005), 0, .91, .3, g); }
+  if (k === 'crown') { const gold = M('#ffcf6b', { metalness: .8, roughness: .25 }); const band = put(cyl(.17, .19, .12, gold, 24, true), 0, 1.12, 0, g); band.material.side = THREE.DoubleSide; for (let i = 0; i < 6; i++) put(new THREE.Mesh(new THREE.ConeGeometry(.035, .09, 8), gold), Math.cos(i * PI / 3) * .18, 1.22, Math.sin(i * PI / 3) * .18, g); put(new THREE.Mesh(SPH, GLOW('#ff5a8a', 2)), 0, 1.12, .19, g).scale.setScalar(.03); }
+  return g;
+}
+function syncHat(p, mesh) {
+  const u = mesh.userData, k = p.hat || '';
+  if (u.hatK === k) return;
+  if (u.hatObj) u.body.remove(u.hatObj);
+  u.hatObj = k ? hatMesh(k) : null; if (u.hatObj) u.body.add(u.hatObj); u.hatK = k;
+}
+function openHats() {
+  if (panel.dataset.k === 'hats') return closePanel();
+  if (decorating) toggleDecorate();
+  panel.dataset.k = 'hats';
+  panel.innerHTML = `<h3>🎩 Hats · ⭐ ${found.size}/${TOTAL} hidden stars found</h3><div class="grid"><button class="tile${!me.hat ? ' sel' : ''}" data-h=""><b>🙂 No hat</b><span>just you</span></button>${HATS.map(h => { const ok = found.size >= h.need; return `<button class="tile${me.hat === h.k ? ' sel' : ''}" data-h="${h.k}" ${ok ? '' : 'disabled'}><b>${h.icon} ${h.name}</b><span>${ok ? 'tap to wear' : `🔒 find ${h.need} stars`}</span></button>`; }).join('')}</div><div class="row hintrow">Little glowing stars are hidden in every place. Look behind things and in corners!</div>`;
+  panel.style.display = 'block';
+  panel.querySelectorAll('[data-h]').forEach(b => b.onclick = () => { me.hat = b.dataset.h; try { localStorage.setItem('ols-hat', me.hat); } catch {} send({ t: 'hat', h: me.hat }); panel.dataset.k = ''; openHats(); });
+}
+$('hats').onclick = openHats;
+
+// photo booth: a little polaroid of you two
+let snapNext = false;
+function takePhoto() { snapNext = true; }
+function grabPhoto() {
+  // re-render once from a camera in front of you two, so the photo shows your faces
+  const mid = them ? headOf(me).lerp(headOf(them), .5) : headOf(me), fr = new THREE.Vector3(Math.sin(me.ry), 0, Math.cos(me.ry));
+  const pos = mid.clone().addScaledVector(fr, them ? 2.5 : 1.9).add(new THREE.Vector3(0, .75, 0)), c = place.cam;
+  pos.x = Math.max(c[0], Math.min(c[1], pos.x)); pos.z = Math.max(c[2], Math.min(c[3], pos.z)); pos.y = Math.min(c[4], pos.y);
+  const saveP = camera.position.clone(), saveQ = camera.quaternion.clone(), vis = meMesh.visible;
+  camera.position.copy(pos); camera.lookAt(mid.clone().add(new THREE.Vector3(0, -.1, 0))); meMesh.visible = true;
+  composer.render();
+  const src = renderer.domElement, W = src.width, H = src.height, iw = Math.min(W, H * 4 / 3), ih = iw * 3 / 4;
+  const ow = 900, ph = 675, pad = 36, out = document.createElement('canvas'); out.width = ow + pad * 2; out.height = ph + pad + 160;
+  const x = out.getContext('2d');
+  x.fillStyle = '#fbf6ec'; x.fillRect(0, 0, out.width, out.height);
+  x.drawImage(src, (W - iw) / 2, (H - ih) / 2, iw, ih, pad, pad, ow, ph);
+  x.fillStyle = 'rgba(255,170,90,.08)'; x.fillRect(pad, pad, ow, ph);
+  x.textAlign = 'center'; x.fillStyle = '#3a2a20'; x.font = 'italic 600 46px "Bradley Hand", "Segoe Print", "Comic Sans MS", cursive';
+  x.fillText(them ? `${me.name} ♥ ${them.name}` : `${me.name} ♥`, out.width / 2, ph + pad + 74);
+  x.font = '26px ui-rounded, system-ui'; x.fillStyle = '#8a7060';
+  x.fillText(`${place.name.replace(/^\S+\s/, '')} · ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`, out.width / 2, ph + pad + 122);
+  camera.position.copy(saveP); camera.quaternion.copy(saveQ); meMesh.visible = vis;
+  const url = out.toDataURL('image/png');
+  $('photoImg').src = url; $('photoSave').href = url; $('photo').style.display = 'flex';
+  flash();
+}
+function flash() { const f = $('flash'); f.style.transition = 'none'; f.style.opacity = 1; requestAnimationFrame(() => { f.style.transition = 'opacity .6s'; f.style.opacity = 0; }); }
+$('snap').onclick = () => { takePhoto(); send({ t: 'snap' }); };
+$('photoClose').onclick = () => $('photo').style.display = 'none';
+
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.repeat) return;
+  const n = parseInt(e.key); if (n >= 1 && n <= EMOTES.length) doEmote(EMOTES[n - 1][0]);
+});
+function funTick2(dt, t) {
+  tickHidden(t);
+  if (meMesh) { animEmote(me, meMesh, t); syncHat(me, meMesh); }
+  if (them && themMesh) { animEmote(them, themMesh, t); syncHat(them, themMesh); }
+}
+function onFun2(m) {
+  switch (m.t) {
+    case 'hello': send({ t: 'hat', h: me.hat }); return false;
+    case 'hat': if (them) them.hat = m.h; else pendingHat = m.h; return true;
+    case 'emote': if (them) { them.emote = { k: m.k, t0: clock.elapsedTime }; emoteFx(them, m.k); if (m.k === 'hug') me.emote = { k: 'hug-back', t0: clock.elapsedTime }; } return true;
+    case 'snap': flash(); toast(`📸 ${them ? them.name : 'They'} took a photo of you two`); return true;
+  }
+  return false;
+}
+let pendingHat = '';
+
+function onPlaceChanged() {
+  endGame(true); dropHeld();
+  rebuildDeco(place.id); applyMood(); buildHiddenStars();
+  if (decorating) renderDecoPanel(); else if (panel.dataset.k === 'games') closePanel();
+}
+function funTick(dt, t) {
+  tickPops(dt, t); tickGame(t);
+  if (held && lastPtr) { const f = floorAt(lastPtr[0], lastPtr[1]); if (f) { held.mesh.position.set(f[0], .04 + Math.sin(t * 6) * .03, f[1]); held.mesh.rotation.y = held.r; } }
+  for (const [p, mesh] of [[me, meMesh], [them, themMesh]]) {
+    if (!p || !mesh) continue;
+    const q = p.squish || 0; if (q > 0) p.squish = Math.max(0, q - dt * 2.5);
+    mesh.userData.body.scale.set(1 + .25 * q, 1 - .3 * q, 1 + .25 * q);
+  }
+  funTick2(dt, t);
+  if (themMesh) themMesh.userData.tag.visible = !(game && game.mode === 'hide' && game.seeker === myRole());
+}
+function onFun(m) {
+  if (onFun2(m)) return true;
+  switch (m.t) {
+    case 'hello': if (!m.reply && isHost) send({ t: 'decoAll', all: decoState }); return false;
+    case 'decoAll': decoState = m.all || {}; saveDeco(); for (const id in built) rebuildDeco(id); applyMood(); if (decorating) renderDecoPanel(); return true;
+    case 'deco': decoState[m.id] = m.d; saveDeco(); rebuildDeco(m.id); applyMood(); if (decorating && m.id === place.id) renderDecoPanel(); return true;
+    case 'pop': spawnPop(new THREE.Vector3(...m.p), new THREE.Vector3(...m.v), 'theirs'); return true;
+    case 'booped': boops++; if (them) { floatText(them, boops > 1 ? `boop! ×${boops}` : 'boop!', '#ff7a59'); them.squish = 1; } return true;
+    case 'nom': if (them) floatText(them, 'nom! 🍿', '#ffcf6b'); return true;
+    case 'game': beginGame(m.g); return true;
+    case 'gameEnd': endGame(true); toast('Game stopped'); return true;
+    case 'tag': if (game && game.mode === 'tag') { game.it = myRole(); game.cool = clock.elapsedTime - game.t0 + 1.5; floatText(me, "tag! you're it", '#ff7a59'); } return true;
+    case 'found': if (game && game.mode === 'hide') endGame(false, `🙈 ${them ? them.name : 'They'} found you!`); return true;
+    case 'star': if (game && game.stars && game.stars[m.i]) { scene.remove(game.stars[m.i]); game.stars[m.i] = null; game.score[otherRole()]++; } return true;
+  }
+  return false;
+}
+
 // ---------- loop ----------
 const clock = new THREE.Clock(); let lastSent = 0;
 function loop() {
@@ -703,12 +1139,13 @@ function loop() {
   placeChar(meMesh, me); animChar(meMesh, me, t);
   if (them) { if (!themMesh || themMesh.userData.look !== them.look || themMesh.userData.name !== them.name) { if (themMesh) scene.remove(themMesh); themMesh = makeChar(them.look, them.name); scene.add(themMesh); } placeChar(themMesh, them); animChar(themMesh, them, t); }
   else if (themMesh) { scene.remove(themMesh); themMesh = null; }
-  place.tick(t, dt); fitScreen(place.scr);
+  place.tick(t, dt); fitScreen(place.scr); funTick(dt, t);
   const close = them && me.seat >= 0 && them.seat >= 0 && Math.abs(me.seat - them.seat) === 1;
   cuddle.visible = !!close; if (close) { cuddle.position.copy(headOf(me)).lerp(headOf(them), .5).add(new THREE.Vector3(0, .45 + Math.sin(t * 2) * .05, 0)); }
   for (let i = hearts.length - 1; i >= 0; i--) { const h = hearts[i], a = (t - h.t0) / 2.2; if (a > 1) { scene.remove(h.s); hearts.splice(i, 1); continue; } h.s.position.y += dt * .5; h.s.position.x += Math.sin(a * 9 + h.p) * .004; h.s.material.opacity = 1 - a; }
   stepCam(dt);
   composer.render();
+  if (snapNext) { snapNext = false; grabPhoto(); }
   if (t - lastSent > .066) { lastSent = t; send({ t: 'me', x: +me.x.toFixed(3), z: +me.z.toFixed(3), ry: +me.ry.toFixed(3), seat: me.seat, w: me.walking, j: +me.jy.toFixed(3) }); }
   requestAnimationFrame(loop);
 }
@@ -718,10 +1155,11 @@ let peer, conn, call, myStream, myRoom = '';
 function send(m) { if (conn && conn.open) conn.send(m); }
 function setStatus(s) { $('status').textContent = s; }
 function onData(m) {
+  if (onFun(m)) return;
   if (m.t === 'hello') {
     const sp = isHost ? place.spawn[1] : place.spawn[0];
     them = them || { x: sp[0], z: sp[1], rx: sp[0], rz: sp[1], ry: PI, rry: PI, jy: 0, seat: -1, share: false };
-    Object.assign(them, { name: m.name, look: m.look });
+    Object.assign(them, { name: m.name, look: m.look }); if (pendingHat && !them.hat) them.hat = pendingHat;
     setStatus(`💞 together with ${m.name}`);
     if (m.reply) return;
     send({ t: 'hello', name: me.name, look: me.look, reply: true });
@@ -796,6 +1234,6 @@ $('go').onclick = () => {
   setPlace(PLACES[0].id, false); connect(); loop();
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
