@@ -749,7 +749,7 @@ function lockMouse() { if (!locked() && cv.requestPointerLock && !isTouch) { try
 function unlockMouse() { if (locked()) document.exitPointerLock(); }
 function headOf(p) { return new THREE.Vector3(p.x, (p.seat >= 0 && place.seats[p.seat] ? place.seats[p.seat].y - .1 : 0) + .7 + (p.jy || 0), p.z); }
 function stepCam(dt) {
-  const head = headOf(me), k = snapCam ? 1 : Math.min(1, dt * 10); snapCam = false;
+  const head = headOf(me); snapCam = false;
   if (pov === 1) {
     // no smoothing in 1st person: the view follows the mouse 1:1
     const look = head.clone().add(new THREE.Vector3(-Math.sin(cam.yaw) * Math.cos(cam.fp), Math.sin(cam.fp), -Math.cos(cam.yaw) * Math.cos(cam.fp)));
@@ -758,9 +758,9 @@ function stepCam(dt) {
     const d = cam.dist, off = new THREE.Vector3(Math.sin(cam.yaw) * Math.cos(cam.pitch), Math.sin(cam.pitch), Math.cos(cam.yaw) * Math.cos(cam.pitch)).multiplyScalar(d);
     const right = new THREE.Vector3(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw)).multiplyScalar(shiftLock ? .7 : 0);
     const pos = head.clone().add(off).add(right);
-    const look = head.clone().add(right).add(new THREE.Vector3(-Math.sin(cam.yaw) * 1.4, .35, -Math.cos(cam.yaw) * 1.4)); // aim a bit ahead so the screen stays in view
+    const look = head.clone().add(right).add(new THREE.Vector3(0, .25, 0)); // orbit right around your head, like Roblox
     const c = place.camAt ? place.camAt(me.x, me.z) : place.cam; pos.x = Math.max(c[0], Math.min(c[1], pos.x)); pos.z = Math.max(c[2], Math.min(c[3], pos.z)); pos.y = Math.max(.3, Math.min(c[4], pos.y));
-    camera.position.lerp(pos, k); camLook.lerp(look, k); camera.lookAt(camLook);
+    camera.position.copy(pos); camLook.copy(look); camera.lookAt(camLook); // locked to you: no lag, no sway
   }
   if (meMesh) meMesh.visible = pov !== 1;
 }
