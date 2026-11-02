@@ -747,7 +747,7 @@ const isTouch = matchMedia('(pointer: coarse)').matches;
 const locked = () => document.pointerLockElement === cv;
 function lockMouse() { if (!locked() && cv.requestPointerLock && !isTouch) { try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch {} } }
 function unlockMouse() { if (locked()) document.exitPointerLock(); }
-function headOf(p) { return new THREE.Vector3(p.x, (p.seat >= 0 ? place.seats[p.seat].y - .1 : 0) + .7 + (p.jy || 0), p.z); }
+function headOf(p) { return new THREE.Vector3(p.x, (p.seat >= 0 && place.seats[p.seat] ? place.seats[p.seat].y - .1 : 0) + .7 + (p.jy || 0), p.z); }
 function stepCam(dt) {
   const head = headOf(me), k = snapCam ? 1 : Math.min(1, dt * 10); snapCam = false;
   if (pov === 1) {
@@ -817,7 +817,7 @@ function clickWorld(e) {
   const r = cv.getBoundingClientRect(); ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
   let best = -1, bd = .7;
   place.seats.forEach((s, i) => { const d = ray.ray.distanceToPoint(new THREE.Vector3(s.x, s.y + .2, s.z)); if (d < bd && !(them && them.seat === i)) { bd = d; best = i; } });
-  if (best >= 0) { me.tx = place.seats[best].x; me.tz = place.seats[best].z + .55; me.want = best; me.seat = -1; return; }
+  if (best >= 0) { [me.tx, me.tz] = seatOut(place.seats[best]); me.want = best; me.seat = -1; return; }
   const hit = new THREE.Vector3(); if (ray.ray.intersectPlane(floorPlane, hit)) { const b = place.box || place.bounds; me.tx = Math.max(b[0], Math.min(b[1], hit.x)); me.tz = Math.max(b[2], Math.min(b[3], hit.z)); me.want = -1; me.seat = -1; }
 }
 // phone: thumbstick on the left, jump button on the right, drag anywhere else to look
@@ -836,7 +836,7 @@ function angLerp(a, b, k) { let d = ((b - a + PI) % (2 * PI) + 2 * PI) % (2 * PI
 function jump() {
   if (me.vy !== 0 || me.ko) return; me.floor = false; me.slide = null;
   const run = Math.hypot(me.vx || 0, me.vz || 0) > 3.6;
-  if (me.seat >= 0) { const s = place.seats[me.seat]; me.seat = -1; me.x = s.x; me.z = s.z + .6; me.tx = me.x; me.tz = me.z; }
+  if (me.seat >= 0) leaveSeat();
   me.want = -1; me.vy = run ? 4.7 : 4.2; me.jy += .001; if (run) me.flipT = clock.elapsedTime;
 }
 function step(dt) {
@@ -851,7 +851,7 @@ function step(dt) {
   let wx = 0, wz = 0; // where we want to be going, as a velocity
   if (Math.hypot(f, r) > .15) {
     // direct movement relative to the camera, like Roblox
-    me.seat = -1; me.want = -1;
+    if (me.seat >= 0) leaveSeat(); me.want = -1;
     const vx = -Math.sin(cam.yaw) * f + Math.cos(cam.yaw) * r, vz = -Math.cos(cam.yaw) * f - Math.sin(cam.yaw) * r, l = Math.hypot(vx, vz), mag = Math.min(1, l);
     wx = vx / l * sp * mag; wz = vz / l * sp * mag; me.tx = me.tz = NaN;
   } else if (me.seat < 0) {
@@ -865,6 +865,7 @@ function step(dt) {
   if (me.seat < 0) { me.x += me.vx * dt; me.z += me.vz * dt; } else me.vx = me.vz = 0;
   const spdNow = Math.hypot(me.vx, me.vz); me.walking = spdNow > .2;
   if (!faceCam && spdNow > .15 && me.seat < 0 && !me.ko && !me.slide) me.ry = angLerp(me.ry, Math.atan2(me.vx, me.vz), 1 - Math.exp(-dt * 12));
+  if (me.seat >= place.seats.length) me.seat = -1; // that seat got moved away
   if (me.seat >= 0) { const s = place.seats[me.seat]; me.walking = false; me.x = s.x; me.z = s.z; me.ry = angLerp(me.ry, s.ry, Math.min(1, dt * 10)); }
   else {
     if (faceCam && !me.ko) me.ry = angLerp(me.ry, cam.yaw + PI, Math.min(1, dt * 20));
@@ -873,7 +874,16 @@ function step(dt) {
       else { const cx = Math.max(b[0], Math.min(b[1], me.x)), cz = Math.max(b[2], Math.min(b[3], me.z)); if (cx !== me.x) me.vx = 0; if (cz !== me.z) me.vz = 0; me.x = cx; me.z = cz; }
     }
   }
-  if (me.seat < 0 && groundAt(me.x, me.z) > me.jy + .3) { me.x = px; me.z = pz; me.tx = me.tz = NaN; me.vx = me.vz = 0; } // bumped into blocks
+  if (me.seat < 0) {
+    const lim = me.jy + .3;
+    if (groundAt(me.x, me.z) > lim && groundAt(px, pz) <= lim) {
+      const q = place.seats[me.want];
+      if (q && Math.hypot(q.x - me.x, q.z - me.z) < 1.4 && !(them && them.seat === me.want)) { me.seat = me.want; me.want = -1; me.vx = me.vz = 0; }
+      else if (groundAt(me.x, pz) <= lim) { me.z = pz; me.vz = 0; }
+      else if (groundAt(px, me.z) <= lim) { me.x = px; me.vx = 0; }
+      else { me.x = px; me.z = pz; me.vx = me.vz = 0; me.tx = me.tz = NaN; me.want = -1; }
+    }
+  }
   if (me.seat >= 0) { me.jy = 0; me.vy = 0; }
   else { const gy = groundAt(me.x, me.z); if (me.vy !== 0 || me.jy > gy + .001) { me.vy -= 13 * dt; me.jy += me.vy * dt; if (me.jy <= gy) { me.jy = gy; me.vy = 0; } } else me.jy = gy; }
   if (them) { const k = Math.min(1, dt * 10); them.x += (them.rx - them.x) * k; them.z += (them.rz - them.z) * k; them.ry = angLerp(them.ry, them.rry, k); them.jy += ((them.rjy || 0) - (them.jy || 0)) * Math.min(1, dt * 20); }
@@ -1042,12 +1052,50 @@ const moodLight = new THREE.PointLight('#ffffff', 0, 0, 1.6); moodLight.position
 let decoState = {}; try { decoState = JSON.parse(localStorage.getItem('ols-deco') || '{}'); } catch {}
 const decoOf = id => decoState[id] ||= { items: [], wall: '', mood: '' };
 function saveDeco() { try { localStorage.setItem('ols-deco', JSON.stringify(decoState)); } catch {} }
+// furniture you bump into, stand on and sit on. [half width, half depth, top]; seats: [x, z, y, facing, approach x, approach z] in the item's own space
+const SOLID = {
+  bed: [.78, 1.1, .62, [[-.35, .75, .58, 0], [.35, .75, .58, 0]]], sofa: [1.25, .5, .55, [[-.55, -.05, .55, PI], [.55, -.05, .55, PI]]], armchair: [.6, .5, .55, [[0, -.05, .55, PI]]],
+  beanbag: [.48, .48, .35, [[0, .05, .38, 0]]], chair: [.27, .27, .47, [[0, 0, .47, 0]]], dining: [.72, .9, .78, [[0, -.65, .5, 0, 1.05, -.65], [0, .65, .5, PI, 1.05, .65]]],
+  desk: [.62, .32, .78, [[0, .55, .47, PI, 0, 1.15]]], ctable: [.5, .5, .45], shelf: [.6, .2, 1.8], flamp: [.15, .15, 1.7], counter: [.93, .33, .95], fridge: [.4, .36, 1.8],
+  records: [.42, .23, .6], aquarium: [.52, .22, 1.05], neonheart: [.15, .15, 1.8], arcade: [.37, .4, 1.7], cattree: [.36, .36, 1.35], plantshelf: [.53, .17, 1.5],
+  dresser: [.62, .27, .9], sidetable: [.27, .27, .6], mirror: [.36, .15, 1.7], art: [.4, .35, 1.4], plant: [.22, .22, .9], tall: [.22, .22, 1.1],
+};
+function decoPhysics(pl, items) {
+  if (!pl.baseSeats) {
+    pl.baseSeats = pl.seats.slice();
+    // the couches and chairs every place comes with are solid too
+    pl.baseSolids = pl.seats.filter(q => q.y >= .4 && q.y <= .6).map(q => q.y >= .5 ? { x: q.x, z: q.z + .05, r: 0, hw: .62, hd: .45, top: q.y } : { x: q.x, z: q.z, r: 0, hw: .3, hd: .3, top: q.y });
+  }
+  const seats = [], solids = [];
+  items.forEach(it => {
+    const d = SOLID[it.k]; if (!d) return; const r = it.r || 0, c = Math.cos(r), sn = Math.sin(r);
+    const w = (lx, lz) => [it.x + lx * c + lz * sn, it.z - lx * sn + lz * c];
+    solids.push({ x: it.x, z: it.z, r, hw: d[0], hd: d[1], top: d[2] });
+    (d[3] || []).forEach(q => {
+      const [x, z] = w(q[0], q[1]), ry = q[3] + r;
+      const [ax, az] = q[4] !== undefined ? w(q[4], q[5]) : [x + Math.sin(ry) * .65, z + Math.cos(ry) * .65];
+      seats.push({ x, z, y: q[2], ry, ax, az });
+    });
+  });
+  pl.seats = pl.baseSeats.concat(seats); pl.solids = pl.baseSolids.concat(solids);
+}
+function solidTop(x, z) {
+  let top = 0;
+  for (const o of place.solids || []) {
+    const dx = x - o.x, dz = z - o.z, c = Math.cos(o.r), sn = Math.sin(o.r);
+    if (Math.abs(dx * c - dz * sn) <= o.hw + .16 && Math.abs(dx * sn + dz * c) <= o.hd + .16) top = Math.max(top, o.top);
+  }
+  return top;
+}
+const seatOut = q => [q.ax ?? q.x, q.az ?? q.z + .8];
+function leaveSeat() { const q = place.seats[me.seat]; me.seat = -1; if (!q) return; [me.x, me.z] = seatOut(q); me.tx = me.x; me.tz = me.z; }
 function rebuildDeco(id) {
   const pl = built[id]; if (!pl) return; const st = decoOf(id);
   if (pl.deco) pl.g.remove(pl.deco);
   pl.deco = new THREE.Group(); pl.g.add(pl.deco);
   rebuildBlocks(pl, st);
   st.items.forEach((it, i) => { const f = DECO_BUILD[it.k]; if (!f) return; const m = f(); m.position.set(it.x, colTopAt(pl, it.x, it.z), it.z); m.rotation.y = it.r || 0; m.userData.decoIndex = i; pl.deco.add(m); });
+  decoPhysics(pl, st.items);
   (pl.wallMats || []).forEach(mt => { mt.userData.base ||= '#' + mt.color.getHexString(); mt.color.set(st.wall || mt.userData.base); });
 }
 function applyMood() { const st = decoOf(place.id); moodLight.intensity = st.mood ? 10 : 0; if (st.mood) moodLight.color.set(st.mood); }
@@ -1744,7 +1792,7 @@ function rebuildBlocks(pl, st) {
   }
 }
 function colTopAt(pl, x, z) { return (pl && pl.colTop && pl.colTop.get(Math.floor(x / BS) + ',' + Math.floor(z / BS))) || 0; }
-const groundAt = (x, z) => colTopAt(place, x, z);
+const groundAt = (x, z) => Math.max(colTopAt(place, x, z), solidTop(x, z));
 
 let building = false, bTool = 'place', bKind = 'oak', bDown = null;
 const bHistory = [];
@@ -1959,7 +2007,7 @@ pvAttach($('pvStart')); pvSet(myLook);
 function onFun8(m) { if (m.t === 'char') { if (them) them.look = m.look; return true; } return false; }
 
 // ---------- moves: run, crouch, slide, sit on the floor, running flip; push + smack with a wobbly fall ----------
-function moveMul() { return me.pose === 'crouch' ? .5 : keys.shift && !shiftLock ? 1.75 : 1; }
+function moveMul() { return me.pose === 'crouch' ? .5 : keys.shift ? 1.75 : 1; }
 function startSlide() {
   const v = Math.hypot(me.vx || 0, me.vz || 0);
   if (v < 3 || me.vy !== 0 || me.seat >= 0 || me.ko) return false;
@@ -2190,6 +2238,6 @@ $('go').onclick = () => {
   setPlace(PLACES[0].id, false); connect(); loop();
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
