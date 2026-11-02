@@ -788,19 +788,23 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
-let drag = null;
+let drag = null, rmb = false;
 cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
   if (!isTouch && (pov === 1 || shiftLock)) { lockMouse(); return; }
-  drag = { x: e.clientX, y: e.clientY, moved: 0, btn: e.button }; cv.setPointerCapture(e.pointerId);
+  if (e.button === 2 && !isTouch) { rmb = true; lockMouse(); } // hold the two-finger / right click: cursor stays put, the camera turns
+  drag = { x: e.clientX, y: e.clientY, moved: 0, btn: e.button }; try { cv.setPointerCapture(e.pointerId); } catch {}
 });
 cv.addEventListener('pointermove', e => {
-  if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
+  if (!drag || locked()) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
   if (drag.moved < 6 && drag.btn !== 2) return;
   turn(dx * 1.6, dy * 1.6);
 });
 cv.addEventListener('pointerup', e => { if (drag && drag.moved < 6 && drag.btn === 0 && pov === 3) (decorating ? decoClick(e) : clickWorld(e)); drag = null; });
 document.addEventListener('mousemove', e => { if (locked()) turn(e.movementX, e.movementY); });
+const rmbUp = () => { if (!rmb) return; rmb = false; drag = null; if (pov !== 1 && !shiftLock) unlockMouse(); };
+document.addEventListener('mouseup', e => { if (e.button === 2) rmbUp(); });
+addEventListener('blur', rmbUp);
 function turn(dx, dy) {
   cam.yaw -= dx * .0035;
   if (pov === 1) cam.fp = Math.max(-1.3, Math.min(1.3, cam.fp - dy * .0035));
