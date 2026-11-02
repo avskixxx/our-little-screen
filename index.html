@@ -20,7 +20,7 @@
   .pill{border:0;border-radius:999px;padding:9px 16px;background:#ffffff14;color:var(--ink);font:inherit;cursor:pointer;backdrop-filter:blur(8px);white-space:nowrap;transition:background .2s, box-shadow .2s}
   .pill:hover{background:#ffffff22}
   .pill.on{background:linear-gradient(90deg,#ff8a3dcc,#ffcf6bcc);color:#1a0d06;box-shadow:0 0 24px #ff8a3d66}
-  #top{position:absolute;left:14px;right:14px;top:12px;display:flex;gap:8px;align-items:center;z-index:3;pointer-events:none}
+  #top{position:absolute;left:14px;right:14px;top:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;z-index:3;pointer-events:none}
   #top>*{pointer-events:auto}
   #status{font-size:13px;opacity:.9;padding:7px 14px;border-radius:999px;background:#00000066;backdrop-filter:blur(8px)}
   #actions{position:absolute;right:14px;bottom:12px;display:flex;gap:8px;z-index:3;flex-wrap:wrap;justify-content:flex-end}
@@ -60,6 +60,7 @@
   #photoCard{max-width:min(92vw,560px);text-align:center}
   #photoImg{width:100%;border-radius:10px;transform:rotate(-2deg);box-shadow:0 20px 60px #000a, 0 0 40px #ff8a3d33}
   a.pill{text-decoration:none;display:inline-block}
+  #chat{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);z-index:6;width:min(86%,440px);display:none;border:1px solid #ffcf6b55;border-radius:999px;padding:12px 20px;background:#140c18ee;color:#f6e7cf;font:inherit;outline:none;box-shadow:0 0 30px #ff8a3d33}
   #loading{position:absolute;inset:0;display:grid;place-items:center;color:#ffcf6b;opacity:.7;z-index:1;pointer-events:none}
 </style>
 </head><body>
@@ -69,10 +70,14 @@
     <div class="vig"></div><div class="grain"></div>
     <div id="stick"><div id="knob"></div></div>
     <button id="jump">⤒</button>
-    <div id="top"><span id="status">…</span><button class="pill" id="invite">💌 Invite link</button><span style="flex:1"></span><button class="pill" id="hats">🎩</button><button class="pill" id="games">🎲 Games</button><button class="pill" id="decor">🛋 Decorate</button></div>
-    <div id="hud"></div><div id="blind"></div><div id="panel"></div>
+    <div id="top"><span id="status">…</span><button class="pill" id="invite">💌 Invite link</button><span style="flex:1"></span><button class="pill" id="pets" title="Pets">🐾</button><button class="pill" id="fw" title="Fireworks">🎆</button><button class="pill" id="doodle" title="Doodle on the screen">✏️</button><button class="pill" id="hats" title="Hats">🎩</button><button class="pill" id="games">🎲 Games</button><button class="pill" id="decor">🛋 Decorate</button></div>
+    <div id="hud"></div><input id="chat" maxlength="80" placeholder="say something sweet… (Enter to send)" autocomplete="off"><div id="blind"></div><div id="panel"></div>
     <div id="actions">
       <button class="pill" id="pov" title="Switch view (V)">👀 3rd person</button>
+      <button class="pill" id="mic" title="Voice chat">🎙</button>
+      <button class="pill" id="camb" title="Webcam">📷</button>
+      <button class="pill" id="talk" title="Chat (Enter)">💬</button>
+      <button class="pill" id="hands" title="Hold hands / pet (E)">🤝</button>
       <button class="pill" id="emote" title="Emotes (1-6)">😊</button>
       <button class="pill" id="snap" title="Photo booth">📸</button>
       <button class="pill" id="pop" title="Throw popcorn (F)">🍿</button>
@@ -81,7 +86,7 @@
     </div>
   </div>
   <div id="places"></div>
-  <div id="hint">WASD move · Space jump · drag to turn · scroll in for 1st person · Shift lock · F popcorn · 1-6 emotes · H hearts</div>
+  <div id="hint">WASD move · Space jump · drag to turn · scroll in for 1st person · Shift lock · Enter chat · E hold hands / pet · F popcorn · 1-6 emotes · H hearts</div>
 </div>
 <video id="vid" autoplay playsinline style="display:none"></video>
 
@@ -564,7 +569,7 @@ let them = null, meMesh = null, themMesh = null;
 let place = null; const built = {};
 let isHost = !ROOM;
 
-function getPlace(id) { const def = PLACES.find(p => p.id === id) || PLACES[0]; if (!built[def.id]) built[def.id] = Object.assign(def.build(), { id: def.id, name: def.name }); return built[def.id]; }
+function getPlace(id) { const def = PLACES.find(p => p.id === id) || PLACES[0]; if (!built[def.id]) built[def.id] = Object.assign(def.build(), { id: def.id, name: def.name, outdoor: ['rooftop', 'beach', 'camping', 'drivein'].includes(def.id) }); return built[def.id]; }
 function setPlace(id, broadcast = true) {
   if (place) scene.remove(place.g);
   place = getPlace(id); scene.add(place.g);
@@ -688,6 +693,7 @@ function step(dt) {
   let f = (keys.w || keys.arrowup ? 1 : 0) - (keys.s || keys.arrowdown ? 1 : 0), r = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
   if (joy.on) { f = -joy.y; r = joy.x; }
   if (isFrozen()) { f = r = 0; me.tx = me.x; me.tz = me.z; me.want = -1; }
+  if (hand && hand.leader !== myRole()) { if (Math.hypot(f, r) > .15) breakHands(); else { const g = followTarget(); if (g && Math.hypot(g[0] - me.x, g[1] - me.z) > .05) { me.tx = g[0]; me.tz = g[1]; me.want = -1; } } }
   const faceCam = pov === 1 || shiftLock;
   if (Math.hypot(f, r) > .15) {
     // direct movement relative to the camera, like Roblox
@@ -779,12 +785,15 @@ let game = null;
 const hud = $('hud'), blind = $('blind');
 const itRing = new THREE.Mesh(new THREE.TorusGeometry(.17, .03, 8, 32), GLOW('#ff5a3d', 3)); itRing.rotation.x = PI / 2;
 const starGeo = new THREE.OctahedronGeometry(1, 0);
-function speedMul() { return game && game.mode === 'tag' && game.it === myRole() ? 1.18 : 1; }
+function speedMul() { return hand && hand.leader !== myRole() ? 1.35 : game && game.mode === 'tag' && game.it === myRole() ? 1.18 : 1; }
 function isFrozen() { return !!(game && game.mode === 'hide' && game.seeker === myRole() && clock.elapsedTime - game.t0 < game.count); }
 function newGame(mode) {
-  if (mode !== 'stars' && !them) { toast('Invite them first ♥ this one needs two'); return; }
+  if (mode === 'quiz') return startQuiz();
+  if (mode !== 'stars' && mode !== 'lava' && !them) { toast('Invite them first ♥ this one needs two'); return; }
   let g;
   if (mode === 'tag') g = { mode, it: Math.random() < .5 ? 'host' : 'guest', dur: 90 };
+  if (mode === 'potato') g = { mode, it: Math.random() < .5 ? 'host' : 'guest', dur: 18 + Math.random() * 22 };
+  if (mode === 'lava') g = { mode, rounds: lavaRounds(), dur: 999, lives: { host: 3, guest: 3 } };
   if (mode === 'hide') g = { mode, seeker: myRole(), dur: 75, count: 12 };
   if (mode === 'stars') {
     const b = place.bounds, pts = [];
@@ -797,6 +806,8 @@ function beginGame(g) {
   endGame(true);
   game = { ...g, t0: clock.elapsedTime, score: { host: 0, guest: 0 }, cool: 0 };
   closePanel();
+  if (g.mode === 'potato') toast(g.it === myRole() ? '🥔 You have the hot potato! Touch them to pass it' : `🥔 ${nameOf(g.it)} has the hot potato… run!`);
+  if (g.mode === 'lava') toast('🔥 Floor is lava! Hop on a glowing pad (or a seat) before it rises');
   if (g.mode === 'tag') toast(g.it === myRole() ? '🏃 Tag! You are it, go catch them' : `🏃 Tag! ${nameOf(g.it)} is it, run!`);
   if (g.mode === 'hide') { if (g.seeker === myRole()) { setPov(1); toast('🙈 Count to 12… no peeking!'); } else toast(`🙈 Hide! ${nameOf(g.seeker)} is counting`); }
   if (g.mode === 'stars') { game.stars = g.pts.map(([x, z]) => { const st = put(new THREE.Mesh(starGeo, GLOW('#ffcf6b', 3)), x, .7, z, scene); st.scale.setScalar(.15); return st; }); toast('⭐ Star race! Grab the most stars'); }
@@ -805,6 +816,8 @@ function endGame(silent, msg) {
   if (!game) return;
   if (game.stars) game.stars.forEach(st => st && scene.remove(st));
   if (itRing.parent) itRing.parent.remove(itRing);
+  if (potato.parent) potato.parent.remove(potato); potato.scale.setScalar(1);
+  clearPads(); lava.visible = false;
   const wasSeeker = game.mode === 'hide' && game.seeker === myRole();
   game = null; hud.style.display = 'none'; blind.style.display = 'none';
   if (wasSeeker) setPov(3);
@@ -813,13 +826,16 @@ function endGame(silent, msg) {
 function tickGame(t) {
   if (!game) { hud.style.display = 'none'; return; }
   const el = t - game.t0, left = game.dur - el; let txt = '';
-  if (game.mode === 'tag') {
-    const holder = game.it === myRole() ? meMesh : themMesh;
-    if (holder && itRing.parent !== holder) { holder.add(itRing); itRing.position.set(0, 1.3, 0); }
-    itRing.rotation.z = t * 3;
+  if (game.mode === 'lava') { txt = tickLava(t, el); if (txt === null) return; }
+  else if (game.mode === 'tag' || game.mode === 'potato') {
+    const holder = game.it === myRole() ? meMesh : themMesh, mk = game.mode === 'potato' ? potato : itRing;
+    if (holder && mk.parent !== holder) { holder.add(mk); mk.position.set(0, 1.3, 0); }
+    itRing.rotation.z = t * 3; potato.rotation.y = t * 4; spark.visible = Math.sin(t * 30) > 0;
+    potato.scale.setScalar(1 + Math.max(0, el / game.dur - .55) * Math.abs(Math.sin(t * 10)) * .6);
     if (game.it === myRole() && them && el > game.cool && Math.hypot(me.x - them.x, me.z - them.z) < .75) { game.it = otherRole(); game.cool = el + 1.5; send({ t: 'tag' }); floatText(them, 'tag!', '#ff7a59'); }
-    txt = `🏃 Tag · ${fmt(left)} · ${game.it === myRole() ? 'you are it!' : nameOf(game.it) + ' is it'}`;
-    if (left <= 0) return endGame(false, game.it === myRole() ? '🏃 You were it at the end… you lose 😝' : `🏃 ${nameOf(game.it)} was it at the end… you win!`);
+    if (game.mode === 'potato') { txt = `🥔 Hot potato · ${game.it === myRole() ? 'YOU have it, pass it!' : nameOf(game.it) + ' has it'}`; if (left <= 0) { boom(.5); return endGame(false, game.it === myRole() ? '💥 BOOM! It blew up in your hands 😝' : `💥 BOOM! ${nameOf(game.it)} got potato'd, you win!`); } }
+    else txt = `🏃 Tag · ${fmt(left)} · ${game.it === myRole() ? 'you are it!' : nameOf(game.it) + ' is it'}`;
+    if (game.mode === 'tag' && left <= 0) return endGame(false, game.it === myRole() ? '🏃 You were it at the end… you lose 😝' : `🏃 ${nameOf(game.it)} was it at the end… you win!`);
   } else if (game.mode === 'hide') {
     const seeker = game.seeker === myRole();
     if (el < game.count) {
@@ -925,7 +941,7 @@ function openGames() {
   if (panel.dataset.k === 'games') return closePanel();
   if (decorating) toggleDecorate();
   panel.dataset.k = 'games';
-  panel.innerHTML = `<h3>🎲 Little games</h3><div class="grid">${[['tag', '🏃 Tag', 'Catch each other. Whoever is it at the end loses'], ['hide', '🙈 Hide & seek', 'You count, they hide, then go find them'], ['stars', '⭐ Star race', 'Grab more glowing stars than them']].map(([k, a, b]) => `<button class="tile" data-g="${k}"><b>${a}</b><span>${b}</span></button>`).join('')}</div>
+  panel.innerHTML = `<h3>🎲 Little games</h3><div class="grid">${[['quiz', "💘 Who's more likely", 'Both answer, see if you match'], ['lava', '🔥 Floor is lava', 'Hop on a pad or a seat before the lava rises'], ['potato', '🥔 Hot potato', 'Touch them to pass it before it blows'], ['tag', '🏃 Tag', 'Catch each other. Whoever is it at the end loses'], ['hide', '🙈 Hide & seek', 'You count, they hide, then go find them'], ['stars', '⭐ Star race', 'Grab more glowing stars than them']].map(([k, a, b]) => `<button class="tile" data-g="${k}"><b>${a}</b><span>${b}</span></button>`).join('')}</div>
     ${game ? '<div class="row"><button class="pill" data-stop>Stop the game</button></div>' : ''}
     <div class="row hintrow">🍿 Press F (or tap 🍿) to throw popcorn: boop them, or toss it up and catch it in your mouth</div>`;
   panel.style.display = 'block';
@@ -1087,6 +1103,7 @@ function funTick2(dt, t) {
   if (them && themMesh) { animEmote(them, themMesh, t); syncHat(them, themMesh); }
 }
 function onFun2(m) {
+  if (onFun3(m)) return true;
   switch (m.t) {
     case 'hello': send({ t: 'hat', h: me.hat }); return false;
     case 'hat': if (them) them.hat = m.h; else pendingHat = m.h; return true;
@@ -1097,9 +1114,372 @@ function onFun2(m) {
 }
 let pendingHat = '';
 
+// ---------- batch 3: voice, chat bubbles, pets, holding hands, fireworks, doodles, quiz ----------
+// voice chat: your mic goes straight to them (one-way call each, so either of you can mute)
+let mic = null, voiceCall = null;
+const voiceAudio = new Audio(); voiceAudio.autoplay = true;
+function callVoice() { if (mic && conn && peer) { if (voiceCall) voiceCall.close(); voiceCall = peer.call(conn.peer, mic, { metadata: { kind: 'voice' } }); } }
+async function toggleMic() {
+  if (mic) { mic.getTracks().forEach(tr => tr.stop()); mic = null; if (voiceCall) { voiceCall.close(); voiceCall = null; } $('mic').classList.remove('on'); $('mic').textContent = '🎙'; send({ t: 'mic', on: false }); return; }
+  try { mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+  catch { toast('Mic blocked: allow the microphone in the address bar'); return; }
+  $('mic').classList.add('on'); $('mic').textContent = '🎙 on'; callVoice(); send({ t: 'mic', on: true });
+  toast('🎙 Voice on · headphones help with echo');
+}
+$('mic').onclick = toggleMic;
+
+// chat bubbles: Enter to type, Enter to send
+function bubbleTex(text) {
+  return canvasTex(512, 170, (x, w) => {
+    x.font = '600 34px ui-rounded, system-ui';
+    const words = text.split(/\s+/), lines = ['']; for (const wd of words) { const tr = (lines[lines.length - 1] + ' ' + wd).trim(); if (x.measureText(tr).width > 430 && lines[lines.length - 1]) { if (lines.length === 2) { lines[1] += '…'; break; } lines.push(wd); } else lines[lines.length - 1] = tr; }
+    const bw = Math.max(...lines.map(l => x.measureText(l).width)) + 50, bh = lines.length * 42 + 28;
+    x.fillStyle = '#fff8ee'; x.beginPath(); x.roundRect((w - bw) / 2, 8, bw, bh, 28); x.fill();
+    x.beginPath(); x.moveTo(w / 2 - 14, 8 + bh - 1); x.lineTo(w / 2, 8 + bh + 20); x.lineTo(w / 2 + 14, 8 + bh - 1); x.fill();
+    x.fillStyle = '#3a2a20'; x.textAlign = 'center'; lines.forEach((l, i) => x.fillText(l, w / 2, 50 + i * 42));
+  });
+}
+function say(mesh, text) {
+  if (!mesh) return; const u = mesh.userData;
+  if (u.bubble) mesh.remove(u.bubble);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: bubbleTex(text), transparent: true, depthTest: false }));
+  sp.scale.set(1.6, .53, 1); sp.position.set(0, ((mesh === meMesh ? me : them) || {}).face ? 2.6 : 1.95, 0); sp.renderOrder = 12; mesh.add(sp);
+  u.bubble = sp; u.bubbleEnd = clock.elapsedTime + 5 + text.length * .06;
+}
+const chat = $('chat');
+function openChat() { for (const k in keys) keys[k] = false; if (locked()) unlockMouse(); chat.style.display = 'block'; chat.value = ''; chat.focus(); }
+function closeChat() { chat.style.display = 'none'; chat.blur(); }
+chat.addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.key === 'Enter') { const text = chat.value.trim().slice(0, 80); if (text) { say(meMesh, text); send({ t: 'say', text }); } closeChat(); }
+  if (e.key === 'Escape') closeChat();
+});
+$('talk').onclick = openChat;
+
+// pets that follow you around (E near one to pet it)
+const PETS = [['', '🙂', 'No pet'], ['puppy', '🐶', 'Puppy'], ['kitty', '🐱', 'Kitty'], ['bunny', '🐰', 'Bunny'], ['duck', '🐥', 'Duckling']];
+try { me.pet = localStorage.getItem('ols-pet') || ''; } catch { me.pet = ''; }
+function petMesh(k) {
+  const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+  const C = { puppy: ['#e8c08a', '#a8703e'], kitty: ['#b8b0c8', '#8a80a0'], bunny: ['#fff4ec', '#ffc4d8'], duck: ['#ffd84a', '#ff8a3d'] }[k];
+  const mb = M(C[0], { roughness: .7 }), ms = M(C[1], { roughness: .7 }), ink = M('#1a0d06');
+  put(ell(.14, .12, .18, mb), 0, .15, 0, body); put(ell(.11, .1, .1, mb), 0, .29, .12, body);
+  for (const s of [-1, 1]) put(ell(.016, .02, .01, ink), s * .045, .31, .21, body);
+  if (k !== 'duck') for (const s of [-1, 1]) for (const z of [-1, 1]) put(ell(.03, .045, .03, ms), s * .07, .04, z * .09, body);
+  if (k === 'puppy') { for (const s of [-1, 1]) put(ell(.035, .07, .02, ms), s * .1, .27, .1, body).rotation.z = s * .3; put(ell(.022, .016, .012, ink), 0, .28, .22, body); put(cyl(.015, .02, .12, ms, 8), 0, .22, -.18, body).rotation.x = -.8; }
+  if (k === 'kitty') { for (const s of [-1, 1]) put(new THREE.Mesh(new THREE.ConeGeometry(.035, .07, 8), ms), s * .06, .39, .11, body); put(ell(.014, .01, .01, M('#ff9ab8')), 0, .285, .215, body); put(cyl(.014, .014, .24, mb, 8), 0, .27, -.21, body).rotation.x = -.5; }
+  if (k === 'bunny') { for (const s of [-1, 1]) { put(ell(.03, .1, .02, mb), s * .04, .44, .1, body); put(ell(.015, .07, .01, ms), s * .04, .44, .115, body); } put(ell(.045, .045, .045, M('#ffffff')), 0, .17, -.18, body); }
+  if (k === 'duck') { put(ell(.05, .02, .045, ms), 0, .28, .22, body); for (const s of [-1, 1]) { put(ell(.035, .07, .1, mb), s * .13, .17, 0, body); put(ell(.04, .012, .05, ms), s * .05, .01, .03, body); } }
+  const blob = put(new THREE.Mesh(new THREE.PlaneGeometry(.5, .5), blobMat), 0, .012, 0, g); blob.rotation.x = -PI / 2;
+  g.userData.body = body; return g;
+}
+function tickPet(p, dt, t) {
+  if (!p) return;
+  const k = p.pet || ''; let o = p.petObj;
+  if (!k) { if (o) { scene.remove(o.mesh); p.petObj = null; } return; }
+  if (!o || o.k !== k) { if (o) scene.remove(o.mesh); o = p.petObj = { k, mesh: petMesh(k), x: p.x + .5, z: p.z + .5, ry: 0, love: 0 }; scene.add(o.mesh); }
+  const fx = Math.sin(p.ry), fz = Math.cos(p.ry), tx = p.x - fx * .7 - fz * .45, tz = p.z - fz * .7 + fx * .45;
+  const dx = tx - o.x, dz = tz - o.z, d = Math.hypot(dx, dz), moving = d > .25;
+  if (d > 6) { o.x = tx; o.z = tz; }
+  else if (moving) { const st = Math.min(d, (d > 2.5 ? 7 : 3.2) * dt); o.x += dx / d * st; o.z += dz / d * st; o.ry = angLerp(o.ry, Math.atan2(dx, dz), Math.min(1, dt * 10)); }
+  else o.ry = angLerp(o.ry, Math.atan2(p.x - o.x, p.z - o.z), Math.min(1, dt * 3));
+  const b = o.mesh.userData.body;
+  o.mesh.position.set(o.x, 0, o.z); o.mesh.rotation.y = o.ry;
+  b.position.y = moving ? Math.abs(Math.sin(t * 14)) * .07 : 0;
+  if (o.love > 0) { o.love -= dt; b.rotation.z = Math.sin(t * 20) * .15; } else b.rotation.z = 0;
+}
+const petSpot = o => ({ x: o.x, z: o.z, seat: -1, jy: -.42 });
+function petNearest() {
+  const list = [me.petObj, them && them.petObj].filter(Boolean).map(o => [o, Math.hypot(o.x - me.x, o.z - me.z)]).sort((a, b) => a[1] - b[1]);
+  return list[0] && list[0][1] < 1.1 ? list[0][0] : null;
+}
+function petIt(o) { o.love = 1.4; floatText(petSpot(o), '♥', '#ff9ab8'); for (let i = 0; i < 3; i++) setTimeout(() => addHeart(petSpot(o), 'mine'), i * 140); }
+function openPets() {
+  if (panel.dataset.k === 'pets') return closePanel();
+  if (decorating) toggleDecorate();
+  panel.dataset.k = 'pets';
+  panel.innerHTML = `<h3>🐾 Your pet</h3><div class="grid">${PETS.map(([k, e, n]) => `<button class="tile${(me.pet || '') === k ? ' sel' : ''}" data-pet="${k}"><b>${e} ${n}</b></button>`).join('')}</div><div class="row hintrow">Your pet follows you everywhere. Press E (or 🤝) next to any pet to give it pets</div>`;
+  panel.style.display = 'block';
+  panel.querySelectorAll('[data-pet]').forEach(b => b.onclick = () => { me.pet = b.dataset.pet; try { localStorage.setItem('ols-pet', me.pet); } catch {} send({ t: 'petk', k: me.pet }); panel.dataset.k = ''; openPets(); });
+}
+$('pets').onclick = openPets;
+
+// holding hands: E next to them; you lead, they walk beside you (moving breaks it)
+let hand = null;
+function breakHands() { if (hand) { hand = null; send({ t: 'hand', on: false }); } }
+function toggleHands() {
+  if (hand) return breakHands();
+  if (!them || Math.hypot(me.x - them.x, me.z - them.z) > 1.6) { toast('Stand next to them to hold hands 🤝'); return; }
+  if (me.seat >= 0 || them.seat >= 0) { toast('Stand up first to hold hands'); return; }
+  hand = { leader: myRole() }; send({ t: 'hand', on: true }); floatText(me, '🤝', '#ffcf6b');
+}
+function sideOf(lead, p) { const rx = -Math.cos(lead.ry), rz = Math.sin(lead.ry); return Math.sign(rx * (p.x - lead.x) + rz * (p.z - lead.z)) || 1; }
+function followTarget() { if (!hand || hand.leader === myRole() || !them) return null; const r = them.ry; return [them.x - Math.cos(r) * .6 * hand.side, them.z + Math.sin(r) * .6 * hand.side]; }
+function holdArm(p, mesh, other) { const sd = sideOf(p, other), a = mesh.userData.arms[sd > 0 ? 0 : 1]; a.position.set(sd > 0 ? -.36 : .36, .36, .04); }
+const handHeart = new THREE.Sprite(new THREE.SpriteMaterial({ map: heartTexs.mine, transparent: true, depthWrite: false })); handHeart.scale.setScalar(.18); handHeart.visible = false; scene.add(handHeart);
+function useE() { const o = petNearest(); if (o) { petIt(o); send({ t: 'petpet', whose: o === me.petObj ? 'mine' : 'theirs' }); return; } toggleHands(); }
+$('hands').onclick = useE;
+
+// fireworks (outdoor places), same show on both screens
+const rockets = [], bursts = [];
+let actx = null;
+function boom(v = .3) {
+  try {
+    actx ||= new AudioContext(); if (actx.state === 'suspended') actx.resume();
+    const len = actx.sampleRate * .7, buf = actx.createBuffer(1, len, actx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+    const src = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
+    src.buffer = buf; f.type = 'lowpass'; f.frequency.value = 650; g.gain.value = v; src.connect(f).connect(g).connect(actx.destination); src.start();
+  } catch {}
+}
+function launchFireworks(seed) {
+  if (!place.outdoor) { toast('Fireworks need the sky ✨ try Rooftop, Beach, Stars or Drive-in'); return false; }
+  let sd = seed || 1; const rr = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const c = place.scr.center, cols = ['#ffcf6b', '#ff7a9a', '#a77bff', '#b6ff3b', '#ff8a3d', '#7ad8ff'];
+  for (let i = 0; i < 8; i++) {
+    const r = { x: c.x + (rr() - .5) * 16, z: c.z - 3 - rr() * 7, h: c.y + 4 + rr() * 6, vy: 13 + rr() * 2, y: 0, col: cols[Math.floor(rr() * cols.length)] };
+    setTimeout(() => rockets.push(r), i * 520 + rr() * 250);
+  }
+  return true;
+}
+function explode(r) {
+  const n = 120, pos = new Float32Array(n * 3), vel = [];
+  for (let i = 0; i < n; i++) {
+    const u = Math.random() * 2 - 1, a = Math.random() * PI * 2, q = Math.sqrt(1 - u * u), sp = 4 + Math.random() * 1.5;
+    vel.push(new THREE.Vector3(q * Math.cos(a) * sp, u * sp, q * Math.sin(a) * sp)); pos.set([r.x, r.y, r.z], i * 3);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: new THREE.Color(r.col).multiplyScalar(4), size: .32, transparent: true, depthWrite: false, fog: false }));
+  scene.add(pts); bursts.push({ pts, vel, age: 0 }); boom();
+}
+function tickFireworks(dt) {
+  for (let i = rockets.length - 1; i >= 0; i--) {
+    const r = rockets[i];
+    if (!r.m) { r.m = new THREE.Mesh(SPH, GLOW('#ffe7a8', 5)); r.m.scale.setScalar(.07); scene.add(r.m); }
+    r.y += r.vy * dt; r.vy -= 3 * dt; r.m.position.set(r.x + Math.sin(r.y * 3) * .05, r.y, r.z);
+    if (r.y >= r.h || r.vy <= 1) { scene.remove(r.m); explode(r); rockets.splice(i, 1); }
+  }
+  for (let i = bursts.length - 1; i >= 0; i--) {
+    const b = bursts[i], a = b.pts.geometry.attributes.position; b.age += dt;
+    b.vel.forEach((v, k) => { v.y -= 2.5 * dt; v.multiplyScalar(1 - dt * 1.2); a.setXYZ(k, a.getX(k) + v.x * dt, a.getY(k) + v.y * dt, a.getZ(k) + v.z * dt); });
+    a.needsUpdate = true; b.pts.material.opacity = Math.max(0, 1 - b.age / 2.6);
+    if (b.age > 2.6) { scene.remove(b.pts); b.pts.geometry.dispose(); bursts.splice(i, 1); }
+  }
+}
+$('fw').onclick = () => { const sd = 1 + Math.floor(Math.random() * 1e6); if (launchFireworks(sd)) send({ t: 'fw', seed: sd }); };
+
+// doodle together on the screen (when nobody is sharing)
+const dcv = placeholderTex.image, dctx = dcv.getContext('2d');
+function paintPlaceholder() {
+  const w = dcv.width, h = dcv.height, g = dctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, '#fff4e2'); g.addColorStop(1, '#f2d8b8'); dctx.globalAlpha = 1; dctx.fillStyle = g; dctx.fillRect(0, 0, w, h);
+  dctx.fillStyle = '#7a5a4a'; dctx.textAlign = 'center'; dctx.font = '600 46px ui-rounded, system-ui'; dctx.fillText('🎮 pull out the controller', w / 2, h / 2 - 10);
+  dctx.font = '32px ui-rounded, system-ui'; dctx.globalAlpha = .7; dctx.fillText('to share a tab · or ✏️ doodle here together', w / 2, h / 2 + 46); dctx.globalAlpha = 1;
+  placeholderTex.needsUpdate = true;
+}
+paintPlaceholder();
+const INKS = ['#ff7a59', '#ff9ab8', '#a77bff', '#5fa04a', '#3a6ad0', '#1a0d06', '#fff8ee'];
+let doodling = false, ink = { c: INKS[0], w: 8 }, stroke = null, inkBuf = [], inkTimer = 0;
+function inkLine(pts, c, w) {
+  if (pts.length < 2) { if (pts.length === 1) pts = [pts[0], pts[0]]; else return; }
+  dctx.strokeStyle = c; dctx.lineWidth = w; dctx.lineCap = dctx.lineJoin = 'round'; dctx.beginPath();
+  pts.forEach(([u, v], i) => { const x = u * dcv.width, y = (1 - v) * dcv.height; i ? dctx.lineTo(x, y) : dctx.moveTo(x, y); });
+  dctx.stroke(); placeholderTex.needsUpdate = true;
+}
+function screenUV(e) {
+  const r = cv.getBoundingClientRect(); ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+  const hit = ray.intersectObject(place.scr.mesh)[0]; return hit && hit.uv ? [+hit.uv.x.toFixed(4), +hit.uv.y.toFixed(4)] : null;
+}
+function flushInk() { if (inkBuf.length > 1) send({ t: 'ink', c: ink.c, w: ink.w, pts: inkBuf }); inkBuf = inkBuf.length ? [inkBuf[inkBuf.length - 1]] : []; }
+cv.addEventListener('pointerdown', e => {
+  if (!doodling || screenLive) return; const uv = screenUV(e); if (!uv) return;
+  e.stopImmediatePropagation(); cv.setPointerCapture(e.pointerId); stroke = [uv]; inkBuf = [uv]; inkLine([uv], ink.c, ink.w);
+}, { capture: true });
+cv.addEventListener('pointermove', e => {
+  if (!stroke) return; e.stopImmediatePropagation(); const uv = screenUV(e); if (!uv) return;
+  inkLine([stroke[stroke.length - 1], uv], ink.c, ink.w); stroke.push(uv); inkBuf.push(uv);
+  if (performance.now() - inkTimer > 60) { inkTimer = performance.now(); flushInk(); }
+}, { capture: true });
+cv.addEventListener('pointerup', e => { if (!stroke) return; e.stopImmediatePropagation(); flushInk(); stroke = null; inkBuf = []; }, { capture: true });
+function toggleDoodle() {
+  doodling = !doodling; $('doodle').classList.toggle('on', doodling);
+  if (!doodling) { if (panel.dataset.k === 'doodle') closePanel(); return; }
+  if (decorating) toggleDecorate();
+  if (screenLive) toast('Stop sharing first to doodle on the screen');
+  panel.dataset.k = 'doodle';
+  panel.innerHTML = `<h3>✏️ Doodle on the screen</h3><div class="row" style="margin-top:0">${INKS.map(c => `<button class="sw${ink.c === c ? ' on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}
+    <button class="pill${ink.w === 8 ? ' on' : ''}" data-w="8">thin</button><button class="pill${ink.w === 20 ? ' on' : ''}" data-w="20">thick</button></div>
+    <div class="row hintrow">Draw on the screen with the mouse or your finger. They see it live</div>
+    <div class="row"><button class="pill" data-clear>🧽 Clear</button><button class="pill on" data-done>Done</button></div>`;
+  panel.style.display = 'block';
+  panel.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { ink.c = b.dataset.c; doodling = false; toggleDoodle(); });
+  panel.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { ink.w = +b.dataset.w; doodling = false; toggleDoodle(); });
+  panel.querySelector('[data-clear]').onclick = () => { paintPlaceholder(); send({ t: 'inkClear' }); };
+  panel.querySelector('[data-done]').onclick = toggleDoodle;
+}
+$('doodle').onclick = toggleDoodle;
+
+// "who's more likely to…" quiz
+const QUIZ = ['fall asleep during the movie', 'cry at a sad movie', 'steal the blanket', 'eat all the popcorn', 'say "I love you" first', 'get lost going somewhere new',
+  'plan a surprise date', 'laugh at their own joke', 'lose their phone in the couch', 'start a tickle fight', 'pick the movie', 'be late', 'dance in the kitchen',
+  'talk to animals like people', 'send the first good-morning text', 'win at board games', 'cook the better meal', 'spend too much on snacks', 'sing in the shower', 'want cuddles first'];
+let quiz = null;
+function startQuiz() {
+  if (!them) { toast('Invite them first ♥ this one needs two'); return; }
+  const idx = QUIZ.map((_, i) => i).sort(() => Math.random() - .5).slice(0, 7);
+  send({ t: 'quiz', qs: idx }); beginQuiz(idx);
+}
+function beginQuiz(qs) { endGame(true); quiz = { qs, i: 0, ans: [], score: 0 }; renderQuiz(); }
+function renderQuiz() {
+  if (!quiz) return; const q = quiz; panel.dataset.k = 'quiz'; panel.style.display = 'block';
+  if (q.i >= q.qs.length) {
+    const n = q.qs.length;
+    panel.innerHTML = `<h3>💘 Results</h3><div style="font-size:22px;margin:6px 0">You matched <b>${q.score}/${n}</b></div><div class="row hintrow">${q.score === n ? 'Same brain. Soulmates confirmed 💞' : q.score >= n * .6 ? 'You know each other so well ♥' : 'Time for a little debate 😳'}</div><div class="row"><button class="pill on" data-again>Play again</button><button class="pill" data-close>Close</button></div>`;
+    panel.querySelector('[data-again]').onclick = startQuiz; panel.querySelector('[data-close]').onclick = () => { quiz = null; closePanel(); };
+    return;
+  }
+  const a = q.ans[q.i] || {}, reveal = a.mine && a.theirs, tn = them ? them.name : 'them';
+  panel.innerHTML = `<h3>💘 Who's more likely to… (${q.i + 1}/${q.qs.length})</h3><div style="font-size:21px;font-weight:700;margin:4px 0 12px">${QUIZ[q.qs[q.i]]}?</div>
+    <div class="grid"><button class="tile${a.mine === myRole() ? ' sel' : ''}" data-p="${myRole()}" ${a.mine ? 'disabled' : ''}><b>🙋 ${me.name}</b></button><button class="tile${a.mine === otherRole() ? ' sel' : ''}" data-p="${otherRole()}" ${a.mine ? 'disabled' : ''}><b>👉 ${tn}</b></button></div>
+    <div class="row" style="font-size:15px">${reveal ? (a.mine === a.theirs ? `💞 You both said ${nameOf(a.mine)}!` : `😳 You said ${nameOf(a.mine)}, ${tn} said ${nameOf(a.theirs)}`) : a.mine ? `waiting for ${tn}…` : 'pick one'}</div>`;
+  panel.querySelectorAll('[data-p]').forEach(b => b.onclick = () => answerQuiz(b.dataset.p));
+}
+function answerQuiz(role) { const a = quiz.ans[quiz.i] ||= {}; if (a.mine) return; a.mine = role; send({ t: 'qa', i: quiz.i, pick: role }); checkQuiz(); renderQuiz(); }
+function checkQuiz() {
+  const a = quiz.ans[quiz.i]; if (!a || !a.mine || !a.theirs || a.done) return;
+  a.done = true; if (a.mine === a.theirs) { quiz.score++; burst(); }
+  const i = quiz.i; setTimeout(() => { if (quiz && quiz.i === i) { quiz.i++; renderQuiz(); if (quiz.i >= quiz.qs.length && quiz.score === quiz.qs.length) burst(); } }, 2600);
+}
+
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.repeat) return;
+  const k = e.key.toLowerCase();
+  if (k === 'enter') { e.preventDefault(); openChat(); }
+  if (k === 'e') useE();
+});
+function placeChanged3() {
+  hand = null;
+  for (const p of [me, them]) if (p && p.petObj) { p.petObj.x = p.x + .5; p.petObj.z = p.z + .5; }
+  rockets.forEach(r => r.m && scene.remove(r.m)); rockets.length = 0;
+}
+function funTick3(dt, t) {
+  tickPet(me, dt, t); tickPet(them, dt, t); tickFireworks(dt);
+  for (const mesh of [meMesh, themMesh]) { const u = mesh && mesh.userData; if (u && u.bubble && t > u.bubbleEnd) { mesh.remove(u.bubble); u.bubble = null; } }
+  if (hand && (!them || me.seat >= 0 || them.seat >= 0)) breakHands();
+  handHeart.visible = !!hand;
+  if (hand && them && meMesh && themMesh) {
+    holdArm(me, meMesh, them); holdArm(them, themMesh, me);
+    if (hand.leader !== myRole() && !me.walking) me.ry = angLerp(me.ry, them.ry, Math.min(1, dt * 6));
+    handHeart.position.set((me.x + them.x) / 2, .62 + Math.sin(t * 3) * .03, (me.z + them.z) / 2);
+  }
+}
+function onFun3(m) {
+  if (onFun4(m)) return true;
+  switch (m.t) {
+    case 'hello': if (mic) setTimeout(callVoice, 300); send({ t: 'petk', k: me.pet }); return false;
+    case 'mic': toast(m.on ? `🎙 ${them ? them.name : 'They'} turned voice on${mic ? '' : ' · tap 🎙 to talk back'}` : `🎙 ${them ? them.name : 'They'} muted`); return true;
+    case 'say': say(themMesh, String(m.text).slice(0, 80)); return true;
+    case 'petk': if (them) them.pet = m.k; else pendingPet = m.k; return true;
+    case 'petpet': { const o = m.whose === 'mine' ? them && them.petObj : me.petObj; if (o) petIt(o); return true; }
+    case 'hand': if (m.on && them) { hand = { leader: otherRole(), side: sideOf(them, me) }; floatText(them, '🤝', '#ffcf6b'); } else hand = null; return true;
+    case 'fw': launchFireworks(m.seed); return true;
+    case 'ink': inkLine(m.pts, m.c, m.w); return true;
+    case 'inkClear': paintPlaceholder(); return true;
+    case 'quiz': beginQuiz(m.qs); return true;
+    case 'qa': if (quiz) { (quiz.ans[m.i] ||= {}).theirs = m.pick; if (m.i === quiz.i) { checkQuiz(); renderQuiz(); } } return true;
+  }
+  return false;
+}
+let pendingPet = '';
+
+// ---------- batch 4: webcam face bubbles, hot potato, floor is lava ----------
+// webcam: your face floats above your character in a glowing bubble
+let webcam = null, camCall = null;
+function faceFor(p, stream, mirror) {
+  if (p.face) { p.face.mesh.removeFromParent(); p.face.tex.dispose(); p.face = null; }
+  if (!stream) return;
+  const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.autoplay = true; v.srcObject = stream; v.play().catch(() => {});
+  const tex = new THREE.VideoTexture(v); tex.colorSpace = THREE.SRGBColorSpace;
+  v.addEventListener('loadedmetadata', () => { const a = v.videoWidth / v.videoHeight; if (a > 1) { tex.repeat.set(1 / a, 1); tex.offset.set((1 - 1 / a) / 2, 0); } else { tex.repeat.set(1, a); tex.offset.set(0, (1 - a) / 2); } });
+  const g = new THREE.Group();
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(.3, 40), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false })); if (mirror) disc.scale.x = -1; g.add(disc);
+  put(new THREE.Mesh(new THREE.TorusGeometry(.31, .025, 8, 48), GLOW('#ffcf6b', .9)), 0, 0, -.001, g);
+  g.position.set(0, 2, 0); g.renderOrder = 9;
+  p.face = { video: v, tex, mesh: g };
+}
+function callCam() { if (webcam && conn && peer) { if (camCall) camCall.close(); camCall = peer.call(conn.peer, webcam, { metadata: { kind: 'cam' } }); } }
+async function toggleCam() {
+  if (webcam) { webcam.getTracks().forEach(tr => tr.stop()); webcam = null; if (camCall) { camCall.close(); camCall = null; } faceFor(me, null); $('camb').classList.remove('on'); send({ t: 'cam', on: false }); return; }
+  try { webcam = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: 'user' } }); }
+  catch { toast('Camera blocked: allow the camera in the address bar'); return; }
+  faceFor(me, webcam, true); $('camb').classList.add('on'); callCam(); send({ t: 'cam', on: true });
+  toast('📷 Camera on · your face floats above you');
+}
+$('camb').onclick = toggleCam;
+function tickFaces() {
+  for (const [p, mesh] of [[me, meMesh], [them, themMesh]]) {
+    if (!p || !p.face || !mesh) continue;
+    const f = p.face.mesh; if (f.parent !== mesh) mesh.add(f);
+    f.quaternion.copy(mesh.quaternion).invert().multiply(camera.quaternion); // always faces the camera
+    f.position.y = 2 + Math.sin(clock.elapsedTime * 2) * .03;
+  }
+}
+
+// hot potato: pass it by touching them; nobody knows when it blows
+const potato = new THREE.Group();
+put(ell(.13, .1, .1, M('#c8904e', { roughness: .9 })), 0, 0, 0, potato);
+for (let i = 0; i < 5; i++) put(ell(.015, .012, .01, M('#8a5a2e')), Math.cos(i * 1.3) * .1, Math.sin(i * 2.1) * .05, .085, potato);
+put(cyl(.006, .006, .08, '#3a2418', 5), .06, .1, 0, potato).rotation.z = -.5;
+const spark = put(new THREE.Mesh(SPH, GLOW('#ffcf6b', 6)), .085, .14, 0, potato); spark.scale.setScalar(.025);
+
+// floor is lava: hop onto a glowing pad (or a seat!) before the lava rises
+const lava = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff4a1a').multiplyScalar(1.6), transparent: true, opacity: 0, depthWrite: false }));
+lava.rotation.x = -PI / 2; lava.visible = false; scene.add(lava);
+const padMat = GLOW('#b6ff3b', 1.6);
+function clearPads() { if (game && game.padMeshes) game.padMeshes.forEach(m => scene.remove(m)); }
+function lavaRounds() {
+  const b = place.bounds, rounds = [];
+  for (let r = 0; r < 6; r++) {
+    const n = Math.max(1, 3 - Math.floor(r / 2)), pads = [];
+    for (let i = 0; i < n; i++) pads.push([+(b[0] + .8 + Math.random() * (b[1] - b[0] - 1.6)).toFixed(2), +(b[2] + .8 + Math.random() * (b[3] - b[2] - 1.6)).toFixed(2)]);
+    rounds.push(pads);
+  }
+  return rounds;
+}
+function tickLava(t, el) {
+  const R = 7, ri = Math.floor(el / R), ph = el - ri * R, n = game.rounds.length, L = game.lives, mine = L[myRole()], theirs = L[otherRole()];
+  if (ri >= n || mine <= 0 || (them && theirs <= 0)) {
+    endGame(false, !them ? `🔥 You survived with ${mine} ♥ left!` : mine > theirs ? `🔥 You win! ${mine} ♥ vs ${theirs} ♥` : mine < theirs ? `🔥 ${nameOf(otherRole())} wins ${theirs} ♥ vs ${mine} ♥` : `🔥 Tie! ${mine} ♥ each`);
+    return null;
+  }
+  if (game.ri !== ri) {
+    clearPads(); game.ri = ri; game.hit = false;
+    game.padMeshes = game.rounds[ri].map(([x, z]) => put(new THREE.Mesh(new THREE.CylinderGeometry(.75, .75, .05, 40), padMat), x, .05, z, scene));
+  }
+  const up = ph > 4.5;
+  lava.visible = true; lava.position.y = up ? .035 : .012; lava.material.opacity = up ? .82 + Math.sin(t * 9) * .06 : .12 + Math.sin(t * 4) * .06;
+  game.padMeshes.forEach((m, i) => m.scale.setScalar(1 + Math.sin(t * 5 + i) * .04));
+  if (up && ph > 4.8 && !game.hit) {
+    const safe = me.seat >= 0 || me.jy > .12 || game.rounds[ri].some(([x, z]) => Math.hypot(me.x - x, me.z - z) < .78);
+    if (!safe) { game.hit = true; L[myRole()]--; send({ t: 'lava' }); floatText(me, 'ouch! 🔥', '#ff7a59'); me.squish = 1; }
+  }
+  const hearts = n => '♥'.repeat(Math.max(0, n));
+  return `🔥 Floor is lava · round ${ri + 1}/${n} · ${up ? 'LAVA!' : 'get on a pad! ' + Math.ceil(4.5 - ph)} · you ${hearts(mine)}${them ? ' · ' + nameOf(otherRole()) + ' ' + hearts(theirs) : ''}`;
+}
+
+function funTick4(dt, t) { tickFaces(); }
+function onFun4(m) {
+  switch (m.t) {
+    case 'hello': if (webcam) setTimeout(callCam, 500); return false;
+    case 'cam': if (!m.on && them) faceFor(them, null); if (m.on) toast(`📷 ${them ? them.name : 'They'} turned their camera on${webcam ? '' : ' · tap 📷 to show yours'}`); return true;
+    case 'lava': if (game && game.mode === 'lava') { game.lives[otherRole()]--; if (them) floatText(them, 'ouch! 🔥', '#ff7a59'); } return true;
+  }
+  return false;
+}
+
 function onPlaceChanged() {
   endGame(true); dropHeld();
-  rebuildDeco(place.id); applyMood(); buildHiddenStars();
+  rebuildDeco(place.id); applyMood(); buildHiddenStars(); placeChanged3();
   if (decorating) renderDecoPanel(); else if (panel.dataset.k === 'games') closePanel();
 }
 function funTick(dt, t) {
@@ -1110,7 +1490,7 @@ function funTick(dt, t) {
     const q = p.squish || 0; if (q > 0) p.squish = Math.max(0, q - dt * 2.5);
     mesh.userData.body.scale.set(1 + .25 * q, 1 - .3 * q, 1 + .25 * q);
   }
-  funTick2(dt, t);
+  funTick2(dt, t); funTick3(dt, t); funTick4(dt, t);
   if (themMesh) themMesh.userData.tag.visible = !(game && game.mode === 'hide' && game.seeker === myRole());
 }
 function onFun(m) {
@@ -1124,7 +1504,7 @@ function onFun(m) {
     case 'nom': if (them) floatText(them, 'nom! 🍿', '#ffcf6b'); return true;
     case 'game': beginGame(m.g); return true;
     case 'gameEnd': endGame(true); toast('Game stopped'); return true;
-    case 'tag': if (game && game.mode === 'tag') { game.it = myRole(); game.cool = clock.elapsedTime - game.t0 + 1.5; floatText(me, "tag! you're it", '#ff7a59'); } return true;
+    case 'tag': if (game && (game.mode === 'tag' || game.mode === 'potato')) { game.it = myRole(); game.cool = clock.elapsedTime - game.t0 + 1.5; floatText(me, "tag! you're it", '#ff7a59'); } return true;
     case 'found': if (game && game.mode === 'hide') endGame(false, `🙈 ${them ? them.name : 'They'} found you!`); return true;
     case 'star': if (game && game.stars && game.stars[m.i]) { scene.remove(game.stars[m.i]); game.stars[m.i] = null; game.score[otherRole()]++; } return true;
   }
@@ -1159,7 +1539,7 @@ function onData(m) {
   if (m.t === 'hello') {
     const sp = isHost ? place.spawn[1] : place.spawn[0];
     them = them || { x: sp[0], z: sp[1], rx: sp[0], rz: sp[1], ry: PI, rry: PI, jy: 0, seat: -1, share: false };
-    Object.assign(them, { name: m.name, look: m.look }); if (pendingHat && !them.hat) them.hat = pendingHat;
+    Object.assign(them, { name: m.name, look: m.look }); if (pendingHat && !them.hat) them.hat = pendingHat; if (pendingPet && !them.pet) them.pet = pendingPet;
     setStatus(`💞 together with ${m.name}`);
     if (m.reply) return;
     send({ t: 'hello', name: me.name, look: me.look, reply: true });
@@ -1188,7 +1568,10 @@ function connect() {
     else { myRoom = ROOM; setStatus('connecting…'); wire(peer.connect(ROOM, { reliable: true })); }
   });
   peer.on('connection', c => { if (conn && conn.open) { c.close(); return; } wire(c); });
-  peer.on('call', c => { call = c; c.answer(); c.on('stream', s => { if (!myStream) showStream(s); }); });
+  peer.on('call', c => {
+    if (c.metadata && c.metadata.kind === 'cam') { c.answer(); c.on('stream', st => { if (them) faceFor(them, st, false); }); return; }
+    if (c.metadata && c.metadata.kind === 'voice') { c.answer(); c.on('stream', st => { voiceAudio.srcObject = st; voiceAudio.play().catch(() => toast('Click anywhere to hear them')); }); return; }
+    call = c; c.answer(); c.on('stream', s => { if (!myStream) showStream(s); }); });
   peer.on('error', e => setStatus(e.type === 'peer-unavailable' ? '🫥 room not found, ask for a new link' : '⚠️ ' + e.type));
   peer.on('disconnected', () => peer.reconnect());
 }
@@ -1204,7 +1587,7 @@ function showStream(s, mine = false) {
   screenMat.map = s ? videoTex : placeholderTex; screenMat.needsUpdate = true;
   if (s) vid.play().catch(() => toast('Click anywhere to turn the sound on'));
 }
-addEventListener('pointerdown', () => { if (screenLive && vid.paused) vid.play(); });
+addEventListener('pointerdown', () => { if (screenLive && vid.paused) vid.play(); if (voiceAudio.srcObject && voiceAudio.paused) voiceAudio.play().catch(() => {}); });
 function startCall() { if (conn && myStream) { if (call) call.close(); call = peer.call(conn.peer, myStream); } }
 async function share() {
   if (myStream) return stopShare();
@@ -1234,6 +1617,6 @@ $('go').onclick = () => {
   setPlace(PLACES[0].id, false); connect(); loop();
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
