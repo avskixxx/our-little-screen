@@ -889,7 +889,14 @@ function animChar(c, p, t) {
   const other = p.preview ? null : p === me ? them : me;
   if (other && !walk) { const dx = other.x - p.x, dz = other.z - p.z, d = Math.hypot(dx, dz); if (d < 2.6 && d > .2) { let a = Math.atan2(dx, dz) - p.ry; a = ((a + PI) % (2 * PI) + 2 * PI) % (2 * PI) - PI; if (Math.abs(a) < 1.7) hy = Math.max(-.85, Math.min(.85, a)); } }
   if (walk || slide) hy = 0;
-  h.rotation.y += (hy - h.rotation.y) * Math.min(1, dt * 5); h.rotation.x = walk ? -.05 * s : crouch ? .1 : 0; h.rotation.z = Math.sin(t * .6 + u.seed) * .04;
+  // your head follows where your camera is looking (the whole head, capped so it never spins around); she sees it too
+  let hp = 0;
+  if (p === me) {
+    let a = cam.yaw + PI - p.ry; a = ((a + PI) % (2 * PI) + 2 * PI) % (2 * PI) - PI;
+    me.lookY = Math.abs(a) > 2.5 ? 0 : Math.max(-1.2, Math.min(1.2, a)); me.lookP = pov === 1 ? Math.max(-.4, Math.min(.45, -cam.fp * .6)) : Math.max(-.25, Math.min(.35, (cam.pitch - .22) * .5));
+  }
+  if ((p === me || p === them) && p.lookY !== undefined && !slide && !p.ko) { hy = p.lookY; hp = p.lookP || 0; }
+  h.rotation.y += (hy - h.rotation.y) * Math.min(1, dt * 8); h.rotation.x = (walk ? -.05 * s : crouch ? .1 : 0) + (u.hp = (u.hp || 0) + (hp - (u.hp || 0)) * Math.min(1, dt * 8)); h.rotation.z = Math.sin(t * .6 + u.seed) * .04;
   // idle stretch now and then
   if (!walk && !sit && !air && !floor && !crouch && !slide) u.idle = (u.idle || 0) + dt; else u.idle = 0;
   const stretch = u.idle > 9 && u.idle < 10.3; if (u.idle > 15 + (u.seed % 5)) u.idle = 0;
@@ -2463,7 +2470,7 @@ function loop() {
   stepCam(dt); highCam(t);
   if ((frameN = (frameN || 0) + 1) % 3 === 0) grain.uniforms.t.value = (grain.uniforms.t.value + 1.7) % 100; composer.render();
   if (snapNext) { snapNext = false; grabPhoto(); }
-  if (t - lastSent > .05) { lastSent = t; send({ t: 'me', x: +me.x.toFixed(3), z: +me.z.toFixed(3), ry: +me.ry.toFixed(3), seat: me.seat, w: me.walking, j: +me.jy.toFixed(3), a: me.vy !== 0 ? 1 : 0, ps: me.pose || '', fl: me.flipT ? 1 : 0 }); }
+  if (t - lastSent > .05) { lastSent = t; send({ t: 'me', x: +me.x.toFixed(3), z: +me.z.toFixed(3), ry: +me.ry.toFixed(3), seat: me.seat, w: me.walking, j: +me.jy.toFixed(3), a: me.vy !== 0 ? 1 : 0, ps: me.pose || '', fl: me.flipT ? 1 : 0, hy: +(me.lookY || 0).toFixed(2), hp: +(me.lookP || 0).toFixed(2) }); }
   requestAnimationFrame(loop);
 }
 
@@ -2482,7 +2489,7 @@ function onData(m) {
     send({ t: 'hello', name: me.name, look: me.look, reply: true });
     if (isHost) send({ t: 'place', id: place.id });
     if (myStream) { startCall(); send({ t: 'share', on: true }); }
-  } else if (m.t === 'me' && them) { const now = clock.elapsedTime, gap = Math.max(.03, Math.min(.3, now - (them.rt || now - .05))); them.rvx = (m.x - (them.rx ?? m.x)) / gap; them.rvz = (m.z - (them.rz ?? m.z)) / gap; if (Math.hypot(them.rvx, them.rvz) > 9) them.rvx = them.rvz = 0; them.rt = now; them.rx = m.x; them.rz = m.z; them.rry = m.ry; them.seat = m.seat; them.walking = m.w; them.rjy = m.j || 0; them.air = !!m.a; them.pose = m.ps === 'ko' ? '' : m.ps || ''; if (m.fl && !them.flipT) them.flipT = clock.elapsedTime; if (!m.fl) them.flipT = 0; }
+  } else if (m.t === 'me' && them) { const now = clock.elapsedTime, gap = Math.max(.03, Math.min(.3, now - (them.rt || now - .05))); them.rvx = (m.x - (them.rx ?? m.x)) / gap; them.rvz = (m.z - (them.rz ?? m.z)) / gap; if (Math.hypot(them.rvx, them.rvz) > 9) them.rvx = them.rvz = 0; them.rt = now; them.rx = m.x; them.rz = m.z; them.rry = m.ry; them.seat = m.seat; them.walking = m.w; them.rjy = m.j || 0; them.lookY = m.hy; them.lookP = m.hp; them.air = !!m.a; them.pose = m.ps === 'ko' ? '' : m.ps || ''; if (m.fl && !them.flipT) them.flipT = clock.elapsedTime; if (!m.fl) them.flipT = 0; }
   else if (m.t === 'place') { if (m.id !== place.id) { setPlace(m.id, false); toast(`${them ? them.name : 'They'} took you to ${place.name}`); } }
   else if (m.t === 'heart' && them) addHeart(them, 'theirs');
   else if (m.t === 'share' && them) {
