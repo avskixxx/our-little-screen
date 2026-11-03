@@ -147,7 +147,7 @@ composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), .75, .55, 1.3);
 composer.addPass(bloom); composer.addPass(new OutputPass());
 // a soft film grain + vignette on top, for the cozy analog feel
-const grain = new ShaderPass({ uniforms: { tDiffuse: { value: null }, t: { value: 0 }, amt: { value: .04 }, vig: { value: .32 } },
+const grain = new ShaderPass({ uniforms: { tDiffuse: { value: null }, t: { value: 0 }, amt: { value: .025 }, vig: { value: .32 } },
   vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
   fragmentShader: 'uniform sampler2D tDiffuse; uniform float t, amt, vig; varying vec2 vUv; float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + t) * 43758.5453); } void main() { vec4 c = texture2D(tDiffuse, vUv); vec2 d = vUv - .5; c.rgb *= 1. - dot(d, d) * vig * 1.6; c.rgb += (h(gl_FragCoord.xy) - .5) * amt; gl_FragColor = c; }' });
 composer.addPass(grain);
@@ -990,7 +990,7 @@ function step(dt) {
   }
   if (me.seat >= 0) { me.jy = 0; me.vy = 0; }
   else { const gy = groundAt(me.x, me.z); if (me.vy !== 0 || me.jy > gy + .001) { me.vy -= 13 * dt; me.jy += me.vy * dt; if (me.jy <= gy) { me.jy = gy; me.vy = 0; } } else me.jy = gy; }
-  if (them) { const k = Math.min(1, dt * 10); them.x += (them.rx - them.x) * k; them.z += (them.rz - them.z) * k; them.ry = angLerp(them.ry, them.rry, k); them.jy += ((them.rjy || 0) - (them.jy || 0)) * Math.min(1, dt * 20); }
+  if (them) { const k = Math.min(1, dt * 12), ahead = them.seat >= 0 ? 0 : Math.min(.1, clock.elapsedTime - (them.rt || 0)); them.x += (them.rx + (them.rvx || 0) * ahead - them.x) * k; them.z += (them.rz + (them.rvz || 0) * ahead - them.z) * k; them.ry = angLerp(them.ry, them.rry, k); them.jy += ((them.rjy || 0) - (them.jy || 0)) * Math.min(1, dt * 20); }
 }
 function placeChar(mesh, p) { const y = (p.seat >= 0 && place.seats[p.seat] ? place.seats[p.seat].y - .05 : 0) + (p.jy || 0); mesh.position.set(p.x, y, p.z); mesh.rotation.y = p.ry; }
 
@@ -2258,8 +2258,26 @@ function onFun(m) {
 
 // ---------- loop ----------
 const clock = new THREE.Clock(); let lastSent = 0;
+// auto quality: if frames run slow, step down resolution + edge smoothing until it's smooth again
+const QUALITY = [[1.75, 4], [1.5, 2], [1.25, 0], [1, 0], [.8, 0]];
+let frameN = 0, qLevel = 0, qAcc = 0, qN = 0;
+try { qLevel = Math.min(QUALITY.length - 1, +localStorage.getItem('ols-q') || 0); } catch {}
+function applyQuality() {
+  const [pr, ms] = QUALITY[qLevel]; renderer.setPixelRatio(Math.min(devicePixelRatio || 1, pr));
+  for (const rt of [composer.renderTarget1, composer.renderTarget2]) if (rt.samples !== ms) { rt.samples = ms; rt.dispose(); }
+  composer.setPixelRatio(renderer.getPixelRatio()); resize();
+}
+function watchFps(raw) {
+  if (raw > .25 || document.hidden || clock.elapsedTime < 6) return; // tab was asleep, or still warming up
+  qAcc += raw; qN++;
+  if (qAcc < 2) return;
+  const fps = qN / qAcc; qAcc = 0; qN = 0;
+  const to = fps < 48 && qLevel < QUALITY.length - 1 ? qLevel + 1 : fps > 80 && qLevel > 0 ? qLevel - 1 : qLevel;
+  if (to !== qLevel) { qLevel = to; applyQuality(); try { localStorage.setItem('ols-q', qLevel); } catch {} }
+}
+applyQuality();
 function loop() {
-  const dt = Math.min(.05, clock.getDelta()), t = clock.elapsedTime;
+  const raw = clock.getDelta(), dt = Math.min(.05, raw), t = clock.elapsedTime; watchFps(raw);
   step(dt);
   placeChar(meMesh, me); animChar(meMesh, me, t);
   if (them) { if (!themMesh || themMesh.userData.look !== them.look || themMesh.userData.name !== them.name) { if (themMesh) scene.remove(themMesh); themMesh = makeChar(them.look, them.name); scene.add(themMesh); } placeChar(themMesh, them); animChar(themMesh, them, t); }
@@ -2269,9 +2287,9 @@ function loop() {
   cuddle.visible = !!close; if (close) { cuddle.position.copy(headOf(me)).lerp(headOf(them), .5).add(new THREE.Vector3(0, .45 + Math.sin(t * 2) * .05, 0)); }
   for (let i = hearts.length - 1; i >= 0; i--) { const h = hearts[i], a = (t - h.t0) / 2.2; if (a > 1) { scene.remove(h.s); hearts.splice(i, 1); continue; } h.s.position.y += dt * .5; h.s.position.x += Math.sin(a * 9 + h.p) * .004; h.s.material.opacity = 1 - a; }
   stepCam(dt);
-  grain.uniforms.t.value = (grain.uniforms.t.value + 1.7) % 100; composer.render();
+  if ((frameN = (frameN || 0) + 1) % 3 === 0) grain.uniforms.t.value = (grain.uniforms.t.value + 1.7) % 100; composer.render();
   if (snapNext) { snapNext = false; grabPhoto(); }
-  if (t - lastSent > .066) { lastSent = t; send({ t: 'me', x: +me.x.toFixed(3), z: +me.z.toFixed(3), ry: +me.ry.toFixed(3), seat: me.seat, w: me.walking, j: +me.jy.toFixed(3), a: me.vy !== 0 ? 1 : 0, ps: me.pose || '', fl: me.flipT ? 1 : 0 }); }
+  if (t - lastSent > .05) { lastSent = t; send({ t: 'me', x: +me.x.toFixed(3), z: +me.z.toFixed(3), ry: +me.ry.toFixed(3), seat: me.seat, w: me.walking, j: +me.jy.toFixed(3), a: me.vy !== 0 ? 1 : 0, ps: me.pose || '', fl: me.flipT ? 1 : 0 }); }
   requestAnimationFrame(loop);
 }
 
@@ -2290,7 +2308,7 @@ function onData(m) {
     send({ t: 'hello', name: me.name, look: me.look, reply: true });
     if (isHost) send({ t: 'place', id: place.id });
     if (myStream) { startCall(); send({ t: 'share', on: true }); }
-  } else if (m.t === 'me' && them) { them.rx = m.x; them.rz = m.z; them.rry = m.ry; them.seat = m.seat; them.walking = m.w; them.rjy = m.j || 0; them.air = !!m.a; them.pose = m.ps === 'ko' ? '' : m.ps || ''; if (m.fl && !them.flipT) them.flipT = clock.elapsedTime; if (!m.fl) them.flipT = 0; }
+  } else if (m.t === 'me' && them) { const now = clock.elapsedTime, gap = Math.max(.03, Math.min(.3, now - (them.rt || now - .05))); them.rvx = (m.x - (them.rx ?? m.x)) / gap; them.rvz = (m.z - (them.rz ?? m.z)) / gap; if (Math.hypot(them.rvx, them.rvz) > 9) them.rvx = them.rvz = 0; them.rt = now; them.rx = m.x; them.rz = m.z; them.rry = m.ry; them.seat = m.seat; them.walking = m.w; them.rjy = m.j || 0; them.air = !!m.a; them.pose = m.ps === 'ko' ? '' : m.ps || ''; if (m.fl && !them.flipT) them.flipT = clock.elapsedTime; if (!m.fl) them.flipT = 0; }
   else if (m.t === 'place') { if (m.id !== place.id) { setPlace(m.id, false); toast(`${them ? them.name : 'They'} took you to ${place.name}`); } }
   else if (m.t === 'heart' && them) addHeart(them, 'theirs');
   else if (m.t === 'share' && them) {
@@ -2362,6 +2380,6 @@ $('go').onclick = () => {
   setPlace(PLACES[0].id, false); connect(); loop();
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
