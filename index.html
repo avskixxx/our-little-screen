@@ -666,8 +666,8 @@ function makeHair(L, head) {
 function makeChar(look, name) {
   // chibi on a little rig: hip (lifts for legs) → body → chest (breathes) + head (turns). Plush, Bean or Doll build.
   const L = normLook(look), bt = L.body, root = new THREE.Group(), g = new THREE.Group(), hip = new THREE.Group(), body = new THREE.Group(), chest = new THREE.Group(), head = new THREE.Group();
-  root.add(g); g.scale.setScalar(.8); g.add(hip); hip.add(body); body.add(chest);
-  const lift = bt === 'doll' ? .2 : bt === 'bean' ? 0 : .1;
+  root.add(g); g.scale.setScalar(.7); g.add(hip); hip.add(body); body.add(chest);
+  const lift = bt === 'doll' ? .13 : bt === 'bean' ? 0 : .06;
   head.position.y = bt === 'doll' ? .6 : .55; body.add(head); if (bt === 'doll') head.scale.setScalar(.82);
   const mb = furMat(L.col), ms = M(mix(L.col, '#2a1408', .18), { roughness: .6 }), ink = M('#2a1408', { roughness: .25 }), fc = M(L.fitCol, { roughness: .85 }), fcd = M(mix(L.fitCol, '#000000', .2), { roughness: .85 }), white = M('#fff8ee', { roughness: .7 });
   const fh = bt === 'bean' ? put(new THREE.Group(), 0, -.02, .035, head) : head; // face sits a touch forward on the bean
@@ -804,7 +804,7 @@ function animChar(c, p, t) {
   const stretch = u.idle > 9 && u.idle < 10.3; if (u.idle > 15 + (u.seed % 5)) u.idle = 0;
   // jump stretch, landing squash, crouch squat
   if (u.wasAir && !air) u.land = 1; u.wasAir = air; u.land = Math.max(0, (u.land || 0) - dt * 4);
-  const st = air ? .08 : crouch ? -.16 : -u.land * .14; u.g.scale.set(.8 * (1 - st * .6), .8 * (1 + st), .8 * (1 - st * .6));
+  const st = air ? .08 : crouch ? -.16 : -u.land * .14; u.g.scale.set(.7 * (1 - st * .6), .7 * (1 + st), .7 * (1 - st * .6));
   b.position.y = sit ? -.1 : floor ? -.2 : slide ? -.12 : crouch ? -.04 : walk ? Math.abs(Math.sin(ph)) * .07 * Math.min(1, s) + .01 : Math.sin(t * 2.2) * .012 + (stretch ? .03 : 0);
   b.rotation.set(slide ? -.45 : walk ? .12 * Math.min(1, s) + (s > 1.1 ? .1 : 0) : crouch ? .15 : 0, 0, walk ? Math.sin(ph) * .09 * Math.min(1, s) : Math.sin(t * .8) * .025);
   if (p.flipT && air) b.rotation.x += Math.min(1, (t - p.flipT) / .6) * PI * 2; // running front flip
@@ -867,7 +867,7 @@ const isTouch = matchMedia('(pointer: coarse)').matches;
 const locked = () => document.pointerLockElement === cv;
 function lockMouse() { if (!locked() && cv.requestPointerLock && !isTouch) { try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch {} } }
 function unlockMouse() { if (locked()) document.exitPointerLock(); }
-function headOf(p) { return new THREE.Vector3(p.x, (p.seat >= 0 && place.seats[p.seat] ? place.seats[p.seat].y - .1 : 0) + .7 + (p.jy || 0), p.z); }
+function headOf(p) { return new THREE.Vector3(p.x, (p.seat >= 0 && place.seats[p.seat] ? place.seats[p.seat].y - .1 : 0) + .6 + (p.jy || 0), p.z); }
 function stepCam(dt) {
   const head = headOf(me); snapCam = false;
   if (pov === 1) {
@@ -1512,7 +1512,7 @@ function say(mesh, text) {
   if (!mesh) return; const u = mesh.userData;
   if (u.bubble) mesh.remove(u.bubble);
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: bubbleTex(text), transparent: true, depthTest: false }));
-  sp.scale.set(1.6, .53, 1); sp.position.set(0, ((mesh === meMesh ? me : them) || {}).face ? 2.1 : 1.5, 0); sp.renderOrder = 12; mesh.add(sp);
+  sp.scale.set(1.6, .53, 1); sp.position.set(0, ((mesh === meMesh ? me : them) || {}).face ? 2.1 : 1.32, 0); sp.renderOrder = 12; mesh.add(sp);
   u.bubble = sp; u.bubbleEnd = clock.elapsedTime + 5 + text.length * .06; u.talkEnd = clock.elapsedTime + Math.min(3.5, .5 + text.length * .07);
 }
 const chat = $('chat');
@@ -2250,7 +2250,7 @@ function knocked(dx, dz, kind) {
   floatText(me, kind === 'smack' ? 'ow!! 😵' : 'woah!', '#ff9ab8');
   send({ t: 'ko', dx, dz, kind });
 }
-const starRing = () => { const g = new THREE.Group(); for (let i = 0; i < 3; i++) { const st = put(new THREE.Mesh(starGeo, GLOW('#ffe27a', 2)), Math.cos(i * 2.1) * .28, 0, Math.sin(i * 2.1) * .28, g); st.scale.setScalar(.05); } g.position.y = 1.05; return g; };
+const starRing = () => { const g = new THREE.Group(); for (let i = 0; i < 3; i++) { const st = put(new THREE.Mesh(starGeo, GLOW('#ffe27a', 2)), Math.cos(i * 2.1) * .28, 0, Math.sin(i * 2.1) * .28, g); st.scale.setScalar(.05); } g.position.y = .9; return g; };
 function ragdoll(p, mesh, t) {
   const u = mesh.userData, k = p.ko;
   if (!u.stars) { u.stars = starRing(); mesh.add(u.stars); }
