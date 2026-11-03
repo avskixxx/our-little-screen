@@ -1,0 +1,115 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Character mocks</title>
+<style>
+  body { margin: 0; background: #140c10; color: #fff4e2; font: 15px ui-rounded, system-ui; overflow: hidden; }
+  canvas { display: block; }
+  .lab { position: fixed; bottom: 70px; width: 33.3%; text-align: center; }
+  .lab b { font-size: 26px; color: #ffcf6b; } .lab span { display: block; opacity: .75; margin-top: 4px; }
+  #bar { position: fixed; bottom: 18px; left: 0; right: 0; text-align: center; }
+  button { background: #ffffff18; color: #fff4e2; border: 0; border-radius: 99px; padding: 8px 16px; margin: 0 4px; font: inherit; cursor: pointer; }
+  button.on { background: #ffcf6b; color: #2a1408; }
+</style>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+</head><body>
+<div class="lab" style="left:0"><b>A · Plush</b><span>same cute blob, now with real little legs, mitten arms, shiny eyes + nose</span></div>
+<div class="lab" style="left:33.3%"><b>B · Bean</b><span>one squishy bean body, tiny stubby limbs, big face</span></div>
+<div class="lab" style="left:66.6%"><b>C · Doll</b><span>head + hair (bangs, buns), neck, shoes, hands</span></div>
+<div id="bar"><button id="idle" class="on">Idle</button><button id="walk">Walk</button><button id="wave">Wave</button></div>
+<script type="module">
+import * as THREE from 'three';
+const PI = Math.PI;
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setPixelRatio(devicePixelRatio); r.setSize(innerWidth, innerHeight); r.toneMapping = THREE.ACESFilmicToneMapping; r.shadowMap.enabled = true; document.body.appendChild(r.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#1c1016');
+const cam = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, .1, 50); cam.position.set(0, 1.2, 6.4); cam.lookAt(0, .55, 0);
+scene.add(new THREE.HemisphereLight('#ffe8d0', '#4a2a3a', 1.6));
+const sun = new THREE.DirectionalLight('#ffd8a8', 2.6); sun.position.set(2, 4, 3); sun.castShadow = true; scene.add(sun);
+const rim = new THREE.DirectionalLight('#a77bff', 1.4); rim.position.set(-3, 2, -3); scene.add(rim);
+const fl = new THREE.Mesh(new THREE.CircleGeometry(4, 48), new THREE.MeshStandardMaterial({ color: '#3a2028', roughness: 1 })); fl.rotation.x = -PI / 2; fl.receiveShadow = true; scene.add(fl);
+const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: .55, ...o });
+const SPH = new THREE.SphereGeometry(1, 32, 20);
+const put = (m, x, y, z, p) => { m.position.set(x, y, z); m.castShadow = true; p.add(m); return m; };
+const ell = (a, b, c, mat) => { const m = new THREE.Mesh(SPH, mat); m.scale.set(a, b, c); return m; };
+const cap = (rad, len, mat) => new THREE.Mesh(new THREE.CapsuleGeometry(rad, len, 8, 16), mat);
+const pivot = (x, y, z, p) => { const g = new THREE.Group(); g.position.set(x, y, z); p.add(g); return g; };
+const ink = M('#2a1408', { roughness: .2 }), glint = new THREE.MeshBasicMaterial({ color: '#ffffff' }), blush = M('#ff7a8a', { transparent: true, opacity: .55 });
+function eyes(head, y, z, sp, big = 1) {
+  const out = [];
+  for (const k of [-1, 1]) {
+    const e = put(ell(.055 * big, .075 * big, .03, ink), k * sp, y, z, head); e.userData.sy = .075 * big; out.push(e);
+    put(ell(.034 * big, .04 * big, .01, M('#6a3a1a', { roughness: .2 })), k * sp, y - .022 * big, z + .022, head);
+    put(ell(.018 * big, .018 * big, .01, glint), k * sp + .018 * big, y + .028 * big, z + .028, head);
+    put(ell(.008 * big, .008 * big, .01, glint), k * sp - .014 * big, y - .03 * big, z + .03, head);
+    put(ell(.05, .028, .015, blush), k * (sp + .085), y - .085, z - .02, head);
+  }
+  return out;
+}
+function mouthW(head, y, z) { for (const k of [-1, 1]) put(new THREE.Mesh(new THREE.TorusGeometry(.017, .006, 6, 12, PI), ink), k * .017, y, z, head).rotation.z = PI; }
+function bearEars(head, mb, inner, y, sp) { for (const k of [-1, 1]) { put(ell(.09, .09, .06, mb), k * sp, y, 0, head); put(ell(.05, .05, .03, inner), k * sp, y, .04, head); } }
+
+// A · Plush
+function plush() {
+  const root = new THREE.Group(), mb = M('#ffb37a'), ms = M('#e8905a'), hood = M('#a77bff', { roughness: .9 });
+  const hip = pivot(0, .2, 0, root), body = pivot(0, 0, 0, hip);
+  put(ell(.2, .21, .18, hood), 0, .17, 0, body); put(rbox(.12, .06, .02, M('#8a5ae0', { roughness: .9 })), 0, .1, .17, body);
+  const head = pivot(0, .38, 0, body);
+  put(ell(.32, .29, .29, mb), 0, .22, 0, head); put(ell(.12, .08, .06, M('#ffd8b8')), 0, .14, .24, head);
+  put(ell(.03, .022, .02, M('#5a2a20', { roughness: .2 })), 0, .17, .3, head); mouthW(head, .12, .29);
+  const ey = eyes(head, .24, .25, .12); bearEars(head, mb, M('#ff9ab8'), .46, .2);
+  const arms = [-1, 1].map(k => { const a = pivot(k * .19, .26, 0, body); a.rotation.z = k * .35; put(cap(.055, .1, hood), 0, -.08, 0, a); put(ell(.06, .06, .06, mb), 0, -.18, 0, a); return a; });
+  const legs = [-1, 1].map(k => { const l = pivot(k * .09, 0, 0, hip); put(cap(.065, .06, mb), 0, -.08, 0, l); put(ell(.075, .045, .1, ms), 0, -.17, .03, l); return l; });
+  return { root, hip, body, head, arms, legs, eyes: ey, legLen: .2 };
+}
+// B · Bean
+function bean() {
+  const root = new THREE.Group(), mb = M('#c8f08a'), ms = M('#9fd060');
+  const hip = pivot(0, .12, 0, root), body = pivot(0, 0, 0, hip);
+  put(cap(.3, .32, mb), 0, .44, 0, body); put(ell(.22, .2, .1, M('#efffd8')), 0, .3, .2, body);
+  const head = pivot(0, .44, 0, body);
+  const ey = eyes(head, .2, .27, .11, 1.15); mouthW(head, .08, .295);
+  for (const k of [-1, 1]) { put(new THREE.Mesh(new THREE.ConeGeometry(.09, .18, 12), mb), k * .17, .42, 0, head).rotation.z = -k * .4; put(new THREE.Mesh(new THREE.ConeGeometry(.045, .1, 10), M('#ffc4d8')), k * .165, .41, .04, head).rotation.z = -k * .4; }
+  const arms = [-1, 1].map(k => { const a = pivot(k * .29, .36, 0, body); a.rotation.z = k * .5; put(cap(.05, .07, mb), 0, -.06, 0, a); return a; });
+  const legs = [-1, 1].map(k => { const l = pivot(k * .12, .02, 0, hip); put(ell(.08, .055, .11, ms), 0, -.06, .03, l); return l; });
+  const tail = put(new THREE.Mesh(new THREE.TorusGeometry(.12, .025, 8, 20, PI), mb), 0, .3, -.3, body); tail.rotation.y = PI / 2;
+  return { root, hip, body, head, arms, legs, eyes: ey, legLen: .12 };
+}
+// C · Doll
+function doll() {
+  const root = new THREE.Group(), skin = M('#ffd9c0'), hair = M('#5a2e1e', { roughness: .45 }), top = M('#ff7a9a', { roughness: .85 }), pants = M('#5a6ad0', { roughness: .85 }), shoe = M('#fff4e2');
+  const hip = pivot(0, .26, 0, root), body = pivot(0, 0, 0, hip);
+  put(new THREE.Mesh(new THREE.CylinderGeometry(.13, .17, .24, 24), top), 0, .13, 0, body); put(ell(.17, .06, .16, pants), 0, .0, 0, body);
+  put(new THREE.Mesh(new THREE.CylinderGeometry(.04, .045, .06, 12), skin), 0, .27, 0, body);
+  const head = pivot(0, .3, 0, body);
+  put(ell(.26, .25, .24, skin), 0, .22, 0, head);
+  put(new THREE.Mesh(new THREE.SphereGeometry(.275, 32, 16, 0, PI * 2, 0, PI * .52), hair), 0, .24, -.01, head);
+  for (let i = 0; i < 5; i++) put(ell(.065, .075, .04, hair), -.14 + i * .07, .37 - Math.abs(i - 2) * .015, .2, head).rotation.z = (i - 2) * .2;
+  for (const k of [-1, 1]) { put(ell(.09, .09, .09, hair), k * .2, .43, -.06, head); put(ell(.06, .17, .07, hair), k * .24, .14, -.04, head); }
+  const ey = eyes(head, .2, .21, .1, .95); put(ell(.04, .018, .015, M('#ff6a7a')), 0, .1, .225, head);
+  const arms = [-1, 1].map(k => { const a = pivot(k * .16, .22, 0, body); a.rotation.z = k * .25; put(cap(.04, .11, top), 0, -.08, 0, a); put(ell(.045, .045, .045, skin), 0, -.17, 0, a); return a; });
+  const legs = [-1, 1].map(k => { const l = pivot(k * .07, 0, 0, hip); put(cap(.045, .12, pants), 0, -.1, 0, l); put(ell(.06, .04, .09, shoe), 0, -.22, .03, l); return l; });
+  return { root, hip, body, head, arms, legs, eyes: ey, legLen: .26 };
+}
+function rbox(w, h, d, mat) { return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); }
+const chars = [plush(), bean(), doll()];
+chars.forEach((c, i) => { c.root.position.x = (i - 1) * 1.7; c.root.scale.setScalar(1.25); scene.add(c.root); });
+let mode = 'idle';
+for (const id of ['idle', 'walk', 'wave']) document.getElementById(id).onclick = () => { mode = id; document.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.id === id)); };
+let drag = null, spin = 0;
+addEventListener('pointerdown', e => drag = e.clientX); addEventListener('pointerup', () => drag = null);
+addEventListener('pointermove', e => { if (drag !== null) { spin += (e.clientX - drag) * .01; drag = e.clientX; } });
+const clock = new THREE.Clock();
+r.setAnimationLoop(() => {
+  const t = clock.getElapsedTime();
+  chars.forEach((c, i) => {
+    c.root.rotation.y = spin + Math.sin(t * .4 + i) * .5;
+    const w = mode === 'walk', ph = t * 9;
+    c.hip.position.y = c.legLen + (w ? Math.abs(Math.sin(ph)) * .05 : Math.sin(t * 2.2 + i) * .008);
+    c.body.rotation.z = w ? Math.sin(ph) * .08 : 0; c.body.rotation.x = w ? .1 : 0;
+    c.head.rotation.z = Math.sin(t * .7 + i) * .06; c.head.rotation.y = w ? 0 : Math.sin(t * .5 + i) * .3;
+    c.legs.forEach((l, k) => l.rotation.x = w ? Math.sin(ph + k * PI) * .7 : 0);
+    c.arms.forEach((a, k) => { const sd = k ? 1 : -1; a.rotation.x = w ? -Math.sin(ph + k * PI) * .8 : 0; a.rotation.z = mode === 'wave' && k ? 2.6 + Math.sin(t * 10) * .35 : sd * (i === 1 ? .5 : .3); });
+    const blink = (t + i * 1.3) % 3.4 < .12; c.eyes.forEach(e => e.scale.y = blink ? .006 : e.userData.sy);
+  });
+  r.render(scene, cam);
+});
+addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
+</script></body></html>
