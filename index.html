@@ -99,7 +99,7 @@
     </div>
   </div>
   <div id="places"></div>
-  <div id="hint">WASD move · Space jump · drag to turn · scroll in for 1st person · Shift run · C crouch (slide while running) · X sit · Q push · G smack · L camera lock · Enter chat · E hold hands / pet / bong · F popcorn · 1-6 emotes · H hearts</div>
+  <div id="hint">WASD move · Space jump · drag to turn · scroll in for 1st person · Shift run · C crouch (slide while running) · X sit · Q push · G smack · L camera lock · Enter chat · E hold hands / pet / bong / tea · F popcorn · 1-6 emotes · H hearts</div>
 </div>
 <video id="vid" autoplay playsinline style="display:none"></video>
 
@@ -147,9 +147,27 @@ composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), .75, .55, 1.3);
 composer.addPass(bloom); composer.addPass(new OutputPass());
 // a soft film grain + vignette on top, for the cozy analog feel
-const grain = new ShaderPass({ uniforms: { tDiffuse: { value: null }, t: { value: 0 }, amt: { value: .025 }, vig: { value: .32 } },
+const grain = new ShaderPass({ uniforms: { tDiffuse: { value: null }, t: { value: 0 }, amt: { value: .025 }, vig: { value: .32 }, buzz: { value: 0 }, trip: { value: 0 }, tt: { value: 0 } },
   vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
-  fragmentShader: 'uniform sampler2D tDiffuse; uniform float t, amt, vig; varying vec2 vUv; float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + t) * 43758.5453); } void main() { vec4 c = texture2D(tDiffuse, vUv); vec2 d = vUv - .5; c.rgb *= 1. - dot(d, d) * vig * 1.6; c.rgb += (h(gl_FragCoord.xy) - .5) * amt; gl_FragColor = c; }' });
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float t, amt, vig, buzz, trip, tt; varying vec2 vUv;
+    float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + t) * 43758.5453); }
+    vec3 hue(vec3 c, float a) { const vec3 k = vec3(.57735); float ca = cos(a); return c * ca + cross(k, c) * sin(a) + k * dot(k, c) * (1. - ca); }
+    void main() {
+      vec2 uv = vUv, d = vUv - .5; float r = length(d);
+      uv += vec2(sin(uv.y * 6. + tt * .9), cos(uv.x * 5. + tt * .7)) * .0025 * buzz;                       // buzz: slow warm sway
+      uv += d * sin(r * 18. - tt * 2.) * .012 * trip + vec2(sin(uv.y * 10. + tt * 1.3), sin(uv.x * 9. + tt * 1.1)) * .005 * trip; // trip: breathing ripples
+      uv = .5 + (uv - .5) * (1. - .015 * buzz * (.5 + .5 * sin(tt * .6)));
+      float ca = .0015 * buzz + .005 * trip;
+      vec4 c = vec4(texture2D(tDiffuse, uv + d * ca).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - d * ca).b, 1.);
+      float l = dot(c.rgb, vec3(.299, .587, .114));
+      c.rgb = mix(vec3(l), c.rgb, 1. + .35 * buzz + .7 * trip);
+      c.rgb *= 1. + vec3(.06, .03, -.04) * buzz;
+      c.rgb = mix(c.rgb, hue(c.rgb, tt * .6 + r * 4.), .55 * trip);
+      c.rgb *= 1. - dot(d, d) * (vig + .5 * buzz) * 1.6;
+      c.rgb += vec3(.2, .35, .1) * smoothstep(.35, .75, r) * .12 * buzz;
+      c.rgb += (h(gl_FragCoord.xy) - .5) * amt;
+      gl_FragColor = c;
+    }` });
 composer.addPass(grain);
 const hemi = new THREE.HemisphereLight('#ffe8d0', '#2a1820', 1); scene.add(hemi);
 // soft warm fill that follows the camera so the little ones are never in shadow
@@ -400,7 +418,9 @@ const PLACES = [
    put(rbox(3.8, .45, .5, woodMat('#a07050', 1), .1), 0, .225, -4.3, g);
    couch(g, 0, 1.4, '#e8d8c0', 2.6, '#ff9ab8');
    put(new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, .03, 48), M('#c8b0ff', { roughness: 1 })), 0, .015, .2, g).scale.z = .65;
-   put(plant(1.7), -6.3, 0, -4.3, g); put(plant(1.4, 1), 6.3, 0, -4.3, g); put(plant(1.2), 6.3, 0, 4.3, g);
+   put(plant(1.7), -6.3, 0, -4.3, g); put(plant(1.4, 1), 6.3, 0, -4.3, g);
+   // kitchen corner: counter, fridge, and the mushroom tea set (E to sip)
+   { const k = counter(); k.position.set(5.15, 0, 4.25); k.rotation.y = PI; g.add(k); const f = fridge(); f.position.set(6.5, 0, 4.2); f.rotation.y = PI; g.add(f); const ts = teaSet(); ts.position.set(4.85, .95, 4.2); ts.rotation.y = PI; g.add(ts); plight('#ffcf9a', 1.6, 5.2, 2.2, 3.6, g); }
    // two bedrooms
    for (const [x, duvet, lampC] of [[-3.5, '#ff9ab8', '#ffcf6b'], [3.5, '#c8b0ff', '#ff9ab8']]) {
      const b = bed(duvet); b.position.set(x, 0, 8.7); b.rotation.y = PI; g.add(b);
@@ -433,7 +453,7 @@ const PLACES = [
      bounds: [-6.5, 6.5, -4, 4.5], box: [-9.7, 6.8, -4.8, 9.8],
      rects: [[-6.6, 6.6, -4.3, 4.65], [-4, -3, 4.4, 5.6], [3, 4, 4.4, 5.6], [-6.6, -.35, 5.35, 9.65], [.35, 6.6, 5.35, 9.65], [-7.5, -6.4, -2.85, .85], [-9.7, -7, -2.95, .95]],
      camAt(x, z) { if (z > 5.2) return x < 0 ? [-6.8, -.25, 5.25, 9.8, 3.3] : [.25, 6.8, 5.25, 9.8, 3.3]; if (x < -6.9) return [-9.9, 6.8, -3.1, 4.75, 3.3]; return [-6.8, 6.8, -4.7, 4.75, 3.3]; },
-     cam: [-6.8, 6.8, -4.7, 4.75, 3.3], spawn: [[-1, 3.4], [1, 3.4]], bong: { x: -8.75, z: -1.08, y: .9 }, ashtray: new THREE.Vector3(-8.56, .58, -.85),
+     cam: [-6.8, 6.8, -4.7, 4.75, 3.3], spawn: [[-1, 3.4], [1, 3.4]], bong: { x: -8.75, z: -1.08, y: .9 }, tea: { x: 4.85, z: 3.7 }, ashtray: new THREE.Vector3(-8.56, .58, -.85),
      env: { bg: '#0a0a18', fog: ['#1a1830', 140, 460] },
      tick(t) {
        const h = hourNow(), L = daylight(h), dark = 1 - L, [sa, sb] = skyAt(h), u = sky.userData.u;
@@ -736,7 +756,7 @@ function lifeAnim(c, p, t, dt, walk, sit) {
   // breathing, weight shift, ear twitches, tail wag, legs that connect hip to feet, talking mouth
   const u = c.userData, b = u.body, br = Math.sin(t * 1.7 + (u.seed || 0));
   const lifted = !(sit || ['floor', 'slide'].includes(p.pose)) && !p.ko;
-  u.hip.position.y += ((lifted ? u.lift : 0) - u.hip.position.y) * Math.min(1, dt * 12);
+  u.hip.position.y += ((lifted ? u.lift * (p.pose === 'crouch' ? .3 : 1) : 0) - u.hip.position.y) * Math.min(1, dt * 12);
   u.chest.scale.set(1 + br * .022, 1 + br * .028, 1 + br * .03);
   u.head.position.y = u.hy0 + br * .007 * (walk ? 0 : 1);
   if (!walk && !sit && !p.emote) b.position.x = Math.sin(t * .7 + (u.seed || 0)) * .012;
@@ -794,7 +814,7 @@ function animChar(c, p, t) {
     else if (floor) f.position.set(f.position.x, .05, .32 + Math.sin(t * 2 + i) * .02);
     else if (slide) f.position.set(f.position.x, .08, .3);
     else if (air) f.position.set(f.position.x, .12, p.flipT ? -.05 : .02);
-    else if (crouch) f.position.set(f.position.x * 1.25, .05, .1 + (walk ? Math.cos(o) * .05 : 0));
+    else if (crouch) f.position.set(f.position.x * 1.15, .05 + (walk ? Math.max(0, Math.sin(o)) * .03 : 0), .03 + (walk ? Math.cos(o) * .05 : 0));
     else f.position.set(f.position.x, .05 + (walk ? Math.max(0, Math.sin(o)) * .06 * s : 0), .04 + (walk ? Math.cos(o) * .1 * s : 0));
   });
   u.arms.forEach((a, i) => {
@@ -1162,7 +1182,7 @@ const SOLID = {
   beanbag: [.48, .48, .35, [[0, .05, .38, 0]]], chair: [.27, .27, .47, [[0, 0, .47, 0]]], dining: [.72, .9, .78, [[0, -.65, .5, 0, 1.05, -.65], [0, .65, .5, PI, 1.05, .65]]],
   desk: [.62, .32, .78, [[0, .55, .47, PI, 0, 1.15]]], ctable: [.5, .5, .45], shelf: [.6, .2, 1.8], flamp: [.15, .15, 1.7], counter: [.93, .33, .95], fridge: [.4, .36, 1.8],
   records: [.42, .23, .6], aquarium: [.52, .22, 1.05], neonheart: [.15, .15, 1.8], arcade: [.37, .4, 1.7], cattree: [.36, .36, 1.35], plantshelf: [.53, .17, 1.5],
-  dresser: [.62, .27, .9], sidetable: [.27, .27, .6], mirror: [.36, .15, 1.7], art: [.4, .35, 1.4], plant: [.22, .22, .9], tall: [.22, .22, 1.1],
+  dresser: [.62, .27, .9], sidetable: [.27, .27, .6], tea: [.3, .3, .62], mirror: [.36, .15, 1.7], art: [.4, .35, 1.4], plant: [.22, .22, .9], tall: [.22, .22, 1.1],
 };
 // every place's own furniture (tables, beds, counters, plants…) is solid: one box per solid piece that stands on the floor
 function roomSolids(pl) {
@@ -1566,7 +1586,7 @@ function sideOf(lead, p) { const rx = -Math.cos(lead.ry), rz = Math.sin(lead.ry)
 function followTarget() { if (!hand || hand.leader === myRole() || !them) return null; const r = them.ry; return [them.x - Math.cos(r) * .6 * hand.side, them.z + Math.sin(r) * .6 * hand.side]; }
 function holdArm(p, mesh, other) { const sd = sideOf(p, other), a = mesh.userData.arms[sd > 0 ? 0 : 1]; a.position.set(sd > 0 ? -.36 : .36, .36, .04); }
 const handHeart = new THREE.Sprite(new THREE.SpriteMaterial({ map: heartTexs.mine, transparent: true, depthWrite: false })); handHeart.scale.setScalar(.18); handHeart.visible = false; scene.add(handHeart);
-function useE() { if (nearBong()) { const cough = Math.random() < .35; bongHit(me, cough); send({ t: 'bong', cough }); return; } const o = petNearest(); if (o) { petIt(o); send({ t: 'petpet', whose: o === me.petObj ? 'mine' : 'theirs' }); return; } toggleHands(); }
+function useE() { if (nearTea()) { drinkTea(me); send({ t: 'tea' }); return; } if (nearBong()) { const cough = Math.random() < .35; bongHit(me, cough); send({ t: 'bong', cough }); return; } const o = petNearest(); if (o) { petIt(o); send({ t: 'petpet', whose: o === me.petObj ? 'mine' : 'theirs' }); return; } toggleHands(); }
 $('hands').onclick = useE;
 
 // fireworks (outdoor places), same show on both screens
@@ -1994,7 +2014,7 @@ function arcade() { const g = new THREE.Group(); put(rbox(.7, 1.7, .7, '#a77bff'
 function catTree() { const g = new THREE.Group(), c = M('#e8d8c0', { roughness: 1 }); put(rbox(.7, .06, .7, c, .03), 0, .03, 0, g); put(cyl(.07, .07, 1.3, M('#c8a878', { roughness: 1 }), 10), 0, .65, 0, g); put(cyl(.3, .3, .06, c, 20), .1, .7, 0, g); put(cyl(.25, .25, .06, c, 20), -.1, 1.3, 0, g); put(new THREE.Mesh(SPH, M('#ff9ab8')), .25, .62, .2, g).scale.setScalar(.05); return g; }
 function plantShelf() { const g = new THREE.Group(); for (let i = 0; i < 3; i++) { put(rbox(1, .04, .3, woodMat('#d09070', 1), .02), 0, .4 + i * .5, 0, g); put(plant(.45, i % 2), -.25 + i * .2, .42 + i * .5, 0, g); } for (const sx of [-1, 1]) put(rbox(.04, 1.5, .3, '#3a2418', .01), sx * .5, .75, 0, g); return g; }
 function furniture() { return [['bed', '🛏', bed], ['sofa', '🛋', sofa], ['armchair', '💺', armchair], ['ctable', '☕', coffeeTable], ['rug', '⭕', roundRug], ['shelf', '📖', bookshelf], ['flamp', '🏮', floorLamp],
-  ['counter', '🍳', counter], ['fridge', '🧊', fridge], ['dining', '🍽', dining], ['records', '🎶', recordPlayer], ['aquarium', '🐠', aquarium], ['neonheart', '💗', neonHeart], ['arcade', '🕹', arcade], ['cattree', '🐾', catTree], ['plantshelf', '🪴', plantShelf], ['chair', '🪑', foldChair], ['bong', '🫧', bongMesh], ['desk', '🖥', desk], ['dresser', '🗄', dresser], ['sidetable', '🔆', sideTable], ['mirror', '🪞', mirror], ['art', '🖼', art]]; }
+  ['counter', '🍳', counter], ['fridge', '🧊', fridge], ['dining', '🍽', dining], ['records', '🎶', recordPlayer], ['aquarium', '🐠', aquarium], ['neonheart', '💗', neonHeart], ['arcade', '🕹', arcade], ['cattree', '🐾', catTree], ['plantshelf', '🪴', plantShelf], ['chair', '🪑', foldChair], ['bong', '🫧', bongMesh], ['tea', '🍵', teaCart], ['desk', '🖥', desk], ['dresser', '🗄', dresser], ['sidetable', '🔆', sideTable], ['mirror', '🪞', mirror], ['art', '🖼', art]]; }
 
 // ---------- batch 6: balcony chill: folding chairs, bong hits, smoke ----------
 function foldChair(c = '#7cc0a0') {
@@ -2045,13 +2065,69 @@ function nearBong() {
   return decoOf(place.id).items.some(it => it.k === 'bong' && near(it.x, it.z));
 }
 function bongHit(p, cough) {
+  const t0 = clock.elapsedTime; if (weedLvl(p, t0) > 0) { p.weedN = Math.min(3, (p.weedN || 1) + 1); p.weedAt = t0 - 4.5; } else { p.weedN = 1; p.weedAt = t0; } p.munch = false;
   bubbles(); floatText(p, 'blub blub 🫧', '#9fe8c8');
   setTimeout(() => { const fr = new THREE.Vector3(Math.sin(p.ry), 0, Math.cos(p.ry)); puff(headOf(p).addScaledVector(fr, .22).add(new THREE.Vector3(0, -.05, 0)), fr, 18); floatText(p, 'puff~ 🌿', '#b6ff3b'); }, 1100);
   if (cough) setTimeout(() => { floatText(p, '*cough cough*', '#fff4e2'); p.squish = .6; }, 2000);
 }
-function funTick6(dt, t) { tickSmoke(dt, t); }
+// ---------- the buzz + mushroom tea ----------
+function weedLvl(p, t) {
+  const e = t - (p.weedAt ?? -999); if (e < 1.5 || e > 90) return 0;
+  return (e < 4.5 ? (e - 1.5) / 3 : e < 60 ? 1 : 1 - (e - 60) / 30) * Math.min(1, .45 + .25 * (p.weedN || 1));
+}
+function tripLvl(p, t) { const e = t - (p.tripAt ?? -999); return e < 12 ? 0 : e < 35 ? (e - 12) / 23 : e < 150 ? 1 : e < 200 ? 1 - (e - 150) / 50 : 0; }
+function teaSet() {
+  const g = new THREE.Group(), cer = M('#fff4ec', { roughness: .35 }), tea = M('#8a5a2a', { roughness: .2 });
+  put(rbox(.5, .02, .3, woodMat('#d09070', 1), .01), 0, .01, 0, g);
+  const pot = put(ell(.1, .085, .1, M('#7cc0a0', { roughness: .3 })), -.1, .095, 0, g);
+  put(cyl(.012, .02, .12, M('#7cc0a0', { roughness: .3 }), 8), -.21, .12, 0, g).rotation.z = .9; put(ell(.02, .015, .02, cer), -.1, .19, 0, g);
+  put(new THREE.Mesh(new THREE.TorusGeometry(.045, .01, 6, 14), M('#7cc0a0', { roughness: .3 })), .0, .1, 0, g);
+  for (const [x, z] of [[.1, .06], [.18, -.06]]) { put(cyl(.04, .035, .08, cer, 16), x, .05, z, g); put(cyl(.036, .036, .005, tea, 16), x, .085, z, g); put(new THREE.Mesh(new THREE.TorusGeometry(.022, .006, 6, 10), cer), x + .045, .05, z, g).rotation.y = PI / 2; }
+  // a jar of little red-cap mushrooms
+  put(cyl(.045, .045, .1, new THREE.MeshStandardMaterial({ color: '#d8f0ff', transparent: true, opacity: .35, roughness: .05, depthWrite: false }), 16), .2, .06, .1, g);
+  for (let i = 0; i < 3; i++) { const mx = .2 + (i - 1) * .018, mz = .1 + (i % 2) * .015; put(cyl(.006, .008, .03, cer, 6), mx, .035, mz, g); put(new THREE.Mesh(new THREE.SphereGeometry(.018, 10, 6, 0, PI * 2, 0, PI / 2), M('#e83a3a', { roughness: .4 })), mx, .05 + i * .012, mz, g); }
+  put(new THREE.Mesh(SPH, GLOW('#b6ff3b', 1.5)), .1, .1, .06, g).scale.setScalar(.012);
+  return g;
+}
+function teaCart() { const g = new THREE.Group(); put(cyl(.3, .3, .04, woodMat('#d09070', 1), 20), 0, .58, 0, g); put(cyl(.03, .05, .56, '#3a2a20', 8), 0, .28, 0, g); put(teaSet(), 0, .6, 0, g); return g; }
+function nearTea() {
+  const near = (x, z) => Math.hypot(me.x - x, me.z - z) < 1.5;
+  if (place.tea && near(place.tea.x, place.tea.z)) return true;
+  return decoOf(place.id).items.some(it => it.k === 'tea' && near(it.x, it.z));
+}
+function chime() {
+  try {
+    actx ||= new AudioContext(); if (actx.state === 'suspended') actx.resume(); const t0 = actx.currentTime;
+    [523, 659, 784, 988, 1175].forEach((f, i) => { const o = actx.createOscillator(), gn = actx.createGain(), at = t0 + i * .12; o.type = 'sine'; o.frequency.value = f; gn.gain.setValueAtTime(0, at); gn.gain.linearRampToValueAtTime(.08, at + .02); gn.gain.exponentialRampToValueAtTime(.001, at + 1.2); o.connect(gn).connect(actx.destination); o.start(at); o.stop(at + 1.3); });
+  } catch {}
+}
+function drinkTea(p) {
+  const t0 = clock.elapsedTime; floatText(p, 'sip sip 🍄🍵', '#c8f08a');
+  if (tripLvl(p, t0) === 0 && t0 - (p.tripAt ?? -999) > 200) p.tripAt = t0;
+  setTimeout(() => floatText(p, 'mmm earthy…', '#fff4e2'), 1600);
+  setTimeout(() => { floatText(p, "it's kicking in ✨", '#cdb8ff'); if (p === me) { chime(); toast('🍄 the walls are breathing…'); } }, 13000);
+}
+const AURA_C = ['#ff7a9a', '#ffcf6b', '#b6ff3b', '#7ad8ff', '#a77bff'];
+function highChar(p, mesh, t) {
+  const u = mesh.userData, w = weedLvl(p, t), r = tripLvl(p, t);
+  if (w > .2 && t >= (u.blinkEnd || 0)) u.eyes.forEach(e => e.scale.y = e.userData.sy * (1 - .45 * w)); // heavy happy eyes
+  if (w > .5 && t > (u.giggleAt || 0)) { u.giggleAt = t + 9 + Math.random() * 10; if (u.giggleAt - t < 30 && Math.random() < .6) floatText(p, ['hehe', 'hehehe 😆', 'wait what', 'i love you lol', 'woahh'][Math.floor(Math.random() * 5)], '#b6ff3b'); }
+  if (w > .8 && !p.munch && t - p.weedAt > 25) { p.munch = true; floatText(p, '🍿 munchies…', '#ffcf6b'); }
+  if (r > .05 && !u.aura) { u.aura = new THREE.Group(); for (let i = 0; i < 10; i++) put(new THREE.Mesh(SPH, GLOW(AURA_C[i % 5], 2.2)), 0, 0, 0, u.aura).scale.setScalar(.025); mesh.add(u.aura); }
+  if (u.aura) { u.aura.visible = r > .05; u.aura.children.forEach((s, i) => { const a = t * (.8 + i * .07) + i * 2.4; s.position.set(Math.cos(a) * (.45 + .1 * Math.sin(t + i)), .5 + Math.sin(t * 1.3 + i) * .35, Math.sin(a) * (.45 + .1 * Math.cos(t + i))); s.scale.setScalar(.02 + .012 * Math.sin(t * 3 + i) * r); }); }
+}
+const BLOOM0 = bloom.strength;
+function highCam(t) {
+  const w = weedLvl(me, t), r = tripLvl(me, t);
+  grain.uniforms.buzz.value = w; grain.uniforms.trip.value = r; grain.uniforms.tt.value = t;
+  bloom.strength = BLOOM0 + r * .45 + w * .1;
+  if (w || r) camera.rotateZ(Math.sin(t * .5) * .015 * w + Math.sin(t * .27) * .035 * r);
+  const fov = 55 + Math.sin(t * .8) * 3.5 * r; if (Math.abs(camera.fov - fov) > .01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+}
+function funTick6(dt, t) { tickSmoke(dt, t); if (meMesh) highChar(me, meMesh, t); if (them && themMesh) highChar(them, themMesh, t); }
 function onFun6(m) {
   if (m.t === 'bong') { if (them) bongHit(them, m.cough); return true; }
+  if (m.t === 'tea') { if (them) drinkTea(them); return true; }
   return false;
 }
 const inRects = (x, z) => place.rects.some(r => x >= r[0] && x <= r[1] && z >= r[2] && z <= r[3]);
@@ -2071,9 +2147,9 @@ function art() {
   return g;
 }
 const CATS = [['Living', '🛋', ['sofa', 'armchair', 'ctable', 'rug', 'beanbag', 'flamp', 'sidetable', 'shelf', 'records']], ['Bedroom', '🛏', ['bed', 'dresser', 'mirror', 'desk', 'teddy', 'books']],
-  ['Kitchen', '🍳', ['counter', 'fridge', 'dining', 'popcorn']], ['Plants', '🪴', ['plant', 'tall', 'flowers', 'plantshelf']], ['Cozy', '🕯', ['candles', 'orb', 'mushroom', 'neonheart', 'balloons', 'art']],
+  ['Kitchen', '🍳', ['counter', 'fridge', 'dining', 'tea', 'popcorn']], ['Plants', '🪴', ['plant', 'tall', 'flowers', 'plantshelf']], ['Cozy', '🕯', ['candles', 'orb', 'mushroom', 'neonheart', 'balloons', 'art']],
   ['Fun', '🎮', ['arcade', 'aquarium', 'cattree', 'cat', 'chair', 'bong']]];
-const NAMES = { sofa: 'Sofa', armchair: 'Armchair', ctable: 'Coffee table', rug: 'Rug', beanbag: 'Beanbag', flamp: 'Floor lamp', sidetable: 'Side table', shelf: 'Bookshelf', records: 'Record player', bed: 'Bed', dresser: 'Dresser', mirror: 'Mirror', desk: 'Desk', teddy: 'Teddy', books: 'Books',
+const NAMES = { tea: 'Mushroom tea', sofa: 'Sofa', armchair: 'Armchair', ctable: 'Coffee table', rug: 'Rug', beanbag: 'Beanbag', flamp: 'Floor lamp', sidetable: 'Side table', shelf: 'Bookshelf', records: 'Record player', bed: 'Bed', dresser: 'Dresser', mirror: 'Mirror', desk: 'Desk', teddy: 'Teddy', books: 'Books',
   counter: 'Counter', fridge: 'Fridge', dining: 'Dining set', popcorn: 'Popcorn', plant: 'Plant', tall: 'Tall plant', flowers: 'Flowers', plantshelf: 'Plant shelf', candles: 'Candles', orb: 'Fairy orb', mushroom: 'Mushroom lamp', neonheart: 'Neon heart', balloons: 'Balloons', art: 'Painting',
   arcade: 'Arcade', aquarium: 'Aquarium', cattree: 'Cat tree', cat: 'Sleepy cat', chair: 'Folding chair', bong: 'Bong' };
 let decoCat = 'Living';
@@ -2131,7 +2207,7 @@ pvAttach($('pvStart')); pvSet(myLook);
 function onFun8(m) { if (m.t === 'char') { if (them) them.look = m.look; return true; } return false; }
 
 // ---------- moves: run, crouch, slide, sit on the floor, running flip; push + smack with a wobbly fall ----------
-function moveMul() { return me.pose === 'crouch' ? .5 : keys.shift ? 1.75 : 1; }
+function moveMul() { return (1 - .15 * weedLvl(me, clock.elapsedTime)) * (me.pose === 'crouch' ? .5 : keys.shift ? 1.75 : 1); }
 function startSlide() {
   const v = Math.hypot(me.vx || 0, me.vz || 0);
   if (v < 3 || me.vy !== 0 || me.seat >= 0 || me.ko) return false;
@@ -2286,7 +2362,7 @@ function loop() {
   const close = them && me.seat >= 0 && them.seat >= 0 && Math.abs(me.seat - them.seat) === 1;
   cuddle.visible = !!close; if (close) { cuddle.position.copy(headOf(me)).lerp(headOf(them), .5).add(new THREE.Vector3(0, .45 + Math.sin(t * 2) * .05, 0)); }
   for (let i = hearts.length - 1; i >= 0; i--) { const h = hearts[i], a = (t - h.t0) / 2.2; if (a > 1) { scene.remove(h.s); hearts.splice(i, 1); continue; } h.s.position.y += dt * .5; h.s.position.x += Math.sin(a * 9 + h.p) * .004; h.s.material.opacity = 1 - a; }
-  stepCam(dt);
+  stepCam(dt); highCam(t);
   if ((frameN = (frameN || 0) + 1) % 3 === 0) grain.uniforms.t.value = (grain.uniforms.t.value + 1.7) % 100; composer.render();
   if (snapNext) { snapNext = false; grabPhoto(); }
   if (t - lastSent > .05) { lastSent = t; send({ t: 'me', x: +me.x.toFixed(3), z: +me.z.toFixed(3), ry: +me.ry.toFixed(3), seat: me.seat, w: me.walking, j: +me.jy.toFixed(3), a: me.vy !== 0 ? 1 : 0, ps: me.pose || '', fl: me.flipT ? 1 : 0 }); }
@@ -2380,6 +2456,6 @@ $('go').onclick = () => {
   setPlace(PLACES[0].id, false); connect(); loop();
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
