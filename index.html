@@ -681,17 +681,26 @@ function makeChar(look, name) {
     if (L.fit === 'none' || L.fit === 'scarf') put(ell(.16, .15, .05, M(mix(L.col, '#ffffff', .45), { roughness: .6 })), 0, .27, bt === 'doll' ? .16 : .19, chest);
     put(ell(.33, .31, .3, mb), 0, .23, 0, head);
   }
-  const eyes = [];
+  const eyes = [], eyeG = put(new THREE.Group(), 0, 0, 0, fh);
   for (const k of [-1, 1]) {
     const ex = k * .115, ey = .25, ez = .27;
-    if (L.eyes === 'sparkle') { const e = put(ell(.052, .07, .03, ink), ex, ey, ez, fh); e.userData.sy = .07; eyes.push(e); put(ell(.032, .036, .01, M('#6a3a1a', { roughness: .2 })), ex, ey - .022, ez + .022, fh); put(new THREE.Mesh(SPH, GLOW('#ffffff', .95)), ex + .02, ey + .03, ez + .026, fh).scale.setScalar(.017); put(new THREE.Mesh(SPH, GLOW('#ffffff', .9)), ex - .014, ey - .02, ez + .03, fh).scale.setScalar(.008); }
-    else if (L.eyes === 'dot') { const e = put(ell(.036, .042, .02, ink), ex, ey, ez + .005, fh); e.userData.sy = .042; eyes.push(e); }
-    else if (L.eyes === 'happy') put(new THREE.Mesh(new THREE.TorusGeometry(.04, .011, 6, 14, PI), ink), ex, ey - .02, ez + .01, fh);
-    else if (L.eyes === 'sleepy') put(ell(.05, .013, .02, ink), ex, ey - .01, ez + .012, fh);
-    else if (L.eyes === 'heart') { const h = put(new THREE.Mesh(heartGeo, GLOW('#ff5a8a', 1.1)), ex, ey, ez - .005, fh); h.scale.setScalar(.14); }
+    if (L.eyes === 'sparkle') { const e = put(ell(.052, .07, .03, ink), ex, ey, ez, eyeG); e.userData.sy = .07; eyes.push(e); put(ell(.032, .036, .01, M('#6a3a1a', { roughness: .2 })), ex, ey - .022, ez + .022, eyeG); put(new THREE.Mesh(SPH, GLOW('#ffffff', .95)), ex + .02, ey + .03, ez + .026, eyeG).scale.setScalar(.017); put(new THREE.Mesh(SPH, GLOW('#ffffff', .9)), ex - .014, ey - .02, ez + .03, eyeG).scale.setScalar(.008); }
+    if (L.eyes === 'sparkle') for (let j = 0; j < 2; j++) { const l = put(rbox(.035, .009, .008, ink, .004), ex + k * (.05 + j * .012), ey + .045 - j * .02, ez + .005, eyeG); l.rotation.z = k * (.5 + j * .35); }
+    else if (L.eyes === 'dot') { const e = put(ell(.036, .042, .02, ink), ex, ey, ez + .005, eyeG); e.userData.sy = .042; eyes.push(e); }
+    else if (L.eyes === 'happy') put(new THREE.Mesh(new THREE.TorusGeometry(.04, .011, 6, 14, PI), ink), ex, ey - .02, ez + .01, eyeG);
+    else if (L.eyes === 'sleepy') put(ell(.05, .013, .02, ink), ex, ey - .01, ez + .012, eyeG);
+    else if (L.eyes === 'heart') { const h = put(new THREE.Mesh(heartGeo, GLOW('#ff5a8a', 1.1)), ex, ey, ez - .005, eyeG); h.scale.setScalar(.14); }
     put(ell(.055, .03, .02, M('#ff7a8a', { transparent: true, opacity: .6 })), k * .19, .16, .24, fh);
   }
-  if (bt !== 'bean') put(ell(.022, .016, .014, M(mix(L.col, '#5a2a20', .55), { roughness: .3 })), 0, .2, .3, fh); // tiny nose
+  if (bt !== 'bean') { put(ell(.022, .016, .014, M(mix(L.col, '#5a2a20', .55), { roughness: .3 })), 0, .2, .3, fh); put(new THREE.Mesh(SPH, GLOW('#ffffff', .8)), .007, .207, .312, fh).scale.setScalar(.005); } // tiny nose + shine
+  // expression bits: brows, happy ^^ eyes, a frown, a big open smile, a tear
+  const brows = [-1, 1].map(k => { const br = put(rbox(.07, .017, .012, ink, .006), k * .115, .345, .272, fh); br.rotation.x = -.35; br.userData.k = k; return br; });
+  const happyE = put(new THREE.Group(), 0, 0, 0, fh); happyE.visible = false;
+  for (const k of [-1, 1]) put(new THREE.Mesh(new THREE.TorusGeometry(.042, .012, 6, 14, PI), ink), k * .115, .235, .28, happyE);
+  const frown = put(new THREE.Mesh(new THREE.TorusGeometry(.026, .007, 8, 16, PI), ink), 0, .145, .292, fh); frown.visible = false;
+  const grin = put(new THREE.Group(), 0, .168, .291, fh); grin.visible = false;
+  put(new THREE.Mesh(new THREE.CircleGeometry(.045, 20, PI, PI), M('#5a1a20', { side: THREE.DoubleSide })), 0, 0, 0, grin); put(ell(.024, .011, .006, M('#ff7a9a')), 0, -.03, .003, grin);
+  const tear = put(ell(.014, .022, .01, GLOW('#7ad8ff', 1.4)), .15, .2, .27, fh); tear.visible = false;
   const mouthG = put(new THREE.Group(), 0, 0, 0, fh);
   if (L.mouth === 'open') { put(ell(.03, .034, .015, M('#5a1a20')), 0, .16, .29, mouthG); put(ell(.018, .012, .01, M('#ff7a9a')), 0, .145, .3, mouthG); }
   else if (L.mouth === 'cat') for (const k of [-1, 1]) put(new THREE.Mesh(new THREE.TorusGeometry(.018, .006, 6, 12, PI), ink), k * .018, .175, .292, mouthG).rotation.z = PI;
@@ -740,7 +749,7 @@ function makeChar(look, name) {
   put(new THREE.Mesh(SPH, GLOW('#b6ff3b', 3)), -.06, .04, 0, ctrl).scale.setScalar(.018); put(new THREE.Mesh(SPH, GLOW('#a77bff', 3)), .06, .04, 0, ctrl).scale.setScalar(.018);
   const blob = put(new THREE.Mesh(new THREE.PlaneGeometry(.75, .75), blobMat), 0, .012, 0, g); blob.rotation.x = -PI / 2;
   const tag = put(new THREE.Sprite(new THREE.SpriteMaterial({ map: tagTexture(name || '…'), depthTest: false, transparent: true })), 0, 1.5 + lift * .8, 0, g); tag.scale.set(1, .25, 1); tag.renderOrder = 10;
-  root.userData = { body, head, g, arms, feet, ctrl, tag, blob, eyes, look, name, hip, chest, lift, legs, ears, tail, mouthG, talkM, hy0: head.position.y };
+  root.userData = { body, head, g, arms, feet, ctrl, tag, blob, eyes, look, name, hip, chest, lift, legs, ears, tail, mouthG, talkM, hy0: head.position.y, eyeG, brows, happyE, frown, grin, tear };
   return root;
 }
 // who's talking: mic level for voice chat, plus a little flap while a chat bubble pops up
@@ -783,6 +792,37 @@ function lifeAnim(c, p, t, dt, walk, sit) {
   if (open) u.talkM.scale.set(.026 + u.talk * .012, .01 + u.talk * .038, .015);
   if (open) u.head.rotation.x -= u.talk * .05;
   moreLife(c, p, t, dt, walk, sit);
+  moodFace(c, p, t, dt);
+}
+// moods: sad after getting knocked over, happy during the happy stuff
+const HAPPY_E = new Set(['wave', 'dance', 'kiss', 'hug', 'hug-back', 'laugh', 'cheer', 'spin', 'clap', 'peace', 'hearts', 'jacks', 'flex']);
+function moodOf(p, t) {
+  if (p.ko) p.sadUntil = Math.max(p.sadUntil || 0, t + 4.5);
+  if (p.emote && p.emote.k === 'cry') return 'sad';
+  if ((p.sadUntil || 0) > t) return 'sad';
+  if (p.emote && HAPPY_E.has(p.emote.k)) return 'happy';
+  if ((p.happyUntil || 0) > t || hand) return 'happy';
+  if (weedLvl(p, t) > .5 || tripLvl(p, t) > .5) return 'happy';
+  const o = p === me ? them : p === them ? me : null;
+  if (o && p.seat >= 0 && o.seat >= 0 && Math.abs(o.seat - p.seat) === 1) return 'happy';
+  return '';
+}
+function moodFace(c, p, t, dt) {
+  const u = c.userData, m = p.preview ? '' : moodOf(p, t), mk = u.moodK ||= { sad: 0, happy: 0 };
+  for (const k of ['sad', 'happy']) mk[k] += ((m === k ? 1 : 0) - mk[k]) * Math.min(1, dt * 6);
+  const sd = mk.sad, hp = mk.happy;
+  if (sd > .5 && !u.wasSad && !p.ko) floatText(p, ['hmph 😢', 'meanie…', 'owie 🥺'][Math.floor(Math.random() * 3)], '#7ad8ff');
+  u.wasSad = sd > .5;
+  u.brows.forEach(br => { const k = br.userData.k; br.rotation.z = k * (-.45 * sd + .18 * hp); br.position.y = .345 + .022 * hp - .012 * sd; });
+  u.eyeG.visible = hp < .5; u.happyE.visible = hp >= .5;
+  if (sd > .05) u.eyes.forEach(e => e.scale.y *= 1 - .3 * sd);
+  const talking = u.talkM.visible;
+  u.frown.visible = !talking && sd > .5; u.grin.visible = !talking && hp > .5;
+  if (u.frown.visible || u.grin.visible) u.mouthG.visible = false;
+  u.tear.visible = sd > .6 && !p.ko;
+  if (u.tear.visible) { const f = (t * .7) % 1; u.tear.position.set(.15, .21 - f * .13, .265); u.tear.scale.set(.014 * (1 - f * .4), .022 * (1 - f * .4), .01); }
+  if (sd > .05 && !p.ko && !p.emote) { u.head.rotation.x += .2 * sd; u.arms.forEach(a => { a.rotation.z *= 1 - .5 * sd; a.position.y -= .03 * sd; }); u.body.position.y -= .015 * sd; }
+  if (hp > .05 && !p.emote && !(p.seat >= 0) && !p.ko) u.body.position.y += Math.abs(Math.sin(t * 6)) * .02 * hp;
 }
 // idle habits, dozing off, running dust, turning steps, cuddle lean, saying hi
 const IDLE_ACTS = ['look', 'yawn', 'scratch', 'hop', 'sway', 'tap', 'look', 'sway'];
@@ -1070,6 +1110,7 @@ const heartTex = c => canvasTex(64, 64, (x) => { x.fillStyle = c; x.font = '52px
 const heartTexs = { mine: heartTex('#ff7a59'), theirs: heartTex('#ffb3c6') };
 const hearts = [];
 function addHeart(p, which) {
+  for (const q of [me, them]) if (q) q.happyUntil = clock.elapsedTime + 2.5;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: heartTexs[which], transparent: true, depthWrite: false }));
   s.position.copy(headOf(p)).add(new THREE.Vector3(0, .5, 0)); s.scale.setScalar(.3); scene.add(s); hearts.push({ s, t0: clock.elapsedTime, p: Math.random() * 6 });
 }
