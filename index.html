@@ -99,7 +99,7 @@
     </div>
   </div>
   <div id="places"></div>
-  <div id="hint">WASD move · Space jump · drag to turn · scroll in for 1st person · Shift run · C crouch (slide while running) · X sit · Q push · G smack · L camera lock · Enter chat · E hold hands / pet / bong / tea · F popcorn · 1-6 emotes · H hearts</div>
+  <div id="hint">WASD move · Space jump · drag to turn · scroll in for 1st person · Shift run · C crouch (slide while running) · X sit / lie down · Q push · G smack · L camera lock · Enter chat · E hold hands / pet / bong / tea · F popcorn · 1-6 emotes · H hearts</div>
 </div>
 <video id="vid" autoplay playsinline style="display:none"></video>
 
@@ -114,7 +114,7 @@
 <div id="toast"></div>
 <div id="creator"><div id="crCard"><div id="pvModal" class="pvbox big"></div><div id="crOpts"></div><div class="row" style="justify-content:center;width:100%"><button class="pill" id="crCancel">Cancel</button><button class="pill on" id="crSave">Save ♥</button></div></div></div>
 <div id="flash"></div>
-<div id="photo"><div id="photoCard"><img id="photoImg" alt="our photo"><div class="row" style="justify-content:center"><a class="pill on" id="photoSave" download="our-little-screen.png">💾 Save</a><button class="pill" id="photoClose">Close</button></div></div></div>
+<div id="photo"><div id="photoCard"><img id="photoImg" alt="our photo"><div class="row" style="justify-content:center"><a class="pill on" id="photoSave" download="our-little-screen.png">💾 Save</a><button class="pill on" id="photoHang">📌 Stick on a wall</button><button class="pill" id="photoDown" style="display:none">🗑 Take it down</button><button class="pill" id="photoClose">Close</button></div></div></div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -154,17 +154,19 @@ const grain = new ShaderPass({ uniforms: { tDiffuse: { value: null }, t: { value
     vec3 hue(vec3 c, float a) { const vec3 k = vec3(.57735); float ca = cos(a); return c * ca + cross(k, c) * sin(a) + k * dot(k, c) * (1. - ca); }
     void main() {
       vec2 uv = vUv, d = vUv - .5; float r = length(d);
-      uv += vec2(sin(uv.y * 6. + tt * .9), cos(uv.x * 5. + tt * .7)) * .0025 * buzz;                       // buzz: slow warm sway
+      uv += vec2(sin(uv.y * 6. + tt * .9), cos(uv.x * 5. + tt * .7)) * .009 * buzz;                        // buzz: slow warm sway
       uv += d * sin(r * 18. - tt * 2.) * .012 * trip + vec2(sin(uv.y * 10. + tt * 1.3), sin(uv.x * 9. + tt * 1.1)) * .005 * trip; // trip: breathing ripples
-      uv = .5 + (uv - .5) * (1. - .015 * buzz * (.5 + .5 * sin(tt * .6)));
-      float ca = .0015 * buzz + .005 * trip;
+      uv = .5 + (uv - .5) * (1. - .045 * buzz * (.5 + .5 * sin(tt * .6)));
+      float ca = .012 * buzz + .005 * trip;
       vec4 c = vec4(texture2D(tDiffuse, uv + d * ca).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - d * ca).b, 1.);
+      vec2 gh = vec2(sin(tt * .7), cos(tt * .5)) * .012 * buzz;                                          // buzz: soft double vision
+      c.rgb = mix(c.rgb, texture2D(tDiffuse, uv + gh).rgb, .35 * buzz);
       float l = dot(c.rgb, vec3(.299, .587, .114));
       c.rgb = mix(vec3(l), c.rgb, 1. + .35 * buzz + .7 * trip);
-      c.rgb *= 1. + vec3(.06, .03, -.04) * buzz;
+      c.rgb *= 1. + vec3(.16, .08, -.1) * buzz;
       c.rgb = mix(c.rgb, hue(c.rgb, tt * .6 + r * 4.), .55 * trip);
-      c.rgb *= 1. - dot(d, d) * (vig + .5 * buzz) * 1.6;
-      c.rgb += vec3(.2, .35, .1) * smoothstep(.35, .75, r) * .12 * buzz;
+      c.rgb *= 1. - dot(d, d) * (vig + 1.1 * buzz) * 1.6;
+      c.rgb += vec3(.25, .45, .1) * smoothstep(.3, .75, r) * (.3 + .1 * sin(tt * 1.3)) * buzz;
       c.rgb += (h(gl_FragCoord.xy) - .5) * amt;
       gl_FragColor = c;
     }` });
@@ -764,7 +766,7 @@ function talkLevel(key) {
 function lifeAnim(c, p, t, dt, walk, sit) {
   // breathing, weight shift, ear twitches, tail wag, legs that connect hip to feet, talking mouth
   const u = c.userData, b = u.body, br = Math.sin(t * 1.7 + (u.seed || 0));
-  const lifted = !(sit || ['floor', 'slide'].includes(p.pose)) && !p.ko;
+  const lifted = !(sit || ['floor', 'slide', 'back', 'belly'].includes(p.pose)) && !p.ko;
   u.hip.position.y += ((lifted ? u.lift * (p.pose === 'crouch' ? .3 : 1) : 0) - u.hip.position.y) * Math.min(1, dt * 12);
   u.chest.scale.set(1 + br * .022, 1 + br * .028, 1 + br * .03);
   u.head.position.y = u.hy0 + br * .007 * (walk ? 0 : 1);
@@ -795,7 +797,7 @@ function lifeAnim(c, p, t, dt, walk, sit) {
   moodFace(c, p, t, dt);
 }
 // moods: sad after getting knocked over, happy during the happy stuff
-const HAPPY_E = new Set(['wave', 'dance', 'kiss', 'hug', 'hug-back', 'laugh', 'cheer', 'spin', 'clap', 'peace', 'hearts', 'jacks', 'flex']);
+const HAPPY_E = new Set(['massage', 'massaged', 'wave', 'dance', 'kiss', 'hug', 'hug-back', 'laugh', 'cheer', 'spin', 'clap', 'peace', 'hearts', 'jacks', 'flex']);
 function moodOf(p, t) {
   if (p.ko) p.sadUntil = Math.max(p.sadUntil || 0, t + 4.5);
   if (p.emote && p.emote.k === 'cry') return 'sad';
@@ -859,7 +861,6 @@ function moreLife(c, p, t, dt, walk, sit) {
   if (u.turnK > .05) u.feet.forEach((f, i) => f.position.y = .05 + Math.max(0, Math.sin(t * 16 + i * PI)) * .04 * u.turnK);
   // running: lean in, pump the arms, kick up little dust puffs
   if (walk && u.spd > 3.6) {
-    b.rotation.x += .1; A.forEach((a, i) => { a.rotation.x *= 1.35; a.rotation.z = (i ? 1 : -1) * .35; });
     if (!air && !p.preview && t > (u.dustAt || 0)) { u.dustAt = t + .11; const back = new THREE.Vector3(-Math.sin(p.ry), .15, -Math.cos(p.ry)); puff(new THREE.Vector3(c.position.x, .05, c.position.z).addScaledVector(back, .12), back, 2, .35); }
   }
   if (!other || p.preview) return;
@@ -881,45 +882,52 @@ function animChar(c, p, t) {
   const pos = c.position, sp = u.pp && dt > 0 ? Math.hypot(pos.x - u.pp.x, pos.z - u.pp.z) / dt : 0; (u.pp ||= new THREE.Vector3()).copy(pos);
   u.spd = (u.spd || 0) + (Math.min(sp, 7) - (u.spd || 0)) * Math.min(1, dt * 10);
   const floor = pose === 'floor', crouch = pose === 'crouch', slide = pose === 'slide';
-  const walk = !sit && !air && !floor && !slide && u.spd > .25, s = Math.min(1.4, u.spd / 2.6), b = u.body, h = u.head;
-  u.ph = (u.ph || 0) + dt * (3 + u.spd * 5.5); const ph = u.ph;
+  const lying = pose === 'back' || pose === 'belly';
+  const walk = !sit && !air && !floor && !slide && !lying && u.spd > .25, s = Math.min(1.4, u.spd / 2.6), b = u.body, h = u.head;
+  u.ph = (u.ph || 0) + dt * (4 + u.spd * 4); const ph = u.ph;
+  u.runK = (u.runK || 0) + ((walk && u.spd > 3.6 ? 1 : 0) - (u.runK || 0)) * Math.min(1, dt * 6); const rk = u.runK;
   // head: glance around, or look at the other one when they're close
   u.seed ??= Math.random() * 9;
   let hy = Math.sin(t * .35 + u.seed) * .22;
   const other = p.preview ? null : p === me ? them : me;
   if (other && !walk) { const dx = other.x - p.x, dz = other.z - p.z, d = Math.hypot(dx, dz); if (d < 2.6 && d > .2) { let a = Math.atan2(dx, dz) - p.ry; a = ((a + PI) % (2 * PI) + 2 * PI) % (2 * PI) - PI; if (Math.abs(a) < 1.7) hy = Math.max(-.85, Math.min(.85, a)); } }
-  if (walk || slide) hy = 0;
+  if (walk || slide || lying) hy = 0;
   // your head follows where your camera is looking (the whole head, capped so it never spins around); she sees it too
   let hp = 0;
   if (p === me) {
     let a = cam.yaw + PI - p.ry; a = ((a + PI) % (2 * PI) + 2 * PI) % (2 * PI) - PI;
     me.lookY = Math.abs(a) > 2.5 ? 0 : Math.max(-1.2, Math.min(1.2, a)); me.lookP = pov === 1 ? Math.max(-.4, Math.min(.45, -cam.fp * .6)) : Math.max(-.25, Math.min(.35, (cam.pitch - .22) * .5));
   }
-  if ((p === me || p === them) && p.lookY !== undefined && !slide && !p.ko) { hy = p.lookY; hp = p.lookP || 0; }
-  h.rotation.y += (hy - h.rotation.y) * Math.min(1, dt * 8); h.rotation.x = (walk ? -.05 * s : crouch ? .1 : 0) + (u.hp = (u.hp || 0) + (hp - (u.hp || 0)) * Math.min(1, dt * 8)); h.rotation.z = Math.sin(t * .6 + u.seed) * .04;
+  if ((p === me || p === them) && p.lookY !== undefined && !slide && !lying && !p.ko) { hy = p.lookY; hp = p.lookP || 0; }
+  h.rotation.y += (hy - h.rotation.y) * Math.min(1, dt * 8); h.rotation.x = (walk ? -.05 * s - .08 * rk : crouch ? .1 : pose === 'belly' ? -.6 : 0) + (u.hp = (u.hp || 0) + (hp - (u.hp || 0)) * Math.min(1, dt * 8)); h.rotation.z = Math.sin(t * .6 + u.seed) * .04;
   // idle stretch now and then
   if (!walk && !sit && !air && !floor && !crouch && !slide) u.idle = (u.idle || 0) + dt; else u.idle = 0;
   const stretch = u.idle > 9 && u.idle < 10.3; if (u.idle > 15 + (u.seed % 5)) u.idle = 0;
   // jump stretch, landing squash, crouch squat
   if (u.wasAir && !air) u.land = 1; u.wasAir = air; u.land = Math.max(0, (u.land || 0) - dt * 4);
   const st = air ? .08 : crouch ? -.16 : -u.land * .14; u.g.scale.set(.7 * (1 - st * .6), .7 * (1 + st), .7 * (1 - st * .6));
-  b.position.y = sit ? -.1 : floor ? -.2 : slide ? -.12 : crouch ? -.04 : walk ? Math.abs(Math.sin(ph)) * .07 * Math.min(1, s) + .01 : Math.sin(t * 2.2) * .012 + (stretch ? .03 : 0);
-  b.rotation.set(slide ? -.45 : walk ? .12 * Math.min(1, s) + (s > 1.1 ? .1 : 0) : crouch ? .15 : 0, 0, walk ? Math.sin(ph) * .09 * Math.min(1, s) : Math.sin(t * .8) * .025);
+  b.position.z = lying ? (pose === 'back' ? .22 : -.22) : 0;
+  b.position.y = sit ? -.1 : floor ? -.2 : lying ? .17 + Math.sin(t * 1.7) * .006 : slide ? -.12 : crouch ? -.04 : walk ? Math.abs(Math.sin(ph)) * (.07 - .02 * rk) * Math.min(1, s) + .01 : Math.sin(t * 2.2) * .012 + (stretch ? .03 : 0);
+  b.rotation.set(slide ? -.45 : pose === 'back' ? -PI / 2 : pose === 'belly' ? PI / 2 : walk ? .1 * Math.min(1, s) + .12 * rk : crouch ? .15 : 0, walk ? Math.sin(ph) * .14 * rk : 0, lying ? 0 : walk ? Math.sin(ph) * .09 * Math.min(1, s) * (1 - .5 * rk) : Math.sin(t * .8) * .025);
   if (p.flipT && air) b.rotation.x += Math.min(1, (t - p.flipT) / .6) * PI * 2; // running front flip
   u.feet.forEach((f, i) => {
     const o = ph + i * PI; f.position.x = i ? .1 : -.1;
     if (sit) f.position.set(f.position.x, .16 + Math.max(0, Math.sin(t * 3 + i * PI)) * .03, .24 + Math.sin(t * 3 + i * PI) * .04); // little leg swing
     else if (floor) f.position.set(f.position.x, .05, .32 + Math.sin(t * 2 + i) * .02);
     else if (slide) f.position.set(f.position.x, .08, .3);
+    else if (pose === 'back') f.position.set(f.position.x * 1.3, .09 + Math.max(0, Math.sin(t * 1.3 + i * 2)) * .05, .5);
+    else if (pose === 'belly') f.position.set(f.position.x, .1 + Math.max(0, Math.sin(t * 3 + i * PI)) * .16, -.42); // happy little kicks
     else if (air) f.position.set(f.position.x, .12, p.flipT ? -.05 : .02);
     else if (crouch) f.position.set(f.position.x * 1.15, .05 + (walk ? Math.max(0, Math.sin(o)) * .03 : 0), .03 + (walk ? Math.cos(o) * .05 : 0));
-    else f.position.set(f.position.x, .05 + (walk ? Math.max(0, Math.sin(o)) * .06 * s : 0), .04 + (walk ? Math.cos(o) * .1 * s : 0));
+    else f.position.set(f.position.x, .05 + (walk ? Math.max(0, Math.sin(o)) * (.06 * Math.min(1, s) + .05 * rk) : 0), .04 + (walk ? Math.cos(o) * (.1 * Math.min(1, s) + .06 * rk) : 0));
   });
   u.arms.forEach((a, i) => {
     const sd = i ? 1 : -1;
     if (stretch) { a.rotation.set(0, 0, sd * 2.6); a.position.set(sd * .2, .62, 0); return; }
     if (slide) { a.rotation.set(.9, 0, sd * .6); a.position.set(sd * .27, .4, -.08); return; }
-    a.rotation.set(walk ? Math.cos(ph + i * PI) * .7 * s : air ? -2.2 : 0, 0, air ? -sd * .3 : floor ? sd * .2 : 0);
+    if (pose === 'back') { a.rotation.set(0, 0, sd * 2.5); a.position.set(sd * .2, .52, -.04); return; } // arms up behind the head
+    if (pose === 'belly') { a.rotation.set(-1.5, 0, -sd * .5); a.position.set(sd * .14, .5, .2); return; } // chin on hands
+    a.rotation.set(walk ? Math.cos(ph + i * PI) * (.6 * Math.min(1, s) + .35 * rk) - .3 * rk : air ? -2.2 : 0, 0, air ? -sd * .3 : floor ? sd * .2 : walk ? sd * .12 * rk : 0);
     a.position.set(sd * .25, p.share ? .38 : .34, p.share ? .18 : floor ? .12 : .03);
   });
   if (u.eyes.length) { if (t > (u.blinkAt || 0)) { u.blinkAt = t + 2.5 + Math.random() * 3; u.blinkEnd = t + .12; } u.eyes.forEach(e => e.scale.y = t < u.blinkEnd ? .008 : e.userData.sy); }
@@ -984,14 +992,14 @@ function stepCam(dt) {
 }
 function setPov(p) {
   pov = p; $('pov').textContent = pov === 3 ? '👀 3rd person' : '👁 1st person';
-  if (pov === 1) { cam.fp = 0; if (me.seat >= 0) cam.yaw = place.seats[me.seat].ry - PI; lockMouse(); toast(isTouch ? 'Drag to look around' : 'Move the mouse to look · Esc frees the mouse'); }
+  if (pov === 1) { cam.fp = 0; if (me.seat >= 0) cam.yaw = place.seats[me.seat].ry - PI; lockMouse(); if (isTouch) toast('Drag to look around'); }
   else { if (cam.dist < 1.2) cam.dist = 2.4; if (!shiftLock) unlockMouse(); snapCam = true; }
 }
 function togglePov() { setPov(pov === 3 ? 1 : 3); }
 $('pov').onclick = togglePov;
 function setShiftLock(on) {
   if (pov === 1) return;
-  shiftLock = on; if (on) { lockMouse(); toast('Camera lock on · L to turn it off'); } else unlockMouse();
+  shiftLock = on; if (on) lockMouse(); else unlockMouse();
 }
 document.addEventListener('pointerlockchange', () => { if (!locked() && shiftLock) shiftLock = false; });
 
@@ -1010,17 +1018,17 @@ let drag = null, rmb = false;
 cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
   if (!isTouch && (pov === 1 || shiftLock)) { lockMouse(); return; }
-  if (e.button === 2 && !isTouch) { rmb = true; lockMouse(); } // hold the two-finger / right click: cursor stays put, the camera turns
+  if (e.button === 2 && !isTouch) { rmb = true; cv.style.cursor = 'none'; } // hold the two-finger / right click: cursor hides, the camera turns
   drag = { x: e.clientX, y: e.clientY, moved: 0, btn: e.button }; try { cv.setPointerCapture(e.pointerId); } catch {}
 });
 cv.addEventListener('pointermove', e => {
-  if (!drag || locked()) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
+  if (!drag || locked()) return; const dx = rmb ? e.movementX : e.clientX - drag.x, dy = rmb ? e.movementY : e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
   if (drag.moved < 6 && drag.btn !== 2) return;
   turn(dx * 1.6, dy * 1.6);
 });
-cv.addEventListener('pointerup', e => { if (drag && drag.moved < 6 && drag.btn === 0 && pov === 3) (decorating ? decoClick(e) : clickWorld(e)); drag = null; });
+cv.addEventListener('pointerup', e => { if (drag && drag.moved < 6 && drag.btn === 0 && (hanging || pov === 3)) (hanging ? hangClick(e) : decorating ? decoClick(e) : picClick(e) || clickWorld(e)); drag = null; });
 document.addEventListener('mousemove', e => { if (locked()) turn(e.movementX, e.movementY); });
-const rmbUp = () => { if (!rmb) return; rmb = false; drag = null; if (pov !== 1 && !shiftLock) unlockMouse(); };
+const rmbUp = () => { if (!rmb) return; rmb = false; drag = null; cv.style.cursor = ''; };
 document.addEventListener('mouseup', e => { if (e.button === 2) rmbUp(); });
 addEventListener('blur', rmbUp);
 function turn(dx, dy) {
@@ -1055,6 +1063,10 @@ if (isTouch) {
 }
 
 function angLerp(a, b, k) { let d = ((b - a + PI) % (2 * PI) + 2 * PI) % (2 * PI) - PI; return a + d * k; }
+function layDown(v) {
+  if (me.seat >= 0 || me.vy !== 0 || me.ko) return; me.floor = v;
+  if (v) { me.vx = me.vz = 0; me.tx = me.tz = NaN; toast({ true: 'Sitting · X again to lie on your back', back: 'On your back · X again for your stomach', belly: 'On your stomach · X again to get up' }[v]); }
+}
 function jump() {
   if (me.vy !== 0 || me.ko) return; me.floor = false; me.slide = null;
   const run = Math.hypot(me.vx || 0, me.vz || 0) > 3.6;
@@ -1412,8 +1424,15 @@ addEventListener('keydown', e => {
 
 // emotes + hugs
 const EMOTES = [['wave', '👋', 'Wave'], ['dance', '💃', 'Dance'], ['kiss', '😘', 'Blow a kiss'], ['hug', '🤗', 'Hug'], ['laugh', '😂', 'Laugh'], ['sleep', '😴', 'Sleepy'], ['cheer', '🙌', 'Yay!'], ['spin', '🌀', 'Spin'], ['shy', '🙈', 'Shy'],
-  ['clap', '👏', 'Clap'], ['peace', '✌️', 'Peace'], ['hearts', '🫶', 'Heart hands'], ['cry', '😭', 'Cry'], ['flex', '💪', 'Flex'], ['bow', '🙇', 'Bow'], ['jacks', '🤸', 'Jumping jacks'], ['yawn', '🥱', 'Yawn'], ['shrug', '🤷', 'Shrug']];
+  ['clap', '👏', 'Clap'], ['peace', '✌️', 'Peace'], ['hearts', '🫶', 'Heart hands'], ['cry', '😭', 'Cry'], ['flex', '💪', 'Flex'], ['bow', '🙇', 'Bow'], ['jacks', '🤸', 'Jumping jacks'], ['yawn', '🥱', 'Yawn'], ['shrug', '🤷', 'Shrug'], ['massage', '💆', 'Massage them'], ['lieback', '🛌', 'Lie on back'], ['liebelly', '🫠', 'Lie on stomach']];
 function doEmote(k) {
+  if (k === 'lieback' || k === 'liebelly') { layDown(k === 'lieback' ? 'back' : 'belly'); closePanel(); return; }
+  if (k === 'massage') {
+    if (!them || Math.hypot(me.x - them.x, me.z - them.z) > 2.5) { toast('Walk closer to give a massage 💆'); return; }
+    const down = them.pose === 'back' || them.pose === 'belly', fx = Math.sin(them.ry), fz = Math.cos(them.ry);
+    me.seat = -1; me.want = -1; me.floor = false;
+    if (down) { me.tx = them.x + fz * .5; me.tz = them.z - fx * .5; } else { me.tx = them.x - fx * .42; me.tz = them.z - fz * .42; } // kneel beside, or stand behind
+  }
   if (k === 'hug') {
     if (!them || Math.hypot(me.x - them.x, me.z - them.z) > 2.5) { toast('Walk closer to hug 🤗'); return; }
     const d = Math.hypot(them.x - me.x, them.z - me.z) || 1; me.seat = -1; me.want = -1;
@@ -1424,6 +1443,8 @@ function doEmote(k) {
 function emoteFx(p, k) {
   const mine = p === me ? 'mine' : 'theirs';
   if (k === 'wave') floatText(p, 'hi!', '#fff4e2');
+  if (k === 'massage') floatText(p, 'rub rub 💆', '#ffcf6b');
+  if (k === 'massaged') { floatText(p, 'ahhh~ 😌', '#ff9ab8'); for (let i = 0; i < 5; i++) setTimeout(() => addHeart(p, p === me ? 'mine' : 'theirs'), 900 + i * 700); }
   if (k === 'shrug') floatText(p, '¯\\_(ツ)_/¯', '#fff4e2');
   if (k === 'yawn') floatText(p, 'hmmmmh', '#cdb8ff');
   if (k === 'dance') floatText(p, '♪ ♫', '#b6ff3b');
@@ -1437,9 +1458,13 @@ function emoteFx(p, k) {
 }
 function animEmote(p, mesh, t) {
   const u = mesh.userData, e = p.emote; if (!e) return;
-  const el = t - e.t0, hug = e.k === 'hug' || e.k === 'hug-back', dur = e.k === 'sleep' ? 4.5 : hug ? 3.2 : e.k === 'spin' ? 1.4 : 2.6;
+  const el = t - e.t0, hug = e.k === 'hug' || e.k === 'hug-back' || e.k === 'massage' || e.k === 'massaged', dur = e.k === 'massage' || e.k === 'massaged' ? 5.5 : e.k === 'sleep' ? 4.5 : hug ? 3.2 : e.k === 'spin' ? 1.4 : 2.6;
   if (el > dur || (p === me && !hug && (me.walking || me.jy > 0))) { p.emote = null; return; }
   const b = u.body, h = u.head, A = u.arms;
+  if (e.k === 'massaged') { // melting: eyes shut, a slow happy sway, stays lying if lying
+    if (p.pose !== 'back' && p.pose !== 'belly') { b.rotation.z = Math.sin(t * 2) * .06; h.rotation.x = .15; A.forEach((a, i) => a.rotation.z *= .3); }
+    return;
+  }
   b.rotation.set(0, 0, 0); A.forEach(a => a.rotation.set(0, 0, 0));
   const arm = (i, x, y, z, rz = 0) => { A[i].position.set(x, y, z); A[i].rotation.set(0, 0, rz); };
   switch (e.k) {
@@ -1459,6 +1484,14 @@ function animEmote(p, mesh, t) {
     case 'jacks': { const up = Math.abs(Math.sin(el * 6.5)); b.position.y = up * .1; A.forEach((a, i) => { a.position.set((i ? 1 : -1) * (.24 + .06 * up), .34 + .3 * up, 0); a.rotation.set(0, 0, (i ? 1 : -1) * (.2 + 2.5 * up)); }); u.feet.forEach((f, i) => f.position.set((i ? 1 : -1) * (.1 + .09 * up), .05 + up * .08, .04)); break; }
     case 'yawn': { const k2 = Math.sin(Math.min(1, el / 2.4) * PI); A.forEach((a, i) => { a.rotation.set(0, 0, (i ? 1 : -1) * 2.6 * k2); a.position.set((i ? 1 : -1) * .2, .34 + .3 * k2, 0); }); h.rotation.x = -.3 * k2; b.position.y = .03 * k2; setMouth(u, 1.2 * k2); u.eyes.forEach(x => x.scale.y = .008); break; }
     case 'shrug': { const k2 = Math.min(1, el / .3) * (el > 2.2 ? Math.max(0, (2.6 - el) / .4) : 1); A.forEach((a, i) => { a.position.set((i ? 1 : -1) * (.3 + .06 * k2), .38 + .08 * k2, .05); a.rotation.set(0, 0, (i ? 1 : -1) * 1.1 * k2); }); h.rotation.z = .22 * k2; b.position.y = .03 * k2; break; }
+    case 'massage': {
+      const o = p === me ? them : me, down = o && (o.pose === 'back' || o.pose === 'belly'), near = o && Math.hypot(o.x - p.x, o.z - p.z) < .8;
+      if (p === me && o && near) me.ry = Math.atan2(o.x - me.x, o.z - me.z);
+      if (!near) break;
+      A.forEach((a, i) => { const kn = Math.sin(t * 9 + i * PI) * .035; a.rotation.set(down ? -1 : -1.35, 0, 0); a.position.set((i ? 1 : -1) * (down ? .11 : .15), (down ? .42 : .56) + kn, .24 + kn * .5); });
+      if (down) { b.rotation.x = .5; b.position.y = -.1; u.feet.forEach(f => f.position.set(f.position.x, .05, -.2)); } // kneeling over them
+      b.rotation.z = Math.sin(t * 4.5) * .05; h.rotation.x = .25; break;
+    }
     case 'flex': arm(0, -.34, .5, 0, -1.2); arm(1, .34, .5, 0, 1.2); b.position.y = .02; h.rotation.x = -.1; break;
     case 'hug': case 'hug-back': A.forEach((a, i) => { a.position.set(i ? .2 : -.2, .42, .26); a.rotation.z = i ? .9 : -.9; }); if (p === me && them) me.ry = Math.atan2(them.x - me.x, them.z - me.z); break;
   }
@@ -1467,7 +1500,7 @@ function openEmotes() {
   if (panel.dataset.k === 'emotes') return closePanel();
   if (decorating) toggleDecorate();
   panel.dataset.k = 'emotes'; panel.classList.remove('side');
-  panel.innerHTML = `<h3>😊 Emotes</h3><div class="grid">${EMOTES.map(([k, e, n], i) => `<button class="tile" data-e="${k}"><b>${e} ${n}</b>${i < 9 ? `<span>key ${i + 1}</span>` : '<span>tap</span>'}</button>`).join('')}</div><div class="row hintrow">Hug works when you're close to them 🤗</div>`;
+  panel.innerHTML = `<h3>😊 Emotes</h3><div class="grid">${EMOTES.map(([k, e, n], i) => `<button class="tile" data-e="${k}"><b>${e} ${n}</b>${i < 9 ? `<span>key ${i + 1}</span>` : '<span>tap</span>'}</button>`).join('')}</div><div class="row hintrow">Hug and massage work when you're close to them 🤗 · lie down on them first for a back rub</div>`;
   panel.style.display = 'block';
   panel.querySelectorAll('[data-e]').forEach(b => b.onclick = () => doEmote(b.dataset.e));
 }
@@ -1559,12 +1592,63 @@ function grabPhoto() {
   x.fillText(`${place.name.replace(/^\S+\s/, '')} · ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`, out.width / 2, ph + pad + 122);
   camera.position.copy(saveP); camera.quaternion.copy(saveQ); meMesh.visible = vis;
   const url = out.toDataURL('image/png');
-  $('photoImg').src = url; $('photoSave').href = url; $('photo').style.display = 'flex';
+  const sm = document.createElement('canvas'); sm.width = 360; sm.height = Math.round(360 * out.height / out.width); sm.getContext('2d').drawImage(out, 0, 0, sm.width, sm.height);
+  lastSnap = sm.toDataURL('image/jpeg', .82); viewPic = null;
+  $('photoImg').src = url; $('photoSave').href = url; $('photo').style.display = 'flex'; $('photoHang').style.display = ''; $('photoDown').style.display = 'none';
   flash();
 }
 function flash() { const f = $('flash'); f.style.transition = 'none'; f.style.opacity = 1; requestAnimationFrame(() => { f.style.transition = 'opacity .6s'; f.style.opacity = 0; }); }
 $('snap').onclick = () => { takePhoto(); send({ t: 'snap' }); };
 $('photoClose').onclick = () => $('photo').style.display = 'none';
+// pinned photos: click a wall (or anything) to stick it there; click one later to take it down. Shared with them.
+let picsState = { places: {}, gone: [] }; try { picsState = { places: {}, gone: [], ...JSON.parse(localStorage.getItem('ols-pics') || '{}') }; } catch {}
+let hanging = null, lastSnap = null, viewPic = null;
+const picTex = {};
+function savePics() { try { localStorage.setItem('ols-pics', JSON.stringify(picsState)); } catch { toast('Too many photos to save on this computer'); } }
+function rebuildPics(id) {
+  const pl = built[id]; if (!pl) return;
+  if (pl.picsG) pl.g.remove(pl.picsG);
+  pl.picsG = new THREE.Group(); pl.g.add(pl.picsG);
+  for (const q of picsState.places[id] || []) {
+    const tex = picTex[q.id] ||= new THREE.TextureLoader().load(q.img, tx => { tx.colorSpace = THREE.SRGBColorSpace; });
+    const g = new THREE.Group(), w = .62;
+    const ph = new THREE.Mesh(new THREE.PlaneGeometry(w, w * .9), new THREE.MeshStandardMaterial({ map: tex, roughness: .7, envMapIntensity: .3 }));
+    ph.userData.pic = q.id; g.add(ph);
+    const tape = new THREE.Mesh(new THREE.PlaneGeometry(.12, .035), new THREE.MeshStandardMaterial({ color: '#fff3c8', transparent: true, opacity: .7, roughness: .9 }));
+    tape.position.set(0, w * .45, .002); tape.rotation.z = q.roll * -2; g.add(tape);
+    g.position.set(q.x, q.y, q.z); g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(q.nx, q.ny, q.nz)); g.rotateZ(q.roll);
+    pl.picsG.add(g);
+  }
+}
+function picsChanged(id) { savePics(); rebuildPics(id); }
+function rayAt(e) { const r = cv.getBoundingClientRect(); ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera); }
+function hangClick(e) {
+  rayAt(e);
+  const hit = ray.intersectObject(place.g, true).find(h => h.face && h.object.visible && !(place.picsG && place.picsG.getObjectById(h.object.id)) && !(h.object.material?.opacity < .5) && !h.object.isPoints && !h.object.isSprite);
+  if (!hit) { toast('Click a wall or something solid'); return; }
+  const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld); if (n.dot(ray.ray.direction) > 0) n.negate();
+  const at = place.g.worldToLocal(hit.point.clone().addScaledVector(n, .012));
+  const q = { id: Math.random().toString(36).slice(2, 10), x: +at.x.toFixed(3), y: +at.y.toFixed(3), z: +at.z.toFixed(3), nx: +n.x.toFixed(3), ny: +n.y.toFixed(3), nz: +n.z.toFixed(3), roll: +((Math.random() - .5) * .12).toFixed(3), img: hanging };
+  (picsState.places[place.id] ||= []).push(q); picsChanged(place.id); send({ t: 'pic', id: place.id, q });
+  hanging = null; toast('📌 Stuck it up!'); floatText(me, '📌', '#ffcf6b');
+}
+function picClick(e) {
+  if (!place.picsG) return false; rayAt(e);
+  const hit = ray.intersectObject(place.picsG, true).find(h => h.object.userData.pic); if (!hit) return false;
+  const q = (picsState.places[place.id] || []).find(x => x.id === hit.object.userData.pic); if (!q) return false;
+  viewPic = q; $('photoImg').src = q.img; $('photoSave').href = q.img; $('photo').style.display = 'flex'; $('photoHang').style.display = 'none'; $('photoDown').style.display = '';
+  return true;
+}
+function dropPic(id, pid) { picsState.places[id] = (picsState.places[id] || []).filter(x => x.id !== pid); if (!picsState.gone.includes(pid)) picsState.gone.push(pid); picsChanged(id); }
+$('photoHang').onclick = () => { if (!lastSnap) return; hanging = lastSnap; $('photo').style.display = 'none'; if (pov === 1) setPov(3); toast('Click a wall to stick your photo there · Esc to cancel'); };
+$('photoDown').onclick = () => { if (!viewPic) return; dropPic(place.id, viewPic.id); send({ t: 'picDel', id: place.id, pid: viewPic.id }); viewPic = null; $('photo').style.display = 'none'; };
+addEventListener('keydown', e => { if (e.key === 'Escape' && hanging) { hanging = null; toast('Okay, not hanging it'); } });
+function mergePics(all) {
+  for (const g of all.gone || []) if (!picsState.gone.includes(g)) picsState.gone.push(g);
+  for (const id in all.places || {}) { const L = picsState.places[id] ||= []; for (const q of all.places[id]) if (!L.some(x => x.id === q.id)) L.push(q); }
+  for (const id in picsState.places) picsState.places[id] = picsState.places[id].filter(x => !picsState.gone.includes(x.id));
+  savePics(); for (const id in built) rebuildPics(id);
+}
 
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.repeat) return;
@@ -1580,7 +1664,7 @@ function onFun2(m) {
   switch (m.t) {
     case 'hello': send({ t: 'hat', h: me.hat }); return false;
     case 'hat': if (them) them.hat = m.h; else pendingHat = m.h; return true;
-    case 'emote': if (them) { them.emote = { k: m.k, t0: clock.elapsedTime }; emoteFx(them, m.k); if (m.k === 'hug') me.emote = { k: 'hug-back', t0: clock.elapsedTime }; } return true;
+    case 'emote': if (them) { them.emote = { k: m.k, t0: clock.elapsedTime }; emoteFx(them, m.k); if (m.k === 'hug') me.emote = { k: 'hug-back', t0: clock.elapsedTime }; if (m.k === 'massage') { me.emote = { k: 'massaged', t0: clock.elapsedTime }; emoteFx(me, 'massaged'); } } return true;
     case 'snap': flash(); toast(`📸 ${them ? them.name : 'They'} took a photo of you two`); return true;
   }
   return false;
@@ -2177,8 +2261,8 @@ function bongHit(p, cough) {
 }
 // ---------- the buzz + mushroom tea ----------
 function weedLvl(p, t) {
-  const e = t - (p.weedAt ?? -999); if (e < 1.5 || e > 90) return 0;
-  return (e < 4.5 ? (e - 1.5) / 3 : e < 60 ? 1 : 1 - (e - 60) / 30) * Math.min(1, .45 + .25 * (p.weedN || 1));
+  const e = t - (p.weedAt ?? -999); if (e < .5 || e > 90) return 0;
+  return (e < 2.5 ? (e - .5) / 2 : e < 60 ? 1 : 1 - (e - 60) / 30) * Math.min(1, .45 + .25 * (p.weedN || 1));
 }
 function tripLvl(p, t) { const e = t - (p.tripAt ?? -999); return e < 12 ? 0 : e < 35 ? (e - 12) / 23 : e < 150 ? 1 : e < 200 ? 1 - (e - 150) / 50 : 0; }
 function teaSet() {
@@ -2225,9 +2309,9 @@ const BLOOM0 = bloom.strength;
 function highCam(t) {
   const w = weedLvl(me, t), r = tripLvl(me, t);
   grain.uniforms.buzz.value = w; grain.uniforms.trip.value = r; grain.uniforms.tt.value = t;
-  bloom.strength = BLOOM0 + r * .45 + w * .1;
-  if (w || r) camera.rotateZ(Math.sin(t * .5) * .015 * w + Math.sin(t * .27) * .035 * r);
-  const fov = 55 + Math.sin(t * .8) * 3.5 * r; if (Math.abs(camera.fov - fov) > .01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+  bloom.strength = BLOOM0 + r * .45 + w * .35;
+  if (w || r) camera.rotateZ(Math.sin(t * .5) * .04 * w + Math.sin(t * .27) * .035 * r);
+  const fov = 55 + Math.sin(t * .8) * 3.5 * r + w * (2 + Math.sin(t * .6) * 1.5); if (Math.abs(camera.fov - fov) > .01) { camera.fov = fov; camera.updateProjectionMatrix(); }
 }
 function funTick6(dt, t) { tickSmoke(dt, t); if (meMesh) highChar(me, meMesh, t); if (them && themMesh) highChar(them, themMesh, t); }
 function onFun6(m) {
@@ -2325,7 +2409,7 @@ function stepMoves(dt) {
   if (me.slide) { const k = (t - me.slide.t0) / .75; if (k >= 1 || me.seat >= 0) me.slide = null; else { me.vx = me.slide.vx * (1 - k * k); me.vz = me.slide.vz * (1 - k * k); } }
   if (me.ko && me.spinV) { me.ry += me.spinV * dt; me.spinV *= Math.pow(.05, dt); }
   if (me.vy === 0) me.flipT = 0;
-  me.pose = me.ko ? 'ko' : me.slide ? 'slide' : me.floor ? 'floor' : keys.c && me.seat < 0 && me.vy === 0 ? 'crouch' : '';
+  me.pose = me.ko ? 'ko' : me.slide ? 'slide' : me.floor === true ? 'floor' : me.floor ? me.floor : keys.c && me.seat < 0 && me.vy === 0 ? 'crouch' : '';
 }
 function smackSound() {
   try {
@@ -2396,7 +2480,7 @@ addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.repeat) return;
   const k = e.key.toLowerCase();
   if (k === 'c') startSlide();
-  if (k === 'x' && me.seat < 0 && me.vy === 0 && !me.ko) { me.floor = !me.floor; if (me.floor) { me.vx = me.vz = 0; me.tx = me.tz = NaN; } }
+  if (k === 'x' && me.seat < 0 && me.vy === 0 && !me.ko) layDown({ false: true, true: 'back', back: 'belly', belly: false }[me.floor || false]);
   if (k === 'q') attack('push');
   if (k === 'g') attack('smack');
 });
@@ -2405,7 +2489,7 @@ $('smackb').onclick = () => attack('smack');
 
 function onPlaceChanged() {
   endGame(true); dropHeld();
-  rebuildDeco(place.id); applyMood(); buildHiddenStars(); placeChanged3();
+  rebuildDeco(place.id); rebuildPics(place.id); applyMood(); buildHiddenStars(); placeChanged3();
   if (decorating) renderDecoPanel(); else if (panel.dataset.k === 'games') closePanel();
 }
 function funTick(dt, t) {
@@ -2422,7 +2506,10 @@ function funTick(dt, t) {
 function onFun(m) {
   if (onFun2(m)) return true;
   switch (m.t) {
-    case 'hello': if (!m.reply && isHost) send({ t: 'decoAll', all: decoState }); return false;
+    case 'hello': if (!m.reply && isHost) send({ t: 'decoAll', all: decoState }); send({ t: 'picsAll', all: picsState }); return false;
+    case 'picsAll': mergePics(m.all || {}); return true;
+    case 'pic': if (!(picsState.places[m.id] ||= []).some(x => x.id === m.q.id)) { picsState.places[m.id].push(m.q); picsChanged(m.id); toast(`📌 ${them ? them.name : 'They'} stuck a photo up`); } return true;
+    case 'picDel': dropPic(m.id, m.pid); return true;
     case 'decoAll': decoState = m.all || {}; saveDeco(); for (const id in built) rebuildDeco(id); applyMood(); if (decorating) renderDecoPanel(); return true;
     case 'deco': decoState[m.id] = m.d; saveDeco(); rebuildDeco(m.id); applyMood(); if (decorating && m.id === place.id) renderDecoPanel(); return true;
     case 'pop': spawnPop(new THREE.Vector3(...m.p), new THREE.Vector3(...m.v), 'theirs'); return true;
@@ -2561,6 +2648,6 @@ $('go').onclick = () => {
   setPlace(PLACES[0].id, false); connect(); loop();
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { layDown, hangClick, get picsState() { return picsState }, setHanging: v => hanging = v, doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
