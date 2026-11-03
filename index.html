@@ -99,7 +99,7 @@
     </div>
   </div>
   <div id="places"></div>
-  <div id="hint">WASD move · Space jump · drag to turn · scroll in for 1st person · Shift run · C crouch (slide while running) · X sit / lie down · Q push · G smack · L camera lock · Enter chat · E hold hands / pet / bong / tea · F popcorn · 1-6 emotes · H hearts</div>
+  <div id="hint">WASD move · Space jump · drag to turn · scroll in for 1st person · Shift run · C crouch (slide while running) · X sit / lie down · Q push · G smack · L camera lock · Enter chat · E hold hands / pet / bong / tea · B throw ball for your pet · F popcorn · 1-6 emotes · H hearts</div>
 </div>
 <video id="vid" autoplay playsinline style="display:none"></video>
 
@@ -1880,51 +1880,161 @@ chat.addEventListener('keydown', e => {
 });
 $('talk').onclick = openChat;
 
-// pets that follow you around (E near one to pet it)
-const PETS = [['', '🙂', 'No pet'], ['puppy', '🐶', 'Puppy'], ['kitty', '🐱', 'Kitty'], ['bunny', '🐰', 'Bunny'], ['duck', '🐥', 'Duckling']];
-try { me.pet = localStorage.getItem('ols-pet') || ''; } catch { me.pet = ''; }
+// pets that follow you around: walk, nap, do little tricks, play with each other, play fetch (E to pet, B to throw the ball)
+const PETS = [['', '🙂', 'No pet'], ['puppy', '🐶', 'Puppy'], ['kitty', '🐱', 'Kitty'], ['bunny', '🐰', 'Bunny'], ['duck', '🐥', 'Duckling'], ['fox', '🦊', 'Fox'],
+  ['panda', '🐼', 'Panda'], ['frog', '🐸', 'Froggy'], ['hamster', '🐹', 'Hamster'], ['piggy', '🐷', 'Piglet'], ['axolotl', '🩷', 'Axolotl']];
+const PETC = { puppy: ['#e8c08a', '#a8703e'], kitty: ['#b8b0c8', '#8a80a0'], bunny: ['#fff4ec', '#ffc4d8'], duck: ['#ffd84a', '#ff8a3d'], fox: ['#ff8a3d', '#fff4ec'],
+  panda: ['#fff8f0', '#2a2430'], frog: ['#8ad05a', '#f4ffd0'], hamster: ['#f0c890', '#fff4ec'], piggy: ['#ffc4d0', '#ff9ab0'], axolotl: ['#ffc8e0', '#ff7aa8'] };
+const PET_SAY = { puppy: 'woof!', kitty: 'mew~', bunny: '♪', duck: 'quack!', fox: 'yip!', panda: 'mrrp', frog: 'ribbit', hamster: 'squeak!', piggy: 'oink!', axolotl: 'blub' };
+try { me.pet = localStorage.getItem('ols-pet') || ''; me.petName = localStorage.getItem('ols-petname') || ''; } catch { me.pet = ''; me.petName = ''; }
 function petMesh(k) {
-  const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
-  const C = { puppy: ['#e8c08a', '#a8703e'], kitty: ['#b8b0c8', '#8a80a0'], bunny: ['#fff4ec', '#ffc4d8'], duck: ['#ffd84a', '#ff8a3d'] }[k];
-  const mb = M(C[0], { roughness: .7 }), ms = M(C[1], { roughness: .7 }), ink = M('#1a0d06');
-  put(ell(.14, .12, .18, mb), 0, .15, 0, body); put(ell(.11, .1, .1, mb), 0, .29, .12, body);
-  for (const s of [-1, 1]) put(ell(.016, .02, .01, ink), s * .045, .31, .21, body);
-  if (k !== 'duck') for (const s of [-1, 1]) for (const z of [-1, 1]) put(ell(.03, .045, .03, ms), s * .07, .04, z * .09, body);
-  if (k === 'puppy') { for (const s of [-1, 1]) put(ell(.035, .07, .02, ms), s * .1, .27, .1, body).rotation.z = s * .3; put(ell(.022, .016, .012, ink), 0, .28, .22, body); put(cyl(.015, .02, .12, ms, 8), 0, .22, -.18, body).rotation.x = -.8; }
-  if (k === 'kitty') { for (const s of [-1, 1]) put(new THREE.Mesh(new THREE.ConeGeometry(.035, .07, 8), ms), s * .06, .39, .11, body); put(ell(.014, .01, .01, M('#ff9ab8')), 0, .285, .215, body); put(cyl(.014, .014, .24, mb, 8), 0, .27, -.21, body).rotation.x = -.5; }
-  if (k === 'bunny') { for (const s of [-1, 1]) { put(ell(.03, .1, .02, mb), s * .04, .44, .1, body); put(ell(.015, .07, .01, ms), s * .04, .44, .115, body); } put(ell(.045, .045, .045, M('#ffffff')), 0, .17, -.18, body); }
-  if (k === 'duck') { put(ell(.05, .02, .045, ms), 0, .28, .22, body); for (const s of [-1, 1]) { put(ell(.035, .07, .1, mb), s * .13, .17, 0, body); put(ell(.04, .012, .05, ms), s * .05, .01, .03, body); } }
+  const g = new THREE.Group(), body = new THREE.Group(), head = new THREE.Group(), tail = new THREE.Group(); g.add(body);
+  const [c0, c1] = PETC[k], mb = M(c0, { roughness: .75 }), ms = M(c1, { roughness: .75 }), ink = M('#1a0d06', { roughness: .3 }), shine = GLOW('#ffffff', 1.2);
+  const round = k === 'hamster' || k === 'piggy', ears = [], legs = [], eyes = [];
+  put(ell(.15, round ? .14 : .12, round ? .17 : .19, mb), 0, .16, 0, body);
+  if (['fox', 'puppy', 'kitty', 'hamster'].includes(k)) put(ell(.09, .08, .08, M(k === 'fox' ? '#fff4ec' : mix(c0, '#ffffff', .45))), 0, .15, .12, body);
+  head.position.set(0, .3, .13); body.add(head);
+  put(ell(.13, .12, .12, mb), 0, 0, 0, head);
+  const fr = k === 'frog', ey = fr ? .1 : .02, ez = fr ? .085 : .108;
+  for (const sd of [-1, 1]) {
+    if (fr) put(ell(.045, .045, .045, mb), sd * .06, .08, .03, head);
+    if (k === 'panda') put(ell(.036, .046, .01, ms), sd * .05, .015, .105, head).rotation.z = sd * .45;
+    eyes.push(put(ell(.02, .026, .012, ink), sd * (fr ? .06 : .05), ey, ez, head)); put(new THREE.Mesh(SPH, shine), sd * (fr ? .06 : .05) + .007, ey + .01, ez + .01, head).scale.setScalar(.006);
+    put(ell(k === 'hamster' ? .05 : .025, k === 'hamster' ? .04 : .015, .01, M(k === 'hamster' ? mix(c0, '#ffffff', .5) : '#ff9ab8')), sd * .075, -.035, .097, head);
+  }
+  eyes.forEach(e => e.userData.sy = e.scale.y);
+  const ear = (m, x, y, z, rz = 0) => { const e = new THREE.Group(); e.position.set(x, y, z); e.userData.rz = rz; e.rotation.z = rz; head.add(e); m.position.y += .03; e.add(m); ears.push(e); return e; };
+  if (k === 'puppy') { for (const sd of [-1, 1]) ear(ell(.035, .07, .02, ms), sd * .1, .02, 0, sd * .35); put(ell(.022, .016, .012, ink), 0, -.01, .122, head); }
+  if (k === 'kitty') { for (const sd of [-1, 1]) ear(new THREE.Mesh(new THREE.ConeGeometry(.04, .08, 8), ms), sd * .07, .09, 0, -sd * .2); put(ell(.014, .01, .01, M('#ff9ab8')), 0, -.015, .12, head); for (const sd of [-1, 1]) for (const j of [-1, 1]) { const w = put(rbox(.08, .003, .003, ink, .001), sd * .1, -.02 + j * .01, .1, head); w.rotation.z = j * .15 * sd; } }
+  if (k === 'bunny') { for (const sd of [-1, 1]) { const e = ear(ell(.03, .1, .02, mb), sd * .04, .1, 0, -sd * .12); put(ell(.015, .07, .01, ms), 0, .03, .015, e); } put(ell(.012, .009, .009, M('#ff9ab8')), 0, -.015, .12, head); }
+  if (k === 'duck') put(ell(.055, .02, .05, ms), 0, -.015, .12, head);
+  if (k === 'fox') { for (const sd of [-1, 1]) { const e = ear(new THREE.Mesh(new THREE.ConeGeometry(.045, .1, 8), mb), sd * .075, .09, 0, -sd * .25); put(new THREE.Mesh(new THREE.ConeGeometry(.02, .04, 8), ink), 0, .06, 0, e); } put(ell(.05, .04, .06, M('#fff4ec')), 0, -.04, .09, head); put(ell(.016, .012, .01, ink), 0, -.03, .15, head); }
+  if (k === 'panda') { for (const sd of [-1, 1]) ear(ell(.04, .04, .025, ms), sd * .09, .08, 0); put(ell(.018, .012, .01, ms), 0, -.02, .12, head); }
+  if (fr) put(new THREE.Mesh(new THREE.TorusGeometry(.04, .006, 6, 16, PI), ink), 0, -.02, .115, head).rotation.z = PI;
+  if (k === 'hamster') for (const sd of [-1, 1]) ear(ell(.03, .03, .015, ms), sd * .08, .08, 0);
+  if (k === 'piggy') { put(cyl(.035, .035, .03, ms, 16), 0, -.02, .12, head).rotation.x = PI / 2; for (const sd of [-1, 1]) put(ell(.007, .01, .005, M('#a85a6a')), sd * .012, -.02, .136, head); for (const sd of [-1, 1]) ear(new THREE.Mesh(new THREE.ConeGeometry(.035, .06, 4), ms), sd * .08, .08, 0, -sd * .4); }
+  if (k === 'axolotl') { for (const sd of [-1, 1]) { const e = ear(new THREE.Group(), sd * .12, .02, -.02, sd * .3); for (let j = 0; j < 3; j++) put(ell(.012, .05, .012, GLOW(c1, 1.1)), sd * .01, j * .02 - .01, 0, e).rotation.z = -sd * (.8 - j * .5); } put(new THREE.Mesh(new THREE.TorusGeometry(.03, .005, 6, 16, PI), ink), 0, -.03, .115, head).rotation.z = PI; }
+  // tail
+  tail.position.set(0, .18, -.17); body.add(tail);
+  if (k === 'puppy') put(cyl(.015, .022, .13, ms, 8), 0, .06, -.02, tail).rotation.x = -.6;
+  if (k === 'kitty') put(cyl(.014, .016, .26, mb, 8), 0, .12, -.04, tail).rotation.x = -.3;
+  if (k === 'bunny' || k === 'hamster') put(ell(.045, .045, .045, M('#ffffff')), 0, 0, 0, tail);
+  if (k === 'duck') put(ell(.05, .03, .05, mb), 0, .02, 0, tail).rotation.x = -.6;
+  if (k === 'fox') { const ft = put(ell(.06, .06, .17, mb), 0, .05, -.12, tail); ft.rotation.x = -.5; put(ell(.04, .04, .05, M('#fff4ec')), 0, .13, -.25, tail); }
+  if (k === 'panda') put(ell(.03, .03, .03, ms), 0, 0, 0, tail);
+  if (k === 'piggy') put(new THREE.Mesh(new THREE.TorusGeometry(.03, .008, 6, 14, PI * 1.6), ms), 0, .02, -.01, tail).rotation.y = PI / 2;
+  if (k === 'axolotl') put(ell(.02, .07, .16, ms), 0, .02, -.1, tail);
+  // legs (ducks get two flat feet, everyone else four paws)
+  const lm = k === 'panda' ? ms : ['puppy', 'kitty', 'piggy'].includes(k) ? ms : k === 'fox' ? M('#3a2418') : mb;
+  if (k === 'duck') for (const sd of [-1, 1]) legs.push(put(ell(.04, .012, .055, ms), sd * .06, .012, .04, body));
+  else for (const [x, z] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) legs.push(put(ell(fr && z < 0 ? .05 : .034, .045, fr && z < 0 ? .06 : .034, lm), x * .085, .045, z * .095, body));
+  if (k === 'duck') for (const sd of [-1, 1]) { const w = ear(ell(.035, .07, .1, mb), sd * .13, -.13, -.13, 0); w.parent.remove(w); w.position.set(sd * .13, .17, 0); body.add(w); }
+  legs.forEach(l => l.userData.base = l.position.clone());
   const blob = put(new THREE.Mesh(new THREE.PlaneGeometry(.5, .5), blobMat), 0, .012, 0, g); blob.rotation.x = -PI / 2;
-  g.userData.body = body; return g;
+  g.userData = { body, head, tail, ears, legs, eyes, hop: k === 'bunny' || fr }; return g;
+}
+const PET_ACTS = ['wag', 'sniff', 'spin', 'roll', 'scratch', 'sit', 'hop', 'wag', 'sit'];
+const ballGeo = new THREE.SphereGeometry(.05, 16, 12), ballMat = M('#d8f04a', { roughness: .6 });
+function dropBall(o) { if (o.ball) { o.ball.m.removeFromParent(); o.ball = null; } }
+function throwBall(p, x, z) {
+  const o = p && p.petObj; if (!o) return; dropBall(o);
+  const m = new THREE.Mesh(ballGeo, ballMat); m.position.set(p.x, .8, p.z); scene.add(m);
+  o.ball = { x0: p.x, z0: p.z, x, z, t: 0, dur: .8, m }; o.act = null; o.sleep = false;
+}
+function tossBall() {
+  if (!me.petObj) { toast('Pick a pet first 🐾'); return; }
+  const b = place.box || place.bounds; let d = 4.2, x, z;
+  for (; d > .8; d -= .4) { x = Math.max(b[0], Math.min(b[1], me.x + Math.sin(me.ry) * d)); z = Math.max(b[2], Math.min(b[3], me.z + Math.cos(me.ry) * d)); if (!place.rects || inRects(x, z)) break; }
+  throwBall(me, x, z); send({ t: 'fetch', x, z }); floatText(me, 'go get it!', '#d8f04a');
 }
 function tickPet(p, dt, t) {
   if (!p) return;
   const k = p.pet || ''; let o = p.petObj;
-  if (!k) { if (o) { scene.remove(o.mesh); p.petObj = null; } return; }
-  if (!o || o.k !== k) { if (o) scene.remove(o.mesh); o = p.petObj = { k, mesh: petMesh(k), x: p.x + .5, z: p.z + .5, ry: 0, love: 0 }; scene.add(o.mesh); }
-  const fx = Math.sin(p.ry), fz = Math.cos(p.ry), tx = p.x - fx * .7 - fz * .45, tz = p.z - fz * .7 + fx * .45;
-  const dx = tx - o.x, dz = tz - o.z, d = Math.hypot(dx, dz), moving = d > .25;
-  if (d > 6) { o.x = tx; o.z = tz; }
-  else if (moving) { const st = Math.min(d, (d > 2.5 ? 7 : 3.2) * dt); o.x += dx / d * st; o.z += dz / d * st; o.ry = angLerp(o.ry, Math.atan2(dx, dz), Math.min(1, dt * 10)); }
-  else o.ry = angLerp(o.ry, Math.atan2(p.x - o.x, p.z - o.z), Math.min(1, dt * 3));
-  const b = o.mesh.userData.body;
+  if (!k) { if (o) { dropBall(o); scene.remove(o.mesh); p.petObj = null; } return; }
+  if (!o || o.k !== k) { if (o) { dropBall(o); scene.remove(o.mesh); } o = p.petObj = { k, owner: p, mesh: petMesh(k), x: p.x + .5, z: p.z + .5, ry: 0, love: 0, idle: 0 }; scene.add(o.mesh); }
+  const u = o.mesh.userData, B = u.body, H = u.head, fx = Math.sin(p.ry), fz = Math.cos(p.ry), pose = p.pose || '';
+  const seated = p.seat >= 0, lying = ['back', 'belly', 'floor'].includes(pose), ownerMoving = p === me ? me.walking || me.vy !== 0 : p.walking || p.air;
+  const party = p.emote && ['dance', 'cheer', 'jacks', 'clap', 'spin'].includes(p.emote.k), bl = o.ball;
+  // where to be
+  let tx, tz, rest = false;
+  if (bl && !bl.held) { tx = bl.x; tz = bl.z; }
+  else if (bl) { tx = p.x + fx * .5; tz = p.z + fz * .5; }
+  else if (seated) { tx = p.x + fx * .6 + fz * .3; tz = p.z + fz * .6 - fx * .3; rest = true; }
+  else if (lying) { tx = p.x + fz * .55; tz = p.z - fx * .55; rest = true; }
+  else { tx = p.x - fx * .7 - fz * .45; tz = p.z - fz * .7 + fx * .45; }
+  // two pets left alone together start chasing each other around
+  const other = p === me ? them : me, op = other && other.petObj;
+  o.playing = !!(op && !bl && !rest && !ownerMoving && o.idle > 5 && Math.hypot(op.x - o.x, op.z - o.z) < 3.5 && (t / 8 | 0) % 3 === 1);
+  if (o.playing) { const cx = (o.x + op.x) / 2, cz = (o.z + op.z) / 2, a = t * 2.6 + (p === me ? 0 : PI); tx = cx + Math.cos(a) * .7; tz = cz + Math.sin(a) * .7; }
+  const dx = tx - o.x, dz = tz - o.z, d = Math.hypot(dx, dz), moving = d > (o.playing || bl ? .06 : .25);
+  let sp = 0;
+  if (d > 7 && !bl) { o.x = tx; o.z = tz; }
+  else if (moving) { sp = bl || o.playing ? 4.6 : d > 2.5 ? 6.5 : 3; const st = Math.min(d, sp * dt); o.x += dx / d * st; o.z += dz / d * st; o.ry = angLerp(o.ry, Math.atan2(dx, dz), Math.min(1, dt * 10)); }
+  else if (!o.act) o.ry = angLerp(o.ry, Math.atan2(p.x - o.x, p.z - o.z), Math.min(1, dt * 3));
+  // fetch
+  if (bl) {
+    if (!bl.held) {
+      bl.t += dt; const f = Math.min(1, bl.t / bl.dur);
+      if (f < 1) { bl.m.position.set(bl.x0 + (bl.x - bl.x0) * f, .05 + Math.sin(f * PI) * 1.5 + (1 - f) * .75, bl.z0 + (bl.z - bl.z0) * f); bl.m.rotation.x += dt * 12; }
+      else { bl.m.position.set(bl.x, .05, bl.z); if (d < .2) { bl.held = true; H.add(bl.m); bl.m.position.set(0, -.07, .15); floatText(petSpot(o), '!', '#d8f04a'); } }
+    } else if (Math.hypot(p.x - o.x, p.z - o.z) < .75) { dropBall(o); petIt(o); }
+  }
+  if (moving || o.playing || ownerMoving || bl || party) { o.idle = 0; if (o.sleep) { o.sleep = false; } o.act = null; } else o.idle += dt;
+  if (!rest && o.idle > 20) o.sleep = true;
+  // animate
   o.mesh.position.set(o.x, 0, o.z); o.mesh.rotation.y = o.ry;
-  b.position.y = moving ? Math.abs(Math.sin(t * 14)) * .07 : 0;
-  if (o.love > 0) { o.love -= dt; b.rotation.z = Math.sin(t * 20) * .15; } else b.rotation.z = 0;
+  B.position.set(0, 0, 0); B.rotation.set(0, 0, 0); H.rotation.set(0, 0, 0);
+  o.ph = (o.ph || 0) + dt * (moving ? 9 + sp * 2 : 0); const ph = o.ph;
+  u.legs.forEach((l, i) => { l.position.copy(l.userData.base); if (moving && !u.hop) { const q = Math.sin(ph + (i === 0 || i === 3 ? 0 : PI)); l.position.y += Math.max(0, q) * .04; l.position.z += q * .035; } });
+  if (moving) { if (u.hop) { const h = Math.abs(Math.sin(ph * .55)); B.position.y = h * .13; B.rotation.x = -.25 + h * .3; } else { B.position.y = Math.abs(Math.sin(ph)) * .04; B.rotation.z = Math.sin(ph) * .05; } }
+  const happy = o.love > 0 || bl || o.playing || party;
+  u.tail.rotation.set(0, Math.sin(t * (happy ? 22 : 5)) * (happy ? .7 : .25), 0);
+  if (t > (o.twAt || 0)) { o.twAt = t + 1.5 + Math.random() * 3; o.twEnd = t + .2; }
+  u.ears.forEach((e, i) => e.rotation.z = (e.userData.rz || 0) + (t < o.twEnd ? Math.sin((o.twEnd - t) * 30) * .25 : 0) + (moving ? Math.sin(ph + i) * .12 : 0));
+  if (t > (o.blinkAt || 0)) { o.blinkAt = t + 2 + Math.random() * 3; o.blinkEnd = t + .12; }
+  const shut = o.sleep || t < o.blinkEnd; u.eyes.forEach(e => e.scale.y = shut ? .004 : e.userData.sy);
+  if (rest || o.sleep) { // lie down next to you; nap if left alone long enough
+    B.position.y = -.07; H.rotation.x = o.sleep ? .35 : .1; u.legs.forEach(l => { l.position.y = .03; l.position.x *= 1.35; });
+    if (o.sleep && t > (o.zAt || 0)) { o.zAt = t + 2.6; floatText(petSpot(o), 'z', '#cdb8ff'); }
+  } else if (party || (o.love > 0 && !bl)) { B.position.y = Math.abs(Math.sin(t * 9)) * .12; H.rotation.z = Math.sin(t * 9) * .2; }
+  else if (!moving && !bl) {
+    if (!o.act && o.idle > 3 && t > (o.actNext || 0)) { o.act = { k: PET_ACTS[Math.floor(Math.random() * PET_ACTS.length)], t0: t }; o.actNext = t + 4 + Math.random() * 5; if (o.act.k === 'wag') floatText(petSpot(o), PET_SAY[k] || '!', '#fff4e2'); }
+    if (o.act) {
+      const el = t - o.act.t0, D = { wag: 1.6, sniff: 2, spin: 1.2, roll: 2.2, scratch: 1.5, sit: 3, hop: 1.2 }[o.act.k], env = Math.sin(Math.min(1, el / D) * PI);
+      if (el > D) o.act = null;
+      else switch (o.act.k) {
+        case 'wag': u.tail.rotation.y = Math.sin(t * 24) * .8; H.rotation.z = .3 * env; break;
+        case 'sniff': H.rotation.x = .5 * env; H.rotation.y = Math.sin(t * 7) * .25 * env; B.rotation.x = .12 * env; break;
+        case 'spin': o.ry += dt * 9; u.tail.rotation.y = Math.sin(t * 24) * .7; break;
+        case 'roll': B.rotation.z = env * PI * .95; B.position.y = env * .1; u.legs.forEach(l => l.position.y += Math.abs(Math.sin(t * 12)) * .03 * env); break;
+        case 'scratch': H.rotation.z = .4 * env; if (u.legs[3]) { u.legs[3].position.y += .06 * env; u.legs[3].position.z += .08 * env + Math.sin(t * 30) * .02 * env; } break;
+        case 'sit': B.rotation.x = -.38 * env; B.position.y = -.03 * env; H.rotation.x = .3 * env; break;
+        case 'hop': B.position.y = Math.abs(Math.sin(el * 10)) * .12; break;
+      }
+    }
+  }
+  if (o.love > 0) o.love -= dt;
 }
 const petSpot = o => ({ x: o.x, z: o.z, seat: -1, jy: -.42 });
 function petNearest() {
   const list = [me.petObj, them && them.petObj].filter(Boolean).map(o => [o, Math.hypot(o.x - me.x, o.z - me.z)]).sort((a, b) => a[1] - b[1]);
   return list[0] && list[0][1] < 1.1 ? list[0][0] : null;
 }
-function petIt(o) { o.love = 1.4; floatText(petSpot(o), '♥', '#ff9ab8'); for (let i = 0; i < 3; i++) setTimeout(() => addHeart(petSpot(o), 'mine'), i * 140); }
+function petIt(o) {
+  o.love = 1.6; o.sleep = false; o.idle = 0; const nm = o.owner && o.owner.petName;
+  floatText(petSpot(o), nm ? `♥ ${nm}` : '♥', '#ff9ab8'); for (let i = 0; i < 3; i++) setTimeout(() => addHeart(petSpot(o), 'mine'), i * 140);
+}
 function openPets() {
   if (panel.dataset.k === 'pets') return closePanel();
   if (decorating) toggleDecorate();
   panel.dataset.k = 'pets'; panel.classList.remove('side');
-  panel.innerHTML = `<h3>🐾 Your pet</h3><div class="grid">${PETS.map(([k, e, n]) => `<button class="tile${(me.pet || '') === k ? ' sel' : ''}" data-pet="${k}"><b>${e} ${n}</b></button>`).join('')}</div><div class="row hintrow">Your pet follows you everywhere. Press E (or 🤝) next to any pet to give it pets</div>`;
+  panel.innerHTML = `<h3>🐾 Your pet</h3><div class="grid">${PETS.map(([k, e, n]) => `<button class="tile${(me.pet || '') === k ? ' sel' : ''}" data-pet="${k}"><b>${e} ${n}</b></button>`).join('')}</div>
+    <div class="row"><input id="petName" maxlength="14" placeholder="Name your pet…" value="${(me.petName || '').replace(/"/g, '')}" style="flex:1;border:0;border-radius:999px;padding:9px 14px;background:#ffffff14;color:var(--ink);font:inherit"><button class="pill on" id="petBall">🎾 Throw ball (B)</button></div>
+    <div class="row hintrow">Your pet follows you, naps next to you, does little tricks and plays with theirs. E (or 🤝) to give pets · B to play fetch</div>`;
   panel.style.display = 'block';
-  panel.querySelectorAll('[data-pet]').forEach(b => b.onclick = () => { me.pet = b.dataset.pet; try { localStorage.setItem('ols-pet', me.pet); } catch {} send({ t: 'petk', k: me.pet }); panel.dataset.k = ''; openPets(); });
+  panel.querySelectorAll('[data-pet]').forEach(b => b.onclick = () => { me.pet = b.dataset.pet; try { localStorage.setItem('ols-pet', me.pet); } catch {} send({ t: 'petk', k: me.pet, n: me.petName }); panel.dataset.k = ''; openPets(); });
+  $('petName').oninput = e => { me.petName = e.target.value.trim(); try { localStorage.setItem('ols-petname', me.petName); } catch {} send({ t: 'petk', k: me.pet, n: me.petName }); };
+  $('petBall').onclick = () => { closePanel(); tossBall(); };
 }
 $('pets').onclick = openPets;
 
@@ -2083,7 +2193,7 @@ addEventListener('keydown', e => {
 });
 function placeChanged3() {
   hand = null;
-  for (const p of [me, them]) if (p && p.petObj) { p.petObj.x = p.x + .5; p.petObj.z = p.z + .5; }
+  for (const p of [me, them]) if (p && p.petObj) { dropBall(p.petObj); p.petObj.x = p.x + .5; p.petObj.z = p.z + .5; }
   rockets.forEach(r => r.m && scene.remove(r.m)); rockets.length = 0;
 }
 function funTick3(dt, t) {
@@ -2100,10 +2210,11 @@ function funTick3(dt, t) {
 function onFun3(m) {
   if (onFun4(m)) return true;
   switch (m.t) {
-    case 'hello': if (mic) setTimeout(callVoice, 300); send({ t: 'petk', k: me.pet }); return false;
+    case 'hello': if (mic) setTimeout(callVoice, 300); send({ t: 'petk', k: me.pet, n: me.petName }); return false;
     case 'mic': toast(m.on ? `🎙 ${them ? them.name : 'They'} turned voice on${mic ? '' : ' · tap 🎙 to talk back'}` : `🎙 ${them ? them.name : 'They'} muted`); return true;
     case 'say': say(themMesh, String(m.text).slice(0, 80)); return true;
-    case 'petk': if (them) them.pet = m.k; else pendingPet = m.k; return true;
+    case 'petk': if (them) { them.pet = m.k; them.petName = m.n || ''; } else { pendingPet = m.k; pendingPetName = m.n || ''; } return true;
+    case 'fetch': if (them) throwBall(them, m.x, m.z); return true;
     case 'petpet': { const o = m.whose === 'mine' ? them && them.petObj : me.petObj; if (o) petIt(o); return true; }
     case 'hand': if (m.on && them) { hand = { leader: otherRole(), side: sideOf(them, me) }; floatText(them, '🤝', '#ffcf6b'); } else hand = null; return true;
     case 'fw': launchFireworks(m.seed); return true;
@@ -2114,7 +2225,7 @@ function onFun3(m) {
   }
   return false;
 }
-let pendingPet = '';
+let pendingPet = '', pendingPetName = '';
 
 // ---------- batch 4: webcam face bubbles, hot potato, floor is lava ----------
 // webcam: your face floats above your character in a glowing bubble
@@ -2649,6 +2760,7 @@ addEventListener('keydown', e => {
   if (k === 'x' && me.seat < 0 && me.vy === 0 && !me.ko) layDown({ false: true, true: 'back', back: 'belly', belly: false }[me.floor || false]);
   if (k === 'q') attack('push');
   if (k === 'g') attack('smack');
+  if (k === 'b') tossBall();
 });
 $('pushb').onclick = () => attack('push');
 $('smackb').onclick = () => attack('smack');
@@ -2736,7 +2848,7 @@ function onData(m) {
   if (m.t === 'hello') {
     const sp = isHost ? place.spawn[1] : place.spawn[0];
     them = them || { x: sp[0], z: sp[1], rx: sp[0], rz: sp[1], ry: PI, rry: PI, jy: 0, seat: -1, share: false };
-    Object.assign(them, { name: m.name, look: m.look }); if (pendingHat && !them.hat) them.hat = pendingHat; if (pendingPet && !them.pet) them.pet = pendingPet;
+    Object.assign(them, { name: m.name, look: m.look }); if (pendingHat && !them.hat) them.hat = pendingHat; if (pendingPet && !them.pet) them.pet = pendingPet; if (pendingPetName && !them.petName) them.petName = pendingPetName;
     setStatus(`💞 together with ${m.name}`);
     if (m.reply) return;
     send({ t: 'hello', name: me.name, look: me.look, reply: true });
@@ -2814,6 +2926,6 @@ $('go').onclick = () => {
   setPlace(PLACES[0].id, false); connect(); loop();
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { layDown, hangClick, get picsState() { return picsState }, setHanging: v => hanging = v, doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: v => hanging = v, doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
