@@ -421,7 +421,7 @@ const PLACES = [
    const sun = new THREE.DirectionalLight('#fff0d0', 2); sun.position.set(-20, 30, -40); g.add(sun); g.add(sun.target);
    const inR = (x, z, r) => x >= r[0] && x <= r[1] && z >= r[2] && z <= r[3];
    return { g, scr, wallMats: [wall],
-     seats: [{ x: -.62, z: 1.35, y: .55, ry: PI }, { x: .62, z: 1.35, y: .55, ry: PI }, { x: -8.7, z: -1.95, y: .47, ry: -PI / 2 }, { x: -8.7, z: -.05, y: .47, ry: -PI / 2 }],
+     seats: [{ x: -.62, z: 1.35, y: .55, ry: PI }, { x: .62, z: 1.35, y: .55, ry: PI }, { x: -8.7, z: -1.95, y: .47, ry: -PI / 2, ax: -9.35, az: -1.95 }, { x: -8.7, z: -.05, y: .47, ry: -PI / 2, ax: -9.35, az: -.05 }],
      bounds: [-6.5, 6.5, -4, 4.5], box: [-9.7, 6.8, -4.8, 9.8],
      rects: [[-6.6, 6.6, -4.3, 4.65], [-4, -3, 4.4, 5.6], [3, 4, 4.4, 5.6], [-6.6, -.35, 5.35, 9.65], [.35, 6.6, 5.35, 9.65], [-7.5, -6.4, -2.85, .85], [-9.7, -7, -2.95, .95]],
      camAt(x, z) { if (z > 5.2) return x < 0 ? [-6.8, -.25, 5.25, 9.8, 3.3] : [.25, 6.8, 5.25, 9.8, 3.3]; if (x < -6.9) return [-9.9, 6.8, -3.1, 4.75, 3.3]; return [-6.8, 6.8, -4.7, 4.75, 3.3]; },
@@ -599,7 +599,7 @@ const PLACES = [
    for (const [x, z, c] of [[-3.5, -2, '#5a4a7a'], [3.5, -2, '#3a6a6a'], [-6.5, 1.5, '#7a3a4a'], [6.5, 1.5, '#4a4a6a'], [-3.5, 5, '#6a5a3a'], [3.5, 5, '#3a3a5a']]) car(x, z, c, false);
    for (const x of [-2, 2]) { put(cyl(.05, .05, 1.2, '#3a2a3a', 8), x, .6, 1, g); put(new THREE.Mesh(SPH, GLOW('#b6ff3b', 3)), x, 1.25, 1, g).scale.setScalar(.06); }
    const flies = swarm(50, [-10, 10, .3, 2.5, -8, 8], '#b6ff3b', .045); g.add(flies);
-   return { g, scr, seats: [{ x: -.36, z: 1.3, y: .95, ry: PI }, { x: .36, z: 1.3, y: .95, ry: PI }], bounds: [-10, 10, -12, 10], cam: [-20, 20, -14, 22, 12], spawn: [[-1.4, 3.6], [1.4, 3.6]],
+   return { g, scr, seats: [{ x: -.36, z: 1.3, y: .95, ry: PI, ax: -1.6, az: 1.3 }, { x: .36, z: 1.3, y: .95, ry: PI, ax: 1.6, az: 1.3 }], bounds: [-10, 10, -12, 10], cam: [-20, 20, -14, 22, 12], spawn: [[-1.4, 3.6], [1.4, 3.6]],
      env: { bg: '#05071a', fog: ['#0a0812', 25, 80], hemi: ['#7a7ab0', '#100a14', .6] },
      tick(t) { moveSwarm(flies, t, (x, y, z, i, t) => [x + Math.sin(t * .5 + i) * .6, y + Math.sin(t * .7 + i * 2) * .3, z + Math.cos(t * .4 + i) * .6]); flies.material.opacity = .6 + .4 * Math.sin(t * 2); } };
  } },
@@ -1064,11 +1064,27 @@ const SOLID = {
   records: [.42, .23, .6], aquarium: [.52, .22, 1.05], neonheart: [.15, .15, 1.8], arcade: [.37, .4, 1.7], cattree: [.36, .36, 1.35], plantshelf: [.53, .17, 1.5],
   dresser: [.62, .27, .9], sidetable: [.27, .27, .6], mirror: [.36, .15, 1.7], art: [.4, .35, 1.4], plant: [.22, .22, .9], tall: [.22, .22, 1.1],
 };
+// every place's own furniture (tables, beds, counters, plants…) is solid: one box per solid piece that stands on the floor
+function roomSolids(pl) {
+  pl.g.updateMatrixWorld(true);
+  const bb = new THREE.Box3(), b = pl.box || pl.bounds, out = [];
+  const walk = o => {
+    if (o === pl.deco || o === pl.blocksG) return;
+    const mt = Array.isArray(o.material) ? o.material[0] : o.material;
+    if (o.isMesh && mt && !mt.transparent && !mt.isMeshBasicMaterial) {
+      bb.setFromObject(o); const w = bb.max.x - bb.min.x, d = bb.max.z - bb.min.z, cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2;
+      if (bb.min.y < .9 && bb.max.y > .3 && bb.max.y < 2.3 && w < 3.5 && d < 3.5 && w * d > .004 && cx > b[0] && cx < b[1] && cz > b[2] && cz < b[3])
+        out.push({ x: cx, z: cz, r: 0, hw: Math.max(.02, w / 2 - .1), hd: Math.max(.02, d / 2 - .1), top: bb.max.y });
+    }
+    o.children.forEach(walk);
+  };
+  walk(pl.g); return out;
+}
 function decoPhysics(pl, items) {
   if (!pl.baseSeats) {
     pl.baseSeats = pl.seats.slice();
     // the couches and chairs every place comes with are solid too
-    pl.baseSolids = pl.seats.filter(q => q.y >= .4 && q.y <= .6).map(q => q.y >= .5 ? { x: q.x, z: q.z + .05, r: 0, hw: .62, hd: .45, top: q.y } : { x: q.x, z: q.z, r: 0, hw: .3, hd: .3, top: q.y });
+    pl.baseSolids = roomSolids(pl).concat(pl.seats.filter(q => q.y >= .4 && q.y <= .6).map(q => q.y >= .5 ? { x: q.x, z: q.z + .05, r: 0, hw: .62, hd: .45, top: q.y } : { x: q.x, z: q.z, r: 0, hw: .3, hd: .3, top: q.y }));
   }
   const seats = [], solids = [];
   items.forEach(it => {
