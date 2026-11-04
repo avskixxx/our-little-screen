@@ -132,6 +132,14 @@
   #qPicks .pill{padding:6px 12px;font-size:13px}
   .spark{position:absolute;border-radius:50%;background:#ffcf6b;box-shadow:0 0 12px #ffcf6b;opacity:.0;animation:spark linear infinite;pointer-events:none}
   @keyframes spark{0%{opacity:0;transform:translateY(20px)}20%{opacity:.8}100%{opacity:0;transform:translateY(-140px)}}
+  #wishb{position:absolute;left:50%;top:112px;transform:translateX(-50%);z-index:5;display:none;animation:pulse 1.2s ease-in-out infinite}
+  @keyframes pulse{50%{box-shadow:0 0 40px #ffcf6bcc}}
+  .lvbar{height:12px;border-radius:999px;background:#ffffff14;overflow:hidden;margin:6px 0 4px}
+  .lvbar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#ff7aa8,#ffcf6b);box-shadow:0 0 18px #ff9ab8}
+  .ach{display:flex;flex-wrap:wrap;gap:6px}
+  .ach span{font-size:12px;padding:6px 10px;border-radius:999px;background:#ffffff10;opacity:.45}
+  .ach span.got{opacity:1;background:#ffcf6b26;box-shadow:0 0 0 1px #ffcf6b55}
+  input[type=range]{accent-color:#ffcf6b;flex:1}
   #loading{position:absolute;inset:0;display:grid;place-items:center;color:#ffcf6b;opacity:.7;z-index:1;pointer-events:none}
 </style>
 </head><body>
@@ -141,7 +149,7 @@
     <div class="vig"></div><div class="grain"></div>
     <div id="stick"><div id="knob"></div></div>
     <button id="jump">⤒</button>
-    <div id="top"><span id="status">…</span><button class="pill" id="invite">💌 Invite</button><button class="pill" id="placesb">🗺 Places</button><span style="flex:1"></span><div class="grp"><button class="pill" id="charb" title="Your character">👤</button><button class="pill" id="pets" title="Pets">🐾</button><button class="pill" id="hats" title="Hats">🎩</button><button class="pill" id="fw" title="Fireworks">🎆</button><button class="pill" id="doodle" title="Doodle on the screen">✏️</button></div><button class="pill" id="couple">💞 Us</button><button class="pill" id="games">🎲 Games</button><button class="pill" id="decor">🛋 Decorate</button><button class="pill" id="helpb" title="Controls">?</button></div>
+    <div id="top"><span id="status">…</span><button class="pill" id="loveb" title="Our love level">💗 Lv 1</button><button class="pill" id="invite">💌 Invite</button><button class="pill" id="placesb">🗺 Places</button><span style="flex:1"></span><div class="grp"><button class="pill" id="charb" title="Your character">👤</button><button class="pill" id="pets" title="Pets">🐾</button><button class="pill" id="hats" title="Hats">🎩</button><button class="pill" id="fw" title="Fireworks">🎆</button><button class="pill" id="doodle" title="Doodle on the screen">✏️</button><button class="pill" id="radiob" title="Radio & sound">📻</button></div><button class="pill" id="couple">💞 Us</button><button class="pill" id="games">🎲 Games</button><button class="pill" id="decor">🛋 Decorate</button><button class="pill" id="helpb" title="Controls">?</button></div>
     <div id="hud"></div><input id="chat" maxlength="80" placeholder="say something sweet… (Enter to send)" autocomplete="off"><div id="blind"></div><div id="panel"></div>
     <div id="actions">
       <div class="grp" id="more" style="display:none"><button class="pill" id="pov" title="Switch view (V)">👀 3rd person</button><button class="pill" id="pop" title="Throw popcorn (F)">🍿</button><button class="pill" id="pushb" title="Push (Q)">🫸</button><button class="pill" id="smackb" title="Smack (G)">🖐</button></div>
@@ -149,7 +157,7 @@
       <button class="pill" id="watch" title="Watch mode (T)" style="display:none">📺 Watch</button><button class="pill" id="fs" title="Full screen">⛶</button>
       <button class="pill" id="share" title="Put a Chrome tab on the screen">🎮 Share a tab</button>
     </div>
-    <div id="fade"><div><b id="fadeTitle"></b><i id="fadeSub"></i></div></div><div id="ptitle"></div><div id="cg"></div>
+    <div id="fade"><div><b id="fadeTitle"></b><i id="fadeSub"></i></div></div><div id="ptitle"></div><div id="cg"></div><button class="pill on" id="wishb">🌠 Make a wish</button>
   </div>
   <div id="places"></div>
   <div id="hint">WASD move · Space jump · drag to turn · scroll in for 1st person · Shift run · C crouch (slide while running) · X sit / lie down · Q push · G smack · L camera lock · Enter chat · E hold hands / pet / bong / tea · B throw ball for your pet · F popcorn · 1-6 emotes · H hearts</div>
@@ -354,8 +362,9 @@ function swarm(n, box, color, size = .06) {
   pts.userData.base = base; return pts;
 }
 function moveSwarm(pts, t, fn) { const a = pts.geometry.attributes.position, b = pts.userData.base; for (let i = 0; i < a.count; i++) { const r = fn(b[i * 3], b[i * 3 + 1], b[i * 3 + 2], i, t); a.setXYZ(i, r[0], r[1], r[2]); } a.needsUpdate = true; }
+const FIRES = [];
 function fire(parent, x, z, s = 1) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s); parent.add(g);
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s); parent.add(g); FIRES.push(g);
   for (let i = 0; i < 4; i++) { const l = put(cyl(.06, .06, .7, '#4a2a1e'), 0, .06, 0, g); l.rotation.z = PI / 2; l.rotation.y = i * PI / 4; }
   const flames = [['#ff5a1f', .28, .5], ['#ffb347', .19, .38], ['#ffe7a8', .1, .25]].map(([c, r, h], i) => { const f = put(new THREE.Mesh(new THREE.ConeGeometry(r, h, 16), GLOW(c, 3.2 - i * .4)), 0, .12 + h / 2, 0, g); return f; });
   const light = plight('#ff8a3d', 6, 0, .6, 0, g);
@@ -1324,7 +1333,7 @@ function jump() {
   if (me.vy !== 0 || me.ko) return; me.floor = false; me.slide = null;
   const run = Math.hypot(me.vx || 0, me.vz || 0) > 3.6;
   if (me.seat >= 0) leaveSeat();
-  me.want = -1; me.vy = run ? 4.7 : 4.2; me.jy += .001; if (run) me.flipT = clock.elapsedTime;
+  me.want = -1; me.vy = run ? 4.7 : 4.2; sfx('jump'); me.jy += .001; if (run) me.flipT = clock.elapsedTime;
 }
 function step(dt) {
   const px = me.x, pz = me.z, b = place.bounds, sp = 2.6 * speedMul() * moveMul();
@@ -1381,7 +1390,8 @@ function placeChar(mesh, p) { const y = (p.seat >= 0 && place.seats[p.seat] ? pl
 const heartTex = c => canvasTex(64, 64, (x) => { x.fillStyle = c; x.font = '52px system-ui'; x.textAlign = 'center'; x.fillText('♥', 32, 50); });
 const heartTexs = { mine: heartTex('#ff7a59'), theirs: heartTex('#ffb3c6') };
 const hearts = [];
-function addHeart(p, which) {
+function addHeart(p, which, quiet) {
+  if (!quiet) sfx('heart');
   for (const q of [me, them]) if (q) q.happyUntil = clock.elapsedTime + 2.5;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: heartTexs[which], transparent: true, depthWrite: false }));
   s.position.copy(headOf(p)).add(new THREE.Vector3(0, .5, 0)); s.scale.setScalar(.3); scene.add(s); hearts.push({ s, t0: clock.elapsedTime, p: Math.random() * 6 });
@@ -1419,7 +1429,7 @@ function spawnPop(pos, v, owner) {
   pops.push({ m, v: v.clone(), owner, t0: clock.elapsedTime, landed: false });
   if (pops.length > 80) scene.remove(pops.shift().m);
 }
-function throwPop() {
+function throwPop() { sfx('pop');
   if (!place) return;
   const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
   const flat = new THREE.Vector3(dir.x, 0, dir.z).normalize();
@@ -1691,9 +1701,10 @@ function doEmote(k) {
     const d = Math.hypot(them.x - me.x, them.z - me.z) || 1; me.seat = -1; me.want = -1;
     me.tx = them.x - (them.x - me.x) / d * .5; me.tz = them.z - (them.z - me.z) / d * .5;
   }
-  me.emote = { k, t0: clock.elapsedTime }; send({ t: 'emote', k }); emoteFx(me, k); closePanel();
+  me.emote = { k, t0: clock.elapsedTime }; send({ t: 'emote', k }); emoteFx(me, k); closePanel(); loveFor(k);
 }
 function emoteFx(p, k) {
+  if (k === 'smooch') sfx('kiss');
   const mine = p === me ? 'mine' : 'theirs';
   if (k === 'wave') floatText(p, 'hi!', '#fff4e2');
   if (k === 'massage') floatText(p, 'rub rub 💆', '#ffcf6b');
@@ -1859,7 +1870,7 @@ function grabPhoto() {
   flash();
 }
 function flash() { const f = $('flash'); f.style.transition = 'none'; f.style.opacity = 1; requestAnimationFrame(() => { f.style.transition = 'opacity .6s'; f.style.opacity = 0; }); }
-$('snap').onclick = () => { takePhoto(); send({ t: 'snap' }); };
+$('snap').onclick = () => { takePhoto(); send({ t: 'snap' }); loveAdd(4); };
 $('photoClose').onclick = () => $('photo').style.display = 'none';
 // pinned photos: click a wall (or anything) to stick it there; click one later to take it down. Shared with them.
 let picsState = { places: {}, gone: [] }; try { picsState = { places: {}, gone: [], ...JSON.parse(localStorage.getItem('ols-pics') || '{}') }; } catch {}
@@ -1891,7 +1902,7 @@ function hangClick(e) {
   const at = place.g.worldToLocal(hit.point.clone().addScaledVector(n, .012));
   const q = { id: Math.random().toString(36).slice(2, 10), x: +at.x.toFixed(3), y: +at.y.toFixed(3), z: +at.z.toFixed(3), nx: +n.x.toFixed(3), ny: +n.y.toFixed(3), nz: +n.z.toFixed(3), roll: +((Math.random() - .5) * .12).toFixed(3), img: hanging };
   (picsState.places[place.id] ||= []).push(q); picsChanged(place.id); send({ t: 'pic', id: place.id, q });
-  hanging = null; toast('📌 Stuck it up!'); floatText(me, '📌', '#ffcf6b');
+  hanging = null; toast('📌 Stuck it up!'); achieve('wall'); floatText(me, '📌', '#ffcf6b');
 }
 function picClick(e) {
   if (!place.picsG) return false; rayAt(e);
@@ -2060,6 +2071,7 @@ function tickPet(p, dt, t) {
   // two pets left alone together start chasing each other around
   const other = p === me ? them : me, op = other && other.petObj;
   o.playing = !!(op && !bl && !rest && !ownerMoving && o.idle > 5 && Math.hypot(op.x - o.x, op.z - o.z) < 3.5 && (t / 8 | 0) % 3 === 1);
+  if (o.playing && p === me) achieve('pets');
   if (o.playing) { const cx = (o.x + op.x) / 2, cz = (o.z + op.z) / 2, a = t * 2.6 + (p === me ? 0 : PI); tx = cx + Math.cos(a) * .7; tz = cz + Math.sin(a) * .7; }
   const dx = tx - o.x, dz = tz - o.z, d = Math.hypot(dx, dz), moving = d > (o.playing || bl ? .06 : .25);
   let sp = 0;
@@ -2072,7 +2084,7 @@ function tickPet(p, dt, t) {
       bl.t += dt; const f = Math.min(1, bl.t / bl.dur);
       if (f < 1) { bl.m.position.set(bl.x0 + (bl.x - bl.x0) * f, .05 + Math.sin(f * PI) * 1.5 + (1 - f) * .75, bl.z0 + (bl.z - bl.z0) * f); bl.m.rotation.x += dt * 12; }
       else { bl.m.position.set(bl.x, .05, bl.z); if (d < .2) { bl.held = true; H.add(bl.m); bl.m.position.set(0, -.07, .15); floatText(petSpot(o), '!', '#d8f04a'); } }
-    } else if (Math.hypot(p.x - o.x, p.z - o.z) < .75) { dropBall(o); petIt(o); }
+    } else if (Math.hypot(p.x - o.x, p.z - o.z) < .75) { dropBall(o); petIt(o); if (p === me) achieve('fetch'); }
   }
   if (moving || o.playing || ownerMoving || bl || party) { o.idle = 0; if (o.sleep) { o.sleep = false; } o.act = null; } else o.idle += dt;
   if (!rest && o.idle > 20) o.sleep = true;
@@ -2116,6 +2128,7 @@ function petNearest() {
   return list[0] && list[0][1] < 1.1 ? list[0][0] : null;
 }
 function petIt(o) {
+  sfx('pet', o.k);
   o.love = 1.6; o.sleep = false; o.idle = 0; const nm = o.owner && o.owner.petName;
   floatText(petSpot(o), nm ? `♥ ${nm}` : '♥', '#ff9ab8'); for (let i = 0; i < 3; i++) setTimeout(() => addHeart(petSpot(o), 'mine'), i * 140);
 }
@@ -2146,7 +2159,7 @@ function sideOf(lead, p) { const rx = -Math.cos(lead.ry), rz = Math.sin(lead.ry)
 function followTarget() { if (!hand || hand.leader === myRole() || !them) return null; const r = them.ry; return [them.x - Math.cos(r) * .6 * hand.side, them.z + Math.sin(r) * .6 * hand.side]; }
 function holdArm(p, mesh, other) { const sd = sideOf(p, other), a = mesh.userData.arms[sd > 0 ? 0 : 1]; a.position.set(sd > 0 ? -.36 : .36, .36, .04); }
 const handHeart = new THREE.Sprite(new THREE.SpriteMaterial({ map: heartTexs.mine, transparent: true, depthWrite: false })); handHeart.scale.setScalar(.18); handHeart.visible = false; scene.add(handHeart);
-function useE() { if (nearTea()) { drinkTea(me); send({ t: 'tea' }); return; } if (nearBong()) { const cough = Math.random() < .35; bongHit(me, cough); send({ t: 'bong', cough }); return; } const o = petNearest(); if (o) { petIt(o); send({ t: 'petpet', whose: o === me.petObj ? 'mine' : 'theirs' }); return; } toggleHands(); }
+function useE() { if (nearTea()) { drinkTea(me); send({ t: 'tea' }); return; } if (nearBong()) { const cough = Math.random() < .35; bongHit(me, cough); send({ t: 'bong', cough }); return; } const o = petNearest(); if (o) { petIt(o); send({ t: 'petpet', whose: o === me.petObj ? 'mine' : 'theirs' }); return; } if (roastE()) return; toggleHands(); }
 $('hands').onclick = useE;
 
 // fireworks (outdoor places), same show on both screens
@@ -2287,6 +2300,7 @@ addEventListener('keydown', e => {
   if (k === 'e') useE();
 });
 function placeChanged3() {
+  setAmbient(place.id); (love.places ||= []).includes(place.id) || love.places.push(place.id); if (love.places.length >= PLACES.length) achieve('places'); saveLove();
   placeKey(); shadowize();
   hand = null;
   for (const p of [me, them]) if (p && p.petObj) { dropBall(p.petObj); p.petObj.x = p.x + .5; p.petObj.z = p.z + .5; }
@@ -2400,6 +2414,7 @@ function tickLava(t, el) {
 
 function funTick4(dt, t) { tickFaces(); }
 function onFun4(m) {
+  if (onFun11(m)) return true;
   if (onFun10(m)) return true;
   if (onFun9(m)) return true;
   if (onFun6(m)) return true;
@@ -2804,7 +2819,7 @@ function attack(kind) {
     setTimeout(() => { if (kind === 'smack') { smackSound(); floatText(them, 'SMACK!', '#ff7a59'); } else { boom(.18); floatText(them, 'oof!', '#ffcf6b'); } }, 130);
   } else floatText(me, kind === 'smack' ? 'whiff~' : 'hm?', '#fff4e2');
 }
-function knocked(dx, dz, kind) {
+function knocked(dx, dz, kind) { sfx('bonk');
   const power = kind === 'smack' ? 6.5 : 5;
   me.seat = -1; me.want = -1; me.floor = false; me.slide = null; me.emote = null; if (hand) breakHands();
   me.ko = { t0: clock.elapsedTime, dx, dz, kind }; me.vx = dx * power; me.vz = dz * power; me.vy = kind === 'smack' ? 3.4 : 2.4; me.jy += .001;
@@ -2931,7 +2946,7 @@ function loop() {
   const close = them && me.seat >= 0 && them.seat >= 0 && Math.abs(me.seat - them.seat) === 1;
   cuddle.visible = !!close; if (close) { cuddle.position.copy(headOf(me)).lerp(headOf(them), .5).add(new THREE.Vector3(0, .45 + Math.sin(t * 2) * .05, 0)); }
   for (let i = hearts.length - 1; i >= 0; i--) { const h = hearts[i], a = (t - h.t0) / 2.2; if (a > 1) { scene.remove(h.s); hearts.splice(i, 1); continue; } h.s.position.y += dt * .5; h.s.position.x += Math.sin(a * 9 + h.p) * .004; h.s.material.opacity = 1 - a; }
-  tickSwoop(t); stepCam(dt); highCam(t); followKey(); if (frameN % 20 === 0) shadowize();
+  tickSwoop(t); tick11(dt, t); stepCam(dt); highCam(t); followKey(); if (frameN % 20 === 0) shadowize();
   if ((frameN = (frameN || 0) + 1) % 3 === 0) grain.uniforms.t.value = (grain.uniforms.t.value + 1.7) % 100; composer.render();
   if (snapNext) { snapNext = false; grabPhoto(); }
   if (t - lastSent > .05) { lastSent = t; send({ t: 'me', x: +me.x.toFixed(3), z: +me.z.toFixed(3), ry: +me.ry.toFixed(3), seat: me.seat, w: me.walking, j: +me.jy.toFixed(3), a: me.vy !== 0 ? 1 : 0, ps: me.pose || '', fl: me.flipT ? 1 : 0, hy: +(me.lookY || 0).toFixed(2), hp: +(me.lookP || 0).toFixed(2) }); }
@@ -3016,6 +3031,257 @@ function stopShare(tell = true) {
 }
 $('share').onclick = share;
 
+// ---------- sound: little effects, a soundscape for each place, and a lofi radio (all made live, no files) ----------
+const AU = { vol: { m: .5, a: .55, s: .7 } };
+try { Object.assign(AU.vol, JSON.parse(localStorage.getItem('ols-vol') || '{}')); } catch {}
+function au() {
+  try {
+    actx ||= new AudioContext(); if (actx.state === 'suspended') actx.resume();
+    if (!AU.out) {
+      AU.out = actx.createGain(); AU.out.connect(actx.destination);
+      for (const k of ['m', 'a', 's']) { AU[k] = actx.createGain(); AU[k].gain.value = AU.vol[k]; AU[k].connect(AU.out); }
+      const b = actx.createBuffer(1, actx.sampleRate * 2, actx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; AU.noise = b;
+    }
+    return actx;
+  } catch { return null; }
+}
+function tone(f, t0, d, type = 'sine', v = .2, bus = 's', f2) {
+  const o = actx.createOscillator(), g = actx.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t0 + d);
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(v, t0 + .01); g.gain.exponentialRampToValueAtTime(.0001, t0 + d); o.connect(g).connect(AU[bus]); o.start(t0); o.stop(t0 + d + .05);
+}
+function nz(t0, d, ftype, freq, v = .2, bus = 's', q = 1, f2) {
+  const src = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain(); src.buffer = AU.noise; f.type = ftype; f.frequency.setValueAtTime(freq, t0); if (f2) f.frequency.exponentialRampToValueAtTime(f2, t0 + d); f.Q.value = q;
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(v, t0 + .01); g.gain.exponentialRampToValueAtTime(.0001, t0 + d); src.connect(f).connect(g).connect(AU[bus]); src.start(t0, Math.random()); src.stop(t0 + d + .05);
+}
+const SFXT = {};
+function sfx(k, extra) {
+  const a = au(); if (!a || a.state !== 'running') return; const t = a.currentTime; if ((SFXT[k] || 0) > t) return; SFXT[k] = t + ({ heart: .14, click: .05, step: .05, pet: .3 }[k] || .04);
+  switch (k) {
+    case 'click': tone(1500, t, .05, 'sine', .04); break;
+    case 'heart': tone(880, t, .18, 'sine', .05); tone(1320, t + .07, .22, 'sine', .04); break;
+    case 'pop': tone(480, t, .12, 'sine', .16, 's', 900); break;
+    case 'jump': tone(300, t, .16, 'triangle', .07, 's', 620); break;
+    case 'whoosh': nz(t, .9, 'bandpass', 300, .22, 's', 1.2, 2400); break;
+    case 'kiss': nz(t, .06, 'highpass', 2600, .16); tone(1200, t + .03, .12, 'sine', .07, 's', 1800); break;
+    case 'bonk': tone(180, t, .25, 'square', .06, 's', 70); nz(t, .1, 'lowpass', 900, .25); break;
+    case 'match': [660, 880, 1100, 1320].forEach((f, i) => tone(f, t + i * .08, .3, 'sine', .07)); break;
+    case 'win': [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, t + i * .1, .4, 'triangle', .08)); break;
+    case 'level': [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => tone(f, t + i * .11, .45, 'triangle', .08)); break;
+    case 'letter': nz(t, .3, 'bandpass', 3000, .07, 's', .7); tone(1047, t + .2, .5, 'sine', .06); tone(1568, t + .32, .6, 'sine', .045); break;
+    case 'pet': { const f = { puppy: 900, kitty: 1300, duck: 700, frog: 300, piggy: 420, fox: 1100, hamster: 1800 }[extra] || 1000; tone(f, t, .1, 'triangle', .07, 's', f * 1.5); tone(f * 1.2, t + .1, .12, 'triangle', .06, 's', f * .9); break; }
+    case 'star': tone(2093, t, 1.4, 'sine', .045, 's', 1046); tone(2637, t + .1, 1.2, 'sine', .035); break;
+    case 'sizzle': nz(t, .6, 'highpass', 4000, .05); break;
+    case 'chime': tone(1568, t, .8, 'sine', .05); break;
+    case 'step': nz(t, .05, 'lowpass', 420 + Math.random() * 120, .07); break;
+  }
+}
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('.pill,.tile,.sw')) sfx('click'); }, true);
+function setAmbient(id) {
+  const a = au(); if (!a) return;
+  if (AU.amb) AU.amb.forEach(n => { try { n.stop(); } catch {} }); clearInterval(AU.ambT); AU.amb = [];
+  const t = a.currentTime;
+  const loop = (ftype, freq, v, q = .7) => { const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain(); src.buffer = AU.noise; src.loop = true; f.type = ftype; f.frequency.value = freq; f.Q.value = q; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 2.5); src.connect(f).connect(g).connect(AU.a); src.start(); AU.amb.push(src); return { f, g }; };
+  const lfo = (target, rate, depth) => { const o = a.createOscillator(), g = a.createGain(); o.frequency.value = rate; g.gain.value = depth; o.connect(g).connect(target); o.start(); AU.amb.push(o); };
+  const fireP = ['cabin', 'beach', 'camping', 'rooftop'].includes(id);
+  if (id === 'beach') { const w = loop('lowpass', 520, .22); lfo(w.g.gain, .09, .17); }
+  if (id === 'penthouse') loop('lowpass', 170, .12);
+  if (id === 'rooftop' || id === 'drivein') { const w = loop('bandpass', 420, .08, .5); lfo(w.f.frequency, .05, 220); }
+  if (['cinema', 'apartment', 'cabin'].includes(id)) loop('lowpass', 240, .05);
+  if (id === 'cabin') { const w = loop('bandpass', 700, .03, .6); lfo(w.g.gain, .07, .025); }
+  if (fireP) loop('lowpass', 900, .025);
+  AU.ambT = setInterval(() => {
+    if (!actx || actx.state !== 'running' || document.hidden) return; const n = actx.currentTime;
+    if (fireP && Math.random() < .7) for (let i = 0; i < 1 + Math.random() * 3; i++) nz(n + Math.random() * .4, .03, 'bandpass', 1500 + Math.random() * 2500, .05 + Math.random() * .07, 'a', 2);
+    if ((id === 'camping' || id === 'drivein') && Math.random() < .55) for (let i = 0; i < 3; i++) tone(4300 + Math.random() * 300, n + i * .07, .04, 'sine', .012, 'a');
+    if (id === 'penthouse' && Math.random() < .05) nz(n, 3, 'lowpass', 320, .07, 'a', 1, 120);
+    if (id === 'apartment' && Math.random() < .04) { tone(2600, n, .15, 'sine', .01, 'a', 3100); tone(2900, n + .18, .15, 'sine', .01, 'a', 2500); }
+    if (id === 'beach' && Math.random() < .03) { tone(1800, n, .3, 'sine', .01, 'a', 1400); tone(1700, n + .35, .3, 'sine', .01, 'a', 1300); }
+  }, 450);
+}
+addEventListener('pointerdown', () => { const a = au(); if (a && place && !AU.amb) setAmbient(place.id); });
+// the radio: three moods, made up live chord by chord
+const mtof = n => 440 * Math.pow(2, (n - 69) / 12);
+const STATIONS = {
+  lofi: { name: '☁️ Lofi beats', bpm: 74, drums: 1, mel: .2, prog: [[53, 57, 60, 64], [52, 55, 59, 62], [50, 53, 57, 60], [48, 52, 55, 59]] },
+  rain: { name: '🌧 Rainy piano', bpm: 58, drums: 0, mel: .3, rain: 1, prog: [[57, 60, 64, 67], [53, 57, 60, 64], [48, 52, 55, 59], [55, 59, 62, 65]] },
+  jazz: { name: '🌙 Night jazz', bpm: 86, drums: .6, mel: .26, prog: [[50, 53, 57, 60], [55, 59, 62, 65], [48, 52, 55, 59], [57, 61, 64, 67]] },
+};
+let radio = null;
+function keysNote(f, t, d, v) {
+  const o = actx.createOscillator(), o2 = actx.createOscillator(), fl = actx.createBiquadFilter(), g = actx.createGain();
+  o.type = 'triangle'; o2.type = 'sine'; o.frequency.value = f; o2.frequency.value = f * 2.003; fl.type = 'lowpass'; fl.frequency.value = 1500;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .015); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+  o.connect(fl); o2.connect(fl); fl.connect(g).connect(AU.m); o.start(t); o2.start(t); o.stop(t + d + .1); o2.stop(t + d + .1);
+}
+function radioOn(st, tell = true) {
+  const a = au(); if (!a) return; radioOff(false);
+  radio = { st, step: 0, next: a.currentTime + .15, nodes: [] }; const S = STATIONS[st];
+  const vinyl = a.createBufferSource(), vf = a.createBiquadFilter(), vg = a.createGain(); vinyl.buffer = AU.noise; vinyl.loop = true; vf.type = 'highpass'; vf.frequency.value = S.rain ? 900 : 5000; vg.gain.value = S.rain ? .05 : .012; vinyl.connect(vf).connect(vg).connect(AU.m); vinyl.start(); radio.nodes.push(vinyl);
+  radio.timer = setInterval(() => {
+    if (!radio || actx.state !== 'running') return; const spb = 60 / S.bpm / 2;
+    while (radio.next < actx.currentTime + .3) {
+      const s = radio.step, t = radio.next, ch = S.prog[Math.floor(s / 8) % S.prog.length], beat = s % 8;
+      if (beat === 0) ch.forEach((n, i) => keysNote(mtof(n), t + i * .014, spb * 7.6, .04));
+      if (beat === 4 && S.bpm < 80) keysNote(mtof(ch[0] - 12), t, spb * 3.5, .05);
+      if (S.drums) {
+        if (beat === 0 || beat === 5) tone(120, t, .26, 'sine', .2 * S.drums, 'm', 45);
+        if (beat === 2 || beat === 6) nz(t, .12, 'bandpass', 1800, .06 * S.drums, 'm', .8);
+        nz(t, .03, 'highpass', 7000, (beat % 2 ? .012 : .025) * S.drums, 'm');
+      }
+      if (Math.random() < S.mel) keysNote(mtof(ch[Math.floor(Math.random() * 4)] + 12 + [0, 2, 0, -1, 7][Math.floor(Math.random() * 5)]), t, spb * 2.5, .035);
+      if (Math.random() < .08) nz(t, .015, 'highpass', 3000, .03, 'm');
+      radio.step++; radio.next += spb * (beat % 2 ? .9 : 1.1);
+    }
+  }, 90);
+  if (tell) send({ t: 'radio', st }); $('radiob').classList.add('on');
+}
+function radioOff(tell = true) { if (!radio) return; clearInterval(radio.timer); radio.nodes.forEach(n => { try { n.stop(); } catch {} }); radio = null; $('radiob').classList.remove('on'); if (tell) send({ t: 'radio', st: '' }); }
+function openRadio() {
+  if (panel.dataset.k === 'radio') return closePanel();
+  panel.dataset.k = 'radio'; panel.classList.remove('side');
+  const sl = (k, n) => `<div class="row" style="margin-top:6px"><span style="width:90px">${n}</span><input type="range" min="0" max="1" step=".05" value="${AU.vol[k]}" data-vol="${k}"></div>`;
+  panel.innerHTML = `<h3>📻 Radio</h3><div class="grid">${Object.entries(STATIONS).map(([k, S]) => `<button class="tile${radio && radio.st === k ? ' sel' : ''}" data-st="${k}"><b>${S.name}</b><span>${radio && radio.st === k ? 'playing ♪' : 'tap to play (for both of you)'}</span></button>`).join('')}<button class="tile" data-st=""><b>🔇 Off</b><span>just the room sounds</span></button></div>
+    <h3 style="margin-top:14px">🔊 Sound</h3>${sl('m', 'Music')}${sl('a', 'Room sounds')}${sl('s', 'Effects')}`;
+  panel.style.display = 'block';
+  panel.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { if (b.dataset.st) radioOn(b.dataset.st); else radioOff(); panel.dataset.k = ''; openRadio(); });
+  panel.querySelectorAll('[data-vol]').forEach(r => r.oninput = () => { const k = r.dataset.vol; AU.vol[k] = +r.value; au(); if (AU[k]) AU[k].gain.value = AU.vol[k]; try { localStorage.setItem('ols-vol', JSON.stringify(AU.vol)); } catch {} });
+}
+$('radiob').onclick = openRadio;
+
+// ---------- our love level: do sweet things together, level up, unlock achievements ----------
+const LV = [[0, 'just met'], [30, 'crushing'], [90, 'talking stage'], [180, 'dating'], [320, 'official'], [520, 'in love'], [800, 'soulmates'], [1200, 'forever'], [1800, 'legendary ♾']];
+const ACH = { hug: '🤗 First hug', kiss: '💋 First kiss', dance: '💃 First slow dance', beachdance: '🌅 Slow dance on the beach', massage: '💆 Spa day', letter: '✉️ Love letter', watch30: '🍿 30 min watching together',
+  days7: '📅 7 days together', match5: '💞 Matched 5 times', rpswin: '✊ RPS champ', stare: '👀 Won a staring contest', wish: '🌠 Made a wish', smore: "🔥 Perfect s'more", places: '🗺 Been everywhere', pets: '🐾 Pet playdate', wall: '📌 Photo on the wall', fetch: '🎾 Good pet' };
+let love = { xp: 0, ach: {}, days: [], places: [], matches: 0, watchMin: 0, lastLv: 1 };
+try { love = { ...love, ...JSON.parse(localStorage.getItem('ols-love') || '{}') }; } catch {}
+let wishes = []; try { wishes = JSON.parse(localStorage.getItem('ols-wishes') || '[]'); } catch {}
+function saveLove() { try { localStorage.setItem('ols-love', JSON.stringify(love)); } catch {} }
+function loveLv() { let l = 1; LV.forEach(([x], i) => { if (love.xp >= x) l = i + 1; }); return l; }
+function lovePill() { const l = loveLv(); $('loveb').textContent = `💗 Lv ${l}`; $('loveb').title = `${LV[l - 1][1]} · ${love.xp} love`; }
+function checkLevel() {
+  const l = loveLv(); lovePill();
+  if (l > (love.lastLv || 1)) {
+    love.lastLv = l; saveLove(); sfx('level'); for (let i = 0; i < 10; i++) setTimeout(() => addHeart(me, 'mine', true), i * 80);
+    const un = { 3: ' · you now leave sparkles when you walk', 5: ' · hearts float when you stand close', 7: ' · golden sparkles' }[l] || '';
+    toast(`💗 Love level ${l}: ${LV[l - 1][1]}!${un}`);
+  }
+}
+function loveAdd(n, fromThem) { love.xp += n; saveLove(); if (!fromThem) send({ t: 'lovexp', n }); checkLevel(); }
+function achieve(id, fromThem) {
+  if (!ACH[id] || love.ach[id]) return; love.ach[id] = Date.now(); saveLove();
+  toast(`🏆 ${ACH[id]}`); sfx('match');
+  if (!fromThem) { send({ t: 'ach', id }); loveAdd(5); }
+}
+function loveFor(k) {
+  if (!them || Math.hypot(me.x - them.x, me.z - them.z) > 2.6) return;
+  const m = { hug: [5, 'hug'], smooch: [8, 'kiss'], slowdance: [10, 'dance'], massage: [6, 'massage'] }[k]; if (!m) return;
+  loveAdd(m[0]); achieve(m[1]); if (k === 'slowdance' && place.id === 'beach') achieve('beachdance');
+}
+function markDay() { const d = new Date().toISOString().slice(0, 10); if (!love.days.includes(d)) { love.days.push(d); saveLove(); } if (love.days.length >= 7) achieve('days7'); }
+function minuteTogether() {
+  if (!them) return; markDay(); if (!isHost) return;
+  let n = 2; if (screenLive) { n += 2; love.watchMin = (love.watchMin || 0) + 1; } if (hand) n += 2; if (me.seat >= 0 && them.seat >= 0 && Math.abs(me.seat - them.seat) === 1) n += 1;
+  loveAdd(n); if (love.watchMin >= 30) achieve('watch30');
+}
+function openLove() {
+  if (panel.dataset.k === 'love') return closePanel();
+  if (decorating) toggleDecorate();
+  panel.dataset.k = 'love'; panel.classList.remove('side');
+  const l = loveLv(), lo = LV[l - 1][0], hi = LV[l] ? LV[l][0] : lo + 1, pc = Math.min(100, (love.xp - lo) / (hi - lo) * 100);
+  panel.innerHTML = `<h3>💗 Love level ${l} · ${LV[l - 1][1]}</h3><div class="lvbar"><i style="width:${pc}%"></i></div>
+    <div class="row hintrow" style="margin-top:0">${love.xp} love${LV[l] ? ` · ${hi - love.xp} to “${LV[l][1]}”` : ' · maxed out ♾'} · 📅 ${love.days.length} day${love.days.length === 1 ? '' : 's'} together · 🍿 ${love.watchMin || 0} min watched</div>
+    <h3 style="margin-top:12px">🏆 ${Object.keys(love.ach).length}/${Object.keys(ACH).length}</h3><div class="ach">${Object.entries(ACH).map(([k, n]) => `<span class="${love.ach[k] ? 'got' : ''}">${n}</span>`).join('')}</div>
+    <div class="row hintrow">Love grows from hanging out, watching together, holding hands, hugs, kisses, slow dances, letters and games</div>
+    ${wishes.length ? `<h3 style="margin-top:12px">🌠 Your wishes (only you see these)</h3><div class="hintrow" style="opacity:.8">${wishes.slice(-5).reverse().map(w => `“${w.text.replace(/[<>&]/g, '')}”`).join(' · ')}</div>` : ''}`;
+  panel.style.display = 'block';
+}
+$('loveb').onclick = openLove;
+
+// ---------- s'mores: E next to any fire to roast, E again to eat (golden = perfect) ----------
+function nearFire() {
+  for (const f of FIRES) { let o = f; while (o && o !== place.g) o = o.parent; if (!o) continue; const w = f.getWorldPosition(new THREE.Vector3()); if (Math.hypot(w.x - me.x, w.z - me.z) < 2.2) return w; }
+  return null;
+}
+function roastE() {
+  if (me.roast) { eatSmore(); return true; }
+  const w = nearFire(); if (!w) return false;
+  me.roast = { t0: clock.elapsedTime, fire: w }; send({ t: 'roast', on: 1 }); sfx('sizzle'); toast("🔥 Roasting a marshmallow… press E when it's golden"); return true;
+}
+function eatSmore() {
+  const el = clock.elapsedTime - me.roast.t0, res = el < 4.5 ? 'raw' : el < 8.5 ? 'perfect' : el < 12 ? 'toasty' : 'burnt';
+  me.roast = null; send({ t: 'roast', on: 0, res }); smoreFx(me, res); if (res === 'perfect') { achieve('smore'); loveAdd(2); }
+}
+function smoreFx(p, res) {
+  floatText(p, { raw: 'still gooey 😅', perfect: "✨ perfect s'more!", toasty: 'mmm toasty 🤎', burnt: '🔥 burnt lol' }[res], res === 'perfect' ? '#ffcf6b' : '#fff4e2');
+  if (res === 'perfect') for (let i = 0; i < 4; i++) setTimeout(() => addHeart(p, p === me ? 'mine' : 'theirs', true), i * 120);
+  sfx(res === 'perfect' ? 'match' : 'pop');
+}
+function tickRoast(p, mesh, t) {
+  if (!p || !mesh) return; const u = mesh.userData;
+  if (!p.roast) { if (u.stick) u.stick.visible = false; return; }
+  if (p === me && (me.walking || me.vy !== 0)) { me.roast = null; send({ t: 'roast', on: 0 }); return; }
+  if (!u.stick) {
+    const g = new THREE.Group(); put(cyl(.008, .011, .75, '#8a5a3a', 6), 0, .37, 0, g);
+    u.mm = put(new THREE.Mesh(new THREE.CylinderGeometry(.035, .035, .06, 14), new THREE.MeshStandardMaterial({ color: '#fff8f0', roughness: .8 })), 0, .76, 0, g);
+    u.mf = put(new THREE.Mesh(SPH, GLOW('#ff7a2a', 3)), 0, .83, 0, g); u.mf.scale.setScalar(.04);
+    g.position.set(.2, .32, .12); g.rotation.x = 1.15; mesh.add(g); u.stick = g;
+  }
+  u.stick.visible = true; const el = t - p.roast.t0, k = Math.min(1, el / 8.5);
+  u.mm.material.color.set(el < 12 ? mix(mix('#fff8f0', '#e8a050', k), '#4a2a18', Math.max(0, Math.min(1, (el - 8.5) / 3.5))) : '#1a1010');
+  u.mf.visible = el > 12; if (u.mf.visible) u.mf.scale.setScalar(.04 + Math.sin(t * 20) * .012);
+  if (p === me) { const w = p.roast.fire; me.ry = angLerp(me.ry, Math.atan2(w.x - me.x, w.z - me.z), .1); if (el > 5.2 && !p.roast.told) { p.roast.told = 1; floatText(me, '✨ golden! (E)', '#ffcf6b'); sfx('chime'); } }
+}
+
+// ---------- shooting stars outside: make a wish ----------
+let starNext = 12, wishUntil = 0; const streaks = [];
+function shootStar(s) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(.09, 0, 7, 6), GLOW('#fff4d0', 4)), vx = s.dx * 30, vy = -10;
+  m.position.set(s.x, s.y, -45); m.rotation.z = Math.atan2(-vx, vy); scene.add(m); streaks.push({ m, t0: clock.elapsedTime, s, vx, vy });
+  sfx('star'); wishUntil = clock.elapsedTime + 7; $('wishb').style.display = 'block';
+}
+function starTick(t) {
+  for (let i = streaks.length - 1; i >= 0; i--) { const k = streaks[i], e = t - k.t0; k.m.position.set(k.s.x + k.vx * e, k.s.y + k.vy * e, -45); k.m.scale.setScalar(Math.max(.01, 1 - Math.max(0, e - .8) * 2)); if (e > 1.4) { scene.remove(k.m); streaks.splice(i, 1); } }
+  if (wishUntil && t > wishUntil) { wishUntil = 0; $('wishb').style.display = 'none'; }
+  if (!place || !place.outdoor || !isHost) return;
+  if (t > starNext) { starNext = t + 14 + Math.random() * 18; const s = { x: -25 + Math.random() * 50, y: 24 + Math.random() * 10, dx: Math.random() < .5 ? 1 : -1 }; send({ t: 'sstar', s }); shootStar(s); }
+}
+$('wishb').onclick = () => {
+  wishUntil = 0; $('wishb').style.display = 'none'; panel.dataset.k = 'wish'; panel.classList.remove('side');
+  panel.innerHTML = `<h3>🌠 Make a wish</h3><div class="row" style="margin-top:0"><input id="wishIn" maxlength="120" placeholder="it stays secret…" style="flex:1;border:0;border-radius:999px;padding:10px 16px;background:#ffffff14;color:var(--ink);font:inherit"><button class="pill on" id="wishGo">✨ Wish</button></div>`;
+  panel.style.display = 'block'; $('wishIn').focus();
+  const go = () => { const text = $('wishIn').value.trim(); if (!text) return; wishes.push({ text, at: Date.now() }); try { localStorage.setItem('ols-wishes', JSON.stringify(wishes.slice(-50))); } catch {} closePanel(); floatText(me, '🌠 ✨', '#ffcf6b'); sfx('chime'); send({ t: 'wished' }); achieve('wish'); loveAdd(3); };
+  $('wishGo').onclick = go; $('wishIn').onkeydown = e => { if (e.key === 'Enter') go(); };
+};
+
+// ---------- sparkle trails + heart aura (love level unlocks), footsteps ----------
+const lsparks = [];
+function loveSpark(p, gold) { const m = new THREE.Mesh(SPH, GLOW(gold ? '#ffcf6b' : ['#ffcf6b', '#ff9ab8', '#cdb8ff'][Math.random() * 3 | 0], 3)); m.position.set(p.x + (Math.random() - .5) * .3, .12 + Math.random() * .3, p.z + (Math.random() - .5) * .3); m.scale.setScalar(.022); scene.add(m); lsparks.push({ m, t0: clock.elapsedTime }); }
+let loveMinT = 60, auraAt = 0, stepAt = 0;
+function tick11(dt, t) {
+  tickRoast(me, meMesh, t); tickRoast(them, themMesh, t); starTick(t);
+  for (let i = lsparks.length - 1; i >= 0; i--) { const k = lsparks[i], e = t - k.t0; k.m.position.y += dt * .3; k.m.scale.setScalar(.022 * Math.max(0, 1 - e / 1.2)); if (e > 1.2) { scene.remove(k.m); lsparks.splice(i, 1); } }
+  const lv = loveLv();
+  if (lv >= 3) for (const q of [me, them]) if (q && q.walking && Math.random() < dt * 12) loveSpark(q, lv >= 7);
+  if (lv >= 5 && them && t > auraAt && Math.hypot(me.x - them.x, me.z - them.z) < 1.4) { auraAt = t + 1.6; addHeart(me, 'mine', true); }
+  if (me.walking && me.vy === 0 && me.seat < 0 && t > stepAt) { stepAt = t + (keys.shift ? .26 : .38); sfx('step'); }
+  if (t > loveMinT) { loveMinT = t + 60; minuteTogether(); }
+}
+function onFun11(m) {
+  switch (m.t) {
+    case 'hello': send({ t: 'love', s: love }); if (radio) send({ t: 'radio', st: radio.st }); return false;
+    case 'love': { const o = m.s || {}; love.xp = Math.max(love.xp, o.xp || 0); love.ach = { ...(o.ach || {}), ...love.ach }; for (const k of ['days', 'places']) love[k] = [...new Set([...(love[k] || []), ...(o[k] || [])])];
+      love.matches = Math.max(love.matches || 0, o.matches || 0); love.watchMin = Math.max(love.watchMin || 0, o.watchMin || 0); saveLove(); checkLevel(); return true; }
+    case 'lovexp': loveAdd(m.n, true); return true;
+    case 'ach': achieve(m.id, true); return true;
+    case 'radio': if (m.st) { radioOn(m.st, false); toast(`📻 ${them ? them.name : 'They'} put on ${STATIONS[m.st].name}`); } else radioOff(false); return true;
+    case 'roast': if (!them) return true; if (m.on) them.roast = { t0: clock.elapsedTime }; else { them.roast = null; if (m.res) smoreFx(them, m.res); } return true;
+    case 'sstar': shootStar(m.s); return true;
+    case 'wished': if (them) floatText(them, '🌠 made a wish', '#ffcf6b'); return true;
+  }
+  return false;
+}
+setTimeout(lovePill);
+
 // ---------- travelling between places: fade, title card, camera swoop ----------
 let travelling = false, swoop = null;
 const PLACE_TAG = { apartment: 'our cozy apartment · reading nook · kitchen', penthouse: 'city lights · balcony · two bedrooms', cinema: 'the big screen · popcorn · arcade lobby', rooftop: 'sunset deck · hot tub · fire table',
@@ -3023,7 +3289,7 @@ const PLACE_TAG = { apartment: 'our cozy apartment · reading nook · kitchen', 
 function goPlace(id, broadcast = true, who) {
   if (place && place.id === id) return;
   if (travelling) { setTimeout(() => goPlace(id, broadcast, who), 500); return; }
-  travelling = true; closePanel(); const P = PLACES.find(q => q.id === id) || PLACES[0];
+  travelling = true; closePanel(); sfx('whoosh'); const P = PLACES.find(q => q.id === id) || PLACES[0];
   $('fadeTitle').textContent = P.name; $('fadeSub').textContent = who ? `${who} took you here ♥` : (PLACE_TAG[id] || '');
   $('fade').classList.add('on');
   setTimeout(() => { setPlace(id, broadcast); startSwoop(); setTimeout(() => { $('fade').classList.remove('on'); travelling = false; }, 380); }, 520);
@@ -3127,11 +3393,11 @@ function renderCG() {
 function cgPick(v) { if (!cg || cg.picks.mine !== undefined) return; cg.picks.mine = v; send({ t: 'cgp', i: cg.i, v }); cgReveal(); renderCG(); }
 function cgReveal() {
   const { mine, theirs } = cg.picks; if (mine === undefined || theirs === undefined || cg.revealed === cg.i) return; cg.revealed = cg.i;
-  if (cg.k === 'wyr' && mine === theirs) { for (let i = 0; i < 5; i++) setTimeout(() => addHeart(me, 'mine'), i * 110); }
+  if (cg.k === 'wyr' && mine === theirs) { sfx('match'); for (let i = 0; i < 5; i++) setTimeout(() => addHeart(me, 'mine', true), i * 110); if (isHost) { love.matches = (love.matches || 0) + 1; loveAdd(3); if (love.matches >= 5) achieve('match5'); } }
   if (cg.k === 'rps') {
     const res = (mine - theirs + 3) % 3;
     if (res === 1) { cg.score.me++; me.emote = { k: 'cheer', t0: clock.elapsedTime }; } else if (res === 2) { cg.score.them++; me.emote = { k: 'cry', t0: clock.elapsedTime }; } else me.emote = { k: 'laugh', t0: clock.elapsedTime };
-    if (cg.score.me >= 3) { toast('🏆 You won rock paper scissors!'); launchFireworks && launchFireworks(); } else if (cg.score.them >= 3) toast(`🏆 ${them ? them.name : 'They'} won rock paper scissors`);
+    if (cg.score.me >= 3) { toast('🏆 You won rock paper scissors!'); sfx('win'); achieve('rpswin'); } else if (cg.score.them >= 3) toast(`🏆 ${them ? them.name : 'They'} won rock paper scissors`);
   }
 }
 function cgNext(i) {
@@ -3148,6 +3414,7 @@ function stareStart() {
 function stareLose() { if (!cg || cg.k !== 'stare' || !cg.live || cg.done) return; send({ t: 'stare' }); stareEnd(false); }
 function stareEnd(won) {
   cg.done = true; cg.live = 0; const secs = (clock.elapsedTime - (cg.liveAt || clock.elapsedTime)).toFixed(1);
+  if (won) { achieve('stare'); sfx('win'); }
   cg.stareMsg = won ? `🏆 ${them ? them.name : 'They'} blinked! You win` : '😵 You blinked! They win';
   me.emote = { k: won ? 'cheer' : 'cry', t0: clock.elapsedTime }; renderCG();
 }
@@ -3157,7 +3424,7 @@ addEventListener('pointerdown', e => { if (cg && cg.k === 'stare' && cg.live && 
 let notes = []; try { notes = JSON.parse(localStorage.getItem('ols-notes') || '[]'); } catch {}
 function showLetter(n) {
   const el = $('letter'); el.innerHTML = `<div class="paper">${n.text.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}<div class="from">— ${n.from} ♥</div><div class="row" style="justify-content:center"><button class="pill on" id="letterOk">aww ♥</button></div></div>`;
-  el.style.display = 'flex'; $('letterOk').onclick = () => { el.style.display = 'none'; for (let i = 0; i < 5; i++) setTimeout(() => addHeart(me, 'mine'), i * 100); };
+  sfx('letter'); el.style.display = 'flex'; $('letterOk').onclick = () => { el.style.display = 'none'; for (let i = 0; i < 5; i++) setTimeout(() => addHeart(me, 'mine'), i * 100); };
 }
 function openCouple() {
   if (panel.dataset.k === 'couple') return closePanel();
@@ -3172,7 +3439,7 @@ function openCouple() {
   panel.querySelectorAll('[data-cg]').forEach(b => b.onclick = () => startCG(b.dataset.cg));
   panel.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => doEmote(b.dataset.mv));
   panel.querySelectorAll('[data-note]').forEach(b => b.onclick = () => showLetter(notes[+b.dataset.note]));
-  $('noteSend').onclick = () => { const text = $('noteIn').value.trim(); if (!text) return; if (!them) { toast('Invite them first ♥'); return; } send({ t: 'note', text, from: me.name }); floatText(me, '✉️ sent!', '#ff9ab8'); closePanel(); };
+  $('noteSend').onclick = () => { const text = $('noteIn').value.trim(); if (!text) return; if (!them) { toast('Invite them first ♥'); return; } send({ t: 'note', text, from: me.name }); floatText(me, '✉️ sent!', '#ff9ab8'); closePanel(); loveAdd(10); achieve('letter'); };
 }
 $('couple').onclick = openCouple;
 function onFun10(m) {
@@ -3217,6 +3484,6 @@ $('go').onclick = () => {
   }, 980);
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: v => hanging = v, doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: v => hanging = v, doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
