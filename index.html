@@ -72,6 +72,66 @@
   #crOpts{flex:1 1 300px}
   .crrow{margin-bottom:12px}.crrow b{display:block;font-size:12px;opacity:.7;margin-bottom:6px;color:#ffcf6b}
   .crrow .opts{display:flex;flex-wrap:wrap;gap:6px}.crrow .pill{padding:7px 12px;font-size:13px}
+  /* cleaner chrome: grouped glass capsules, no clutter under the stage */
+  #hint,#places{display:none!important}
+  #top{flex-wrap:nowrap}
+  #status{max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto}
+  .pill{background:#0a060e66;border:1px solid #ffffff12}
+  .grp{display:flex;gap:1px;padding:3px;border-radius:999px;background:#0a060e66;border:1px solid #ffffff12;backdrop-filter:blur(10px)}
+  .grp .pill{background:transparent;border:0;padding:7px 11px}
+  .grp .pill:hover{background:#ffffff1c}
+  .grp .pill.on{background:linear-gradient(90deg,#ff8a3dcc,#ffcf6bcc)}
+  #actions{align-items:center}
+  /* the 3D world can shrink into a corner (theater) or share the stage with the video (split) */
+  #vid{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;display:none;z-index:0}
+  #stage.m-theater #vid,#stage.m-split #vid{display:block}
+  #world{z-index:1}
+  #stage.m-theater #world{inset:auto;right:14px;bottom:62px;width:32%;height:32%;border-radius:24px;box-shadow:0 14px 40px #000c,0 0 0 1px #ffffff26}
+  #stage.m-split #vid{width:50%}
+  #stage.m-split #world{left:50%;width:50%;border-left:1px solid #ffffff18}
+  #stage.m-theater .vig,#stage.m-theater .grain{display:none}
+  /* travelling between places */
+  #fade{position:absolute;inset:0;z-index:8;pointer-events:none;opacity:0;transition:opacity .42s ease;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 50%,#2a1424,#050308 75%)}
+  #fade.on{opacity:1}
+  #fade b{font:italic 700 46px "Bradley Hand","Segoe Print",cursive;color:#ffcf6b;text-shadow:0 0 30px #ff8a3d99;transform:translateY(8px);transition:transform .6s}
+  #fade.on b{transform:none}
+  #fade i{display:block;text-align:center;font-style:normal;opacity:.6;font-size:13px;margin-top:8px}
+  #ptitle{position:absolute;left:50%;top:64px;transform:translateX(-50%);z-index:3;pointer-events:none;font:italic 700 30px "Bradley Hand","Segoe Print",cursive;color:#ffcf6b;text-shadow:0 0 24px #ff8a3daa;opacity:0;white-space:nowrap}
+  #ptitle.show{animation:ptitle 2.6s ease forwards}
+  @keyframes ptitle{0%{opacity:0;transform:translate(-50%,10px)}20%,70%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-6px)}}
+  /* couple card games */
+  #cg{position:absolute;left:50%;top:62px;transform:translateX(-50%);z-index:6;width:min(92%,460px);padding:16px;border-radius:30px;background:#140c18e6;border:1px solid #ffffff14;backdrop-filter:blur(14px);box-shadow:0 20px 60px #000a;display:none;text-align:center}
+  #cg .ttl{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#ffcf6b;margin-bottom:10px}
+  #cg .x{background:none;border:0;color:#f6e7cf;font-size:18px;cursor:pointer;opacity:.6}
+  #cg .q{font:600 20px/1.3 ui-rounded,system-ui;padding:18px 14px;border-radius:22px;background:#fff6e6;color:#3a2418;transform:rotate(-1deg);box-shadow:0 8px 24px #0006}
+  #cg .q.big{font:italic 700 26px "Bradley Hand","Segoe Print",cursive}
+  #cg .opts{display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+  #cg .opts .pill{font-size:15px;padding:10px 16px}
+  #cg .rps{font-size:34px;width:64px;height:64px;padding:0}
+  #cg .st{font-size:12px;opacity:.65;margin-top:10px}
+  /* love letters */
+  #letter{position:fixed;inset:0;z-index:24;display:none;align-items:center;justify-content:center;background:#050308bb;padding:16px}
+  #letter .paper{width:min(92vw,420px);padding:28px 26px;border-radius:14px;background:#fff6e6;color:#3a2418;transform:rotate(-1.5deg);box-shadow:0 30px 80px #000c;font:italic 600 24px/1.35 "Bradley Hand","Segoe Print",cursive;animation:pop .5s cubic-bezier(.2,1.4,.4,1)}
+  #letter .from{font-size:16px;opacity:.7;margin-top:14px;text-align:right}
+  @keyframes pop{0%{transform:scale(.6) rotate(-8deg);opacity:0}100%{transform:scale(1) rotate(-1.5deg);opacity:1}}
+  .keys{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px;align-items:center}
+  .keys kbd{font:600 12px ui-rounded,system-ui;padding:4px 9px;border-radius:9px;background:#ffffff16;border:1px solid #ffffff22;justify-self:start;white-space:nowrap}
+  /* intro */
+  #start{background:radial-gradient(ellipse at 30% 35%,#3a1d3a,#0a0510 72%)!important;overflow:hidden;transition:opacity .6s ease, transform .6s ease}
+  #start.leaving{opacity:0;transform:scale(1.06)}
+  #intro{position:relative;display:flex;gap:26px;align-items:center;justify-content:center;flex-wrap:wrap;padding:16px;animation:rise .9s ease-out}
+  @keyframes rise{0%{opacity:0;transform:translateY(16px)}100%{opacity:1;transform:none}}
+  .pvbox.hero{position:relative;width:min(80vw,320px);height:min(52vh,400px);margin:0;border-radius:44%;background:radial-gradient(ellipse at 50% 88%,#ffcf6b38,#0000 55%),radial-gradient(circle at 50% 42%,#a77bff26,#0000 68%)}
+  .pvbox.hero::before{content:'';position:absolute;left:18%;right:18%;bottom:7%;height:12%;border-radius:50%;background:radial-gradient(#ffcf6b66,#0000 70%);filter:blur(3px)}
+  #card{background:#140c18b8!important;backdrop-filter:blur(14px);border:1px solid #ffffff14;width:min(92vw,360px)!important}
+  #card .kicker{font-size:11px;letter-spacing:.22em;text-transform:uppercase;opacity:.5;margin-bottom:4px}
+  #card h1{font:italic 700 38px "Bradley Hand","Segoe Print",cursive!important}
+  #qPicks .opts{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:10px}
+  #qPicks .sw{width:22px;height:22px}
+  #qPicks .tile.emo{width:40px;height:40px;font-size:20px}
+  #qPicks .pill{padding:6px 12px;font-size:13px}
+  .spark{position:absolute;border-radius:50%;background:#ffcf6b;box-shadow:0 0 12px #ffcf6b;opacity:.0;animation:spark linear infinite;pointer-events:none}
+  @keyframes spark{0%{opacity:0;transform:translateY(20px)}20%{opacity:.8}100%{opacity:0;transform:translateY(-140px)}}
   #loading{position:absolute;inset:0;display:grid;place-items:center;color:#ffcf6b;opacity:.7;z-index:1;pointer-events:none}
 </style>
 </head><body>
@@ -81,35 +141,33 @@
     <div class="vig"></div><div class="grain"></div>
     <div id="stick"><div id="knob"></div></div>
     <button id="jump">⤒</button>
-    <div id="top"><span id="status">…</span><button class="pill" id="invite">💌 Invite link</button><span style="flex:1"></span><button class="pill" id="charb" title="Your character">👤</button><button class="pill" id="pets" title="Pets">🐾</button><button class="pill" id="fw" title="Fireworks">🎆</button><button class="pill" id="doodle" title="Doodle on the screen">✏️</button><button class="pill" id="hats" title="Hats">🎩</button><button class="pill" id="games">🎲 Games</button><button class="pill" id="decor">🛋 Decorate</button></div>
+    <div id="top"><span id="status">…</span><button class="pill" id="invite">💌 Invite</button><button class="pill" id="placesb">🗺 Places</button><span style="flex:1"></span><div class="grp"><button class="pill" id="charb" title="Your character">👤</button><button class="pill" id="pets" title="Pets">🐾</button><button class="pill" id="hats" title="Hats">🎩</button><button class="pill" id="fw" title="Fireworks">🎆</button><button class="pill" id="doodle" title="Doodle on the screen">✏️</button></div><button class="pill" id="couple">💞 Us</button><button class="pill" id="games">🎲 Games</button><button class="pill" id="decor">🛋 Decorate</button><button class="pill" id="helpb" title="Controls">?</button></div>
     <div id="hud"></div><input id="chat" maxlength="80" placeholder="say something sweet… (Enter to send)" autocomplete="off"><div id="blind"></div><div id="panel"></div>
     <div id="actions">
-      <button class="pill" id="pov" title="Switch view (V)">👀 3rd person</button>
-      <button class="pill" id="mic" title="Voice chat">🎙</button>
-      <button class="pill" id="camb" title="Webcam">📷</button>
-      <button class="pill" id="talk" title="Chat (Enter)">💬</button>
-      <button class="pill" id="hands" title="Hold hands / pet (E)">🤝</button>
-      <button class="pill" id="emote" title="Emotes (1-6)">😊</button>
-      <button class="pill" id="snap" title="Photo booth">📸</button>
-      <button class="pill" id="pop" title="Throw popcorn (F)">🍿</button>
-      <button class="pill" id="pushb" title="Push (Q)">🫸</button>
-      <button class="pill" id="smackb" title="Smack (G)">🖐</button>
-      <button class="pill" id="heart" title="Send a heart (H)">♥</button>
+      <div class="grp" id="more" style="display:none"><button class="pill" id="pov" title="Switch view (V)">👀 3rd person</button><button class="pill" id="pop" title="Throw popcorn (F)">🍿</button><button class="pill" id="pushb" title="Push (Q)">🫸</button><button class="pill" id="smackb" title="Smack (G)">🖐</button></div>
+      <div class="grp"><button class="pill" id="moreb" title="More">⋯</button><button class="pill" id="mic" title="Voice chat">🎙</button><button class="pill" id="camb" title="Webcam">📷</button><button class="pill" id="talk" title="Chat (Enter)">💬</button><button class="pill" id="emote" title="Emotes (1-6)">😊</button><button class="pill" id="hands" title="Hold hands / pet (E)">🤝</button><button class="pill" id="heart" title="Send a heart (H)">♥</button><button class="pill" id="snap" title="Photo booth">📸</button></div>
+      <button class="pill" id="watch" title="Watch mode (T)" style="display:none">📺 Watch</button><button class="pill" id="fs" title="Full screen">⛶</button>
       <button class="pill" id="share" title="Put a Chrome tab on the screen">🎮 Share a tab</button>
     </div>
+    <div id="fade"><div><b id="fadeTitle"></b><i id="fadeSub"></i></div></div><div id="ptitle"></div><div id="cg"></div>
   </div>
   <div id="places"></div>
   <div id="hint">WASD move · Space jump · drag to turn · scroll in for 1st person · Shift run · C crouch (slide while running) · X sit / lie down · Q push · G smack · L camera lock · Enter chat · E hold hands / pet / bong / tea · B throw ball for your pet · F popcorn · 1-6 emotes · H hearts</div>
 </div>
-<video id="vid" autoplay playsinline style="display:none"></video>
+<video id="vid" autoplay playsinline></video>
+<div id="letter"></div>
 
-<div id="start"><div id="card">
-  <h1>Our Little Screen</h1>
-  <p id="sub">A cozy place to watch things together.</p>
-  <input id="name" maxlength="14" placeholder="your name">
-  <div id="pvStart" class="pvbox"></div>
-  <button class="pill" id="customize" style="margin-bottom:14px">✨ Customize your little you</button>
-  <button class="pill on" id="go">Make our room</button>
+<div id="start"><div id="intro">
+  <div id="pvStart" class="pvbox hero"></div>
+  <div id="card">
+    <div class="kicker">a tiny place for two</div>
+    <h1>Our Little Screen</h1>
+    <p id="sub">A cozy place to watch things together.</p>
+    <input id="name" maxlength="14" placeholder="your name">
+    <div id="qPicks"></div>
+    <button class="pill" id="customize" style="margin-bottom:14px">✨ More looks</button>
+    <button class="pill on" id="go">Make our room</button>
+  </div>
 </div></div>
 <div id="toast"></div>
 <div id="creator"><div id="crCard"><div id="pvModal" class="pvbox big"></div><div id="crOpts"></div><div class="row" style="justify-content:center;width:100%"><button class="pill" id="crCancel">Cancel</button><button class="pill on" id="crSave">Save ♥</button></div></div></div>
@@ -139,7 +197,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'hi
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.75));
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-stage.prepend(renderer.domElement);
+renderer.domElement.id = 'world'; stage.prepend(renderer.domElement); stage.prepend($('vid'));
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(55, 1, .05, 300);
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 })); // 4x MSAA: smooth edges
@@ -196,7 +254,7 @@ function shadowize() {
 // soft warm fill that follows the camera so the little ones are never in shadow
 const fill = new THREE.PointLight('#ffd8b0', 1.5, 9, 1.6); fill.position.set(0, .3, 0); camera.add(fill); scene.add(camera);
 function resize() {
-  const w = stage.clientWidth, h = stage.clientHeight;
+  const cv = renderer.domElement, w = cv.clientWidth || stage.clientWidth, h = cv.clientHeight || stage.clientHeight;
   renderer.setSize(w, h, false); composer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
@@ -992,7 +1050,7 @@ function lifeAnim(c, p, t, dt, walk, sit) {
   moodFace(c, p, t, dt);
 }
 // moods: sad after getting knocked over, happy during the happy stuff
-const HAPPY_E = new Set(['massage', 'massaged', 'wave', 'dance', 'kiss', 'hug', 'hug-back', 'laugh', 'cheer', 'spin', 'clap', 'peace', 'hearts', 'jacks', 'flex']);
+const HAPPY_E = new Set(['smooch', 'slowdance', 'massage', 'massaged', 'wave', 'dance', 'kiss', 'hug', 'hug-back', 'laugh', 'cheer', 'spin', 'clap', 'peace', 'hearts', 'jacks', 'flex']);
 function moodOf(p, t) {
   if (p.ko) p.sadUntil = Math.max(p.sadUntil || 0, t + 4.5);
   if (p.emote && p.emote.k === 'cry') return 'sad';
@@ -1155,7 +1213,7 @@ function setPlace(id, broadcast = true) {
   onPlaceChanged();
   if (broadcast) send({ t: 'place', id: place.id });
 }
-for (const p of PLACES) { const b = document.createElement('button'); b.className = 'pill'; b.textContent = p.name; b.dataset.id = p.id; b.onclick = () => setPlace(p.id); $('places').appendChild(b); }
+for (const p of PLACES) { const b = document.createElement('button'); b.className = 'pill'; b.textContent = p.name; b.dataset.id = p.id; b.onclick = () => goPlace(p.id); $('places').appendChild(b); }
 
 // ---------- camera (Roblox-style) ----------
 // 3rd person: drag or right-drag to orbit, scroll to zoom; scroll all the way in = 1st person.
@@ -1628,8 +1686,8 @@ function doEmote(k) {
     me.seat = -1; me.want = -1; me.floor = false;
     if (down) { me.tx = them.x + fz * .5; me.tz = them.z - fx * .5; } else { me.tx = them.x - fx * .42; me.tz = them.z - fz * .42; } // kneel beside, or stand behind
   }
-  if (k === 'hug') {
-    if (!them || Math.hypot(me.x - them.x, me.z - them.z) > 2.5) { toast('Walk closer to hug 🤗'); return; }
+  if (k === 'hug' || k === 'smooch' || k === 'slowdance') {
+    if (!them || Math.hypot(me.x - them.x, me.z - them.z) > 2.5) { toast('Walk closer to them first ♥'); return; }
     const d = Math.hypot(them.x - me.x, them.z - me.z) || 1; me.seat = -1; me.want = -1;
     me.tx = them.x - (them.x - me.x) / d * .5; me.tz = them.z - (them.z - me.z) / d * .5;
   }
@@ -1639,6 +1697,7 @@ function emoteFx(p, k) {
   const mine = p === me ? 'mine' : 'theirs';
   if (k === 'wave') floatText(p, 'hi!', '#fff4e2');
   if (k === 'massage') floatText(p, 'rub rub 💆', '#ffcf6b');
+  if (k === 'slowdance') floatText(p, '♪ slow dance ♪', '#cdb8ff');
   if (k === 'massaged') { floatText(p, 'ahhh~ 😌', '#ff9ab8'); for (let i = 0; i < 5; i++) setTimeout(() => addHeart(p, p === me ? 'mine' : 'theirs'), 900 + i * 700); }
   if (k === 'shrug') floatText(p, '¯\\_(ツ)_/¯', '#fff4e2');
   if (k === 'yawn') floatText(p, 'hmmmmh', '#cdb8ff');
@@ -1653,7 +1712,7 @@ function emoteFx(p, k) {
 }
 function animEmote(p, mesh, t) {
   const u = mesh.userData, e = p.emote; if (!e) return;
-  const el = t - e.t0, hug = e.k === 'hug' || e.k === 'hug-back' || e.k === 'massage' || e.k === 'massaged', dur = e.k === 'massage' || e.k === 'massaged' ? 5.5 : e.k === 'sleep' ? 4.5 : hug ? 3.2 : e.k === 'spin' ? 1.4 : 2.6;
+  const el = t - e.t0, hug = ['hug', 'hug-back', 'massage', 'massaged', 'smooch', 'slowdance'].includes(e.k), dur = e.k === 'slowdance' ? 10 : e.k === 'smooch' ? 2.6 : e.k === 'massage' || e.k === 'massaged' ? 5.5 : e.k === 'sleep' ? 4.5 : hug ? 3.2 : e.k === 'spin' ? 1.4 : 2.6;
   if (el > dur || (p === me && !hug && (me.walking || me.jy > 0))) { p.emote = null; return; }
   const b = u.body, h = u.head, A = u.arms;
   if (e.k === 'massaged') { // melting: eyes shut, a slow happy sway, stays lying if lying
@@ -1679,6 +1738,13 @@ function animEmote(p, mesh, t) {
     case 'jacks': { const up = Math.abs(Math.sin(el * 6.5)); b.position.y = up * .1; A.forEach((a, i) => { a.position.set((i ? 1 : -1) * (.24 + .06 * up), .34 + .3 * up, 0); a.rotation.set(0, 0, (i ? 1 : -1) * (.2 + 2.5 * up)); }); u.feet.forEach((f, i) => f.position.set((i ? 1 : -1) * (.1 + .09 * up), .05 + up * .08, .04)); break; }
     case 'yawn': { const k2 = Math.sin(Math.min(1, el / 2.4) * PI); A.forEach((a, i) => { a.rotation.set(0, 0, (i ? 1 : -1) * 2.6 * k2); a.position.set((i ? 1 : -1) * .2, .34 + .3 * k2, 0); }); h.rotation.x = -.3 * k2; b.position.y = .03 * k2; setMouth(u, 1.2 * k2); u.eyes.forEach(x => x.scale.y = .008); break; }
     case 'shrug': { const k2 = Math.min(1, el / .3) * (el > 2.2 ? Math.max(0, (2.6 - el) / .4) : 1); A.forEach((a, i) => { a.position.set((i ? 1 : -1) * (.3 + .06 * k2), .38 + .08 * k2, .05); a.rotation.set(0, 0, (i ? 1 : -1) * 1.1 * k2); }); h.rotation.z = .22 * k2; b.position.y = .03 * k2; break; }
+    case 'smooch': { const o = p === me ? them : me; if (p === me && o) me.ry = Math.atan2(o.x - me.x, o.z - me.z); const k2 = Math.sin(Math.min(1, el / 2.4) * PI);
+      b.rotation.x = .22 * k2; h.rotation.x = -.18 * k2; A.forEach((a, i) => { a.position.set(i ? .2 : -.2, .44, .24); a.rotation.z = (i ? .9 : -.9); }); u.eyes.forEach(x => x.scale.y = .008);
+      if (el > 1 && !e.fx) { e.fx = 1; floatText(p, '💋', '#ff9ab8'); for (let i = 0; i < 6; i++) setTimeout(() => addHeart(p, p === me ? 'mine' : 'theirs'), i * 90); } break; }
+    case 'slowdance': { const o = p === me ? them : me; if (p === me && o) me.ry = Math.atan2(o.x - me.x, o.z - me.z);
+      b.rotation.z = Math.sin(t * 1.6) * .12; b.position.y = Math.abs(Math.sin(t * 1.6)) * .02; h.rotation.z = -Math.sin(t * 1.6) * .1; h.rotation.x = .1;
+      A.forEach((a, i) => { a.position.set(i ? .22 : -.22, .52, .22); a.rotation.z = i ? 1.2 : -1.2; });
+      const z = Math.floor(el / 1.6); if (z !== e.z) { e.z = z; floatText(p, z % 2 ? '♪' : '♫', '#cdb8ff'); } break; }
     case 'massage': {
       const o = p === me ? them : me, down = o && (o.pose === 'back' || o.pose === 'belly'), near = o && Math.hypot(o.x - p.x, o.z - p.z) < .8;
       if (p === me && o && near) me.ry = Math.atan2(o.x - me.x, o.z - me.z);
@@ -1859,7 +1925,7 @@ function onFun2(m) {
   switch (m.t) {
     case 'hello': send({ t: 'hat', h: me.hat }); return false;
     case 'hat': if (them) them.hat = m.h; else pendingHat = m.h; return true;
-    case 'emote': if (them) { them.emote = { k: m.k, t0: clock.elapsedTime }; emoteFx(them, m.k); if (m.k === 'hug') me.emote = { k: 'hug-back', t0: clock.elapsedTime }; if (m.k === 'massage') { me.emote = { k: 'massaged', t0: clock.elapsedTime }; emoteFx(me, 'massaged'); } } return true;
+    case 'emote': if (them) { them.emote = { k: m.k, t0: clock.elapsedTime }; emoteFx(them, m.k); if (m.k === 'hug') me.emote = { k: 'hug-back', t0: clock.elapsedTime }; if (m.k === 'smooch' || m.k === 'slowdance') { me.emote = { k: m.k, t0: clock.elapsedTime }; if (m.k === 'slowdance') toast(`💃 ${them.name} pulled you into a slow dance`); } if (m.k === 'massage') { me.emote = { k: 'massaged', t0: clock.elapsedTime }; emoteFx(me, 'massaged'); } } return true;
     case 'snap': flash(); toast(`📸 ${them ? them.name : 'They'} took a photo of you two`); return true;
   }
   return false;
@@ -2334,6 +2400,7 @@ function tickLava(t, el) {
 
 function funTick4(dt, t) { tickFaces(); }
 function onFun4(m) {
+  if (onFun10(m)) return true;
   if (onFun9(m)) return true;
   if (onFun6(m)) return true;
   if (onFun8(m)) return true;
@@ -2694,12 +2761,12 @@ function closeCreator() { $('creator').style.display = 'none'; if ($('pvStart'))
 $('customize').onclick = openCreator;
 $('crCancel').onclick = closeCreator;
 $('crSave').onclick = () => {
-  myLook = { ...draft }; try { localStorage.setItem('ols-char', JSON.stringify(myLook)); } catch {}
+  myLook = { ...draft }; setTimeout(renderQuick); try { localStorage.setItem('ols-char', JSON.stringify(myLook)); } catch {}
   if (meMesh) { me.look = myLook; scene.remove(meMesh); meMesh = makeChar(me.look, me.name); scene.add(meMesh); send({ t: 'char', look: me.look }); toast('Looking cute ♥'); }
   closeCreator();
 };
 $('charb').onclick = openCreator;
-pvAttach($('pvStart')); pvSet(myLook);
+pvAttach($('pvStart')); pvSet(myLook); setTimeout(renderQuick);
 function onFun8(m) { if (m.t === 'char') { if (them) them.look = m.look; return true; } return false; }
 
 // ---------- moves: run, crouch, slide, sit on the floor, running flip; push + smack with a wobbly fall ----------
@@ -2864,7 +2931,7 @@ function loop() {
   const close = them && me.seat >= 0 && them.seat >= 0 && Math.abs(me.seat - them.seat) === 1;
   cuddle.visible = !!close; if (close) { cuddle.position.copy(headOf(me)).lerp(headOf(them), .5).add(new THREE.Vector3(0, .45 + Math.sin(t * 2) * .05, 0)); }
   for (let i = hearts.length - 1; i >= 0; i--) { const h = hearts[i], a = (t - h.t0) / 2.2; if (a > 1) { scene.remove(h.s); hearts.splice(i, 1); continue; } h.s.position.y += dt * .5; h.s.position.x += Math.sin(a * 9 + h.p) * .004; h.s.material.opacity = 1 - a; }
-  stepCam(dt); highCam(t); followKey(); if (frameN % 20 === 0) shadowize();
+  tickSwoop(t); stepCam(dt); highCam(t); followKey(); if (frameN % 20 === 0) shadowize();
   if ((frameN = (frameN || 0) + 1) % 3 === 0) grain.uniforms.t.value = (grain.uniforms.t.value + 1.7) % 100; composer.render();
   if (snapNext) { snapNext = false; grabPhoto(); }
   if (t - lastSent > .05) { lastSent = t; send({ t: 'me', x: +me.x.toFixed(3), z: +me.z.toFixed(3), ry: +me.ry.toFixed(3), seat: me.seat, w: me.walking, j: +me.jy.toFixed(3), a: me.vy !== 0 ? 1 : 0, ps: me.pose || '', fl: me.flipT ? 1 : 0, hy: +(me.lookY || 0).toFixed(2), hp: +(me.lookP || 0).toFixed(2) }); }
@@ -2887,7 +2954,7 @@ function onData(m) {
     if (isHost) send({ t: 'place', id: place.id });
     if (myStream) { startCall(); send({ t: 'share', on: true }); }
   } else if (m.t === 'me' && them) { const now = clock.elapsedTime, gap = Math.max(.03, Math.min(.3, now - (them.rt || now - .05))); them.rvx = (m.x - (them.rx ?? m.x)) / gap; them.rvz = (m.z - (them.rz ?? m.z)) / gap; if (Math.hypot(them.rvx, them.rvz) > 9) them.rvx = them.rvz = 0; them.rt = now; them.rx = m.x; them.rz = m.z; them.rry = m.ry; them.seat = m.seat; them.walking = m.w; them.rjy = m.j || 0; them.lookY = m.hy; them.lookP = m.hp; them.air = !!m.a; them.pose = m.ps === 'ko' ? '' : m.ps || ''; if (m.fl && !them.flipT) them.flipT = clock.elapsedTime; if (!m.fl) them.flipT = 0; }
-  else if (m.t === 'place') { if (m.id !== place.id) { setPlace(m.id, false); toast(`${them ? them.name : 'They'} took you to ${place.name}`); } }
+  else if (m.t === 'place') { if (m.id !== place.id) goPlace(m.id, false, them ? them.name : 'They'); }
   else if (m.t === 'heart' && them) addHeart(them, 'theirs');
   else if (m.t === 'share' && them) {
     them.share = m.on;
@@ -2927,6 +2994,7 @@ function showStream(s, mine = false) {
   vid.srcObject = s || null; vid.muted = !!mine; screenLive = !!s;
   screenMat.map = s ? videoTex : placeholderTex; screenMat.needsUpdate = true;
   if (s) vid.play().catch(() => toast('Click anywhere to turn the sound on'));
+  $('watch').style.display = s ? '' : 'none'; if (!s) setWatch('world'); else if (!mine) toast('📺 Press T for theater mode: the video big, you two in the corner');
 }
 addEventListener('pointerdown', () => { if (screenLive && vid.paused) vid.play(); if (voiceAudio.srcObject && voiceAudio.paused) voiceAudio.play().catch(() => {}); });
 function startCall() { if (conn && myStream) { if (call) call.close(); call = peer.call(conn.peer, myStream); } }
@@ -2948,16 +3016,207 @@ function stopShare(tell = true) {
 }
 $('share').onclick = share;
 
+// ---------- travelling between places: fade, title card, camera swoop ----------
+let travelling = false, swoop = null;
+const PLACE_TAG = { apartment: 'our cozy apartment · reading nook · kitchen', penthouse: 'city lights · balcony · two bedrooms', cinema: 'the big screen · popcorn · arcade lobby', rooftop: 'sunset deck · hot tub · fire table',
+  cabin: 'fireplace · snow outside · warm blankets', beach: 'bonfire · tiki bar · waves', camping: 'all the stars · campfire · a little pond', drivein: 'old cars · snacks · a giant screen' };
+function goPlace(id, broadcast = true, who) {
+  if (place && place.id === id) return;
+  if (travelling) { setTimeout(() => goPlace(id, broadcast, who), 500); return; }
+  travelling = true; closePanel(); const P = PLACES.find(q => q.id === id) || PLACES[0];
+  $('fadeTitle').textContent = P.name; $('fadeSub').textContent = who ? `${who} took you here ♥` : (PLACE_TAG[id] || '');
+  $('fade').classList.add('on');
+  setTimeout(() => { setPlace(id, broadcast); startSwoop(); setTimeout(() => { $('fade').classList.remove('on'); travelling = false; }, 380); }, 520);
+}
+function startSwoop(big) { swoop = { t0: clock.elapsedTime, d: cam.dist, p: cam.pitch, dur: big ? 2.6 : 1.6, big }; }
+function tickSwoop(t) {
+  if (!swoop || pov === 1) { swoop = null; return; }
+  const k = Math.min(1, (t - swoop.t0) / swoop.dur), e = 1 - Math.pow(1 - k, 3), B = swoop.big ? 1.6 : 1;
+  cam.dist = swoop.d + (1 - e) * 5 * B; cam.pitch = swoop.p + (1 - e) * .5 * B; if (swoop.big) cam.yaw = (1 - e) * 1.4;
+  if (k >= 1) { cam.dist = swoop.d; cam.pitch = swoop.p; swoop = null; }
+}
+function showTitle(txt) { const el = $('ptitle'); el.textContent = txt; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); }
+function openPlaces() {
+  if (panel.dataset.k === 'places') return closePanel();
+  if (decorating) toggleDecorate();
+  panel.dataset.k = 'places'; panel.classList.remove('side');
+  panel.innerHTML = `<h3>🗺 Where to?</h3><div class="grid">${PLACES.map(q => `<button class="tile${place && place.id === q.id ? ' sel' : ''}" data-pl="${q.id}"><b>${q.name}</b><span>${PLACE_TAG[q.id] || ''}</span></button>`).join('')}</div><div class="row hintrow">You both go together</div>`;
+  panel.style.display = 'block';
+  panel.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => goPlace(b.dataset.pl));
+}
+$('placesb').onclick = openPlaces;
+
+// ---------- watch modes: the video big with you two in a corner, or half and half ----------
+let watchMode = 'world';
+function setWatch(m) {
+  if (m !== 'world' && !screenLive) { toast('Share a tab first 🎮'); m = 'world'; }
+  watchMode = m; stage.classList.toggle('m-theater', m === 'theater'); stage.classList.toggle('m-split', m === 'split');
+  $('watch').textContent = { world: '📺 Watch', theater: '🎬 Theater', split: '◐ Split' }[m]; $('watch').classList.toggle('on', m !== 'world');
+  resize();
+}
+const cycleWatch = () => setWatch({ world: 'theater', theater: 'split', split: 'world' }[watchMode]);
+$('watch').onclick = cycleWatch;
+$('fs').onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => toast('Full screen is blocked here')); };
+document.addEventListener('fullscreenchange', () => { $('fs').classList.toggle('on', !!document.fullscreenElement); setTimeout(resize, 60); });
+$('moreb').onclick = () => { const m = $('more'), on = m.style.display === 'none'; m.style.display = on ? 'flex' : 'none'; $('moreb').classList.toggle('on', on); };
+addEventListener('keydown', e => { if (e.target.tagName === 'INPUT' || e.repeat) return; if (e.key.toLowerCase() === 't') cycleWatch(); });
+
+// ---------- controls sheet ----------
+function openHelp() {
+  if (panel.dataset.k === 'help') return closePanel();
+  panel.dataset.k = 'help'; panel.classList.remove('side');
+  const K = [['WASD', 'move'], ['Space', 'jump (run + jump = flip)'], ['Shift', 'run'], ['drag / 2-finger drag', 'turn the camera'], ['scroll', 'zoom · all the way in = 1st person'], ['C', 'crouch · slide while running'], ['X', 'sit → lie on back → lie on stomach'],
+    ['E', 'hold hands · pet · bong · tea'], ['B', 'throw the ball for your pet'], ['F', 'throw popcorn'], ['Q / G', 'push / smack'], ['H', 'hearts'], ['1-9', 'emotes'], ['Enter', 'chat'], ['T', 'watch mode (theater / split)'], ['L', 'camera lock'], ['V', '1st / 3rd person']];
+  panel.innerHTML = `<h3>⌨️ Controls</h3><div class="keys">${K.map(([k, d]) => `<kbd>${k}</kbd><span>${d}</span>`).join('')}</div>`;
+  panel.style.display = 'block';
+}
+$('helpb').onclick = openHelp;
+
+// ---------- 💞 us: couple games, couple moves, love letters ----------
+const WYR = [['cuddle on the couch all day', 'go on a big adventure'], ['breakfast in bed', 'a fancy dinner out'], ['live by the beach', 'live in a snowy cabin'], ['a road trip', 'a plane to somewhere new'],
+  ['always be a little too hot', 'always be a little too cold'], ['re-watch our favorite show', 'start a brand new one'], ['a cat', 'a dog'], ['sunrise together', 'sunset together'], ['cook together', 'order in'],
+  ['slow dance in the kitchen', 'karaoke in the car'], ['matching pajamas', 'matching hoodies'], ['a picnic in the park', 'a movie marathon'], ['know the future', 'change the past'], ['pizza forever', 'sushi forever'],
+  ['be able to fly', 'be invisible'], ['handwritten letters', 'surprise voice notes'], ['a big wedding', 'a tiny secret one'], ['city life', 'countryside life'], ['stay up all night talking', 'sleep in together'], ['a spa day', 'a theme park day']];
+const DEEP = ["What's a moment with me you replay in your head?", 'When did you first know you liked me?', "What's something small I do that makes your day?", "What's a dream you haven't told many people?",
+  'Where do you see us in five years?', "What's your favorite memory of us so far?", 'What made you laugh the hardest this week?', "What's one thing you want us to try together?", 'What song reminds you of me?',
+  "What's something you're proud of lately?", 'How do you like to be comforted when you are sad?', "What's a little habit of mine you secretly love?", 'If we could go anywhere tomorrow, where?', "What's something you're scared of?",
+  'What does a perfect lazy day with me look like?', 'What do you think we do really well together?', "What's a food that tastes like home to you?", 'What was the best part of your day today?', "What's a compliment you'd love to hear more?", 'What should we name our future pet?'];
+const TRUTH = ["What's the most embarrassing thing you've done in front of me?", "What's your guilty pleasure show?", 'Who was your first crush?', "What's the cheesiest thing you've thought about me?", "What's your weirdest habit?",
+  "What's something you've never told me?", 'What do you think about right before you fall asleep?', 'Rate my cooking out of 10. Honestly.', "What's my most annoying habit?", "What's your secret talent?"];
+const DARE = ['Blow them a kiss (emote 😘)', 'Do a little dance (press 2)', 'Do 3 jumping jacks', 'Say something sweet in chat', 'Give them a hug 🤗', 'Smack them very gently 🖐', 'Sing one line of a song out loud',
+  'Throw popcorn at them (F)', 'Do your best runway walk across the room', 'Give them a massage 💆', 'Spin around 3 times', 'Tell them your favorite thing about them'];
+const CG_NAME = { wyr: '🤔 Would you rather', deep: '🕯 Deep talk', tod: '😈 Truth or dare', rps: '✊ Rock paper scissors', stare: '👀 Staring contest' };
+let cg = null;
+const cgDeck = k => ({ wyr: WYR, deep: DEEP, tod: TRUTH, rps: [0], stare: [0] }[k]);
+function startCG(k) {
+  if (!them) { toast('Invite them first ♥ this one needs two'); return; }
+  const n = cgDeck(k).length, order = [...Array(Math.max(n, 30)).keys()].map(i => i % n).sort(() => Math.random() - .5);
+  send({ t: 'cg', k, order, first: myRole() }); beginCG(k, order, myRole());
+}
+function beginCG(k, order, first) { endGame(true); cg = { k, order, i: 0, picks: {}, score: { me: 0, them: 0 }, first }; closePanel(); renderCG(); if (k === 'stare') stareStart(); }
+function cgTurn() { const other = cg.first === 'host' ? 'guest' : 'host'; return cg.i % 2 ? other : cg.first; }
+function renderCG() {
+  const el = $('cg'); if (!cg) { el.style.display = 'none'; return; }
+  const k = cg.k, mine = cg.picks.mine, theirs = cg.picks.theirs, both = mine !== undefined && theirs !== undefined, tn = them ? them.name : 'them';
+  let body = '';
+  if (k === 'wyr') {
+    const [a, b] = WYR[cg.order[cg.i]];
+    body = `<div class="q">Would you rather…</div><div class="opts">${[a, b].map((o, i) => `<button class="pill${mine === i ? ' on' : ''}" data-p="${i}">${o}</button>`).join('<span style="opacity:.5;align-self:center">or</span>')}</div>`;
+    body += both ? `<div class="st">${mine === theirs ? '💞 You match!' : '🙃 Opposites attract'} · you: ${[a, b][mine]} · ${tn}: ${[a, b][theirs]}</div><div class="opts"><button class="pill on" data-next>Next ›</button></div>` : `<div class="st">${mine !== undefined ? `waiting for ${tn}…` : theirs !== undefined ? `${tn} picked, your turn` : 'both pick, then reveal'}</div>`;
+  }
+  if (k === 'deep') body = `<div class="q big">${DEEP[cg.order[cg.i]]}</div><div class="opts"><button class="pill on" data-next>Next card ›</button></div><div class="st">take turns answering · voice or chat</div>`;
+  if (k === 'tod') {
+    const turn = cgTurn(), mineTurn = turn === myRole(), who = mineTurn ? 'You' : tn, ch = cg.picks.choice;
+    if (!ch) body = `<div class="q">${who === 'You' ? 'Your turn!' : `${who}'s turn`}</div>${mineTurn ? '<div class="opts"><button class="pill" data-tod="truth">🙊 Truth</button><button class="pill on" data-tod="dare">😈 Dare</button></div>' : `<div class="st">waiting for ${tn} to pick…</div>`}`;
+    else body = `<div class="q big">${ch === 'truth' ? TRUTH[cg.order[cg.i] % TRUTH.length] : DARE[cg.order[cg.i] % DARE.length]}</div><div class="st">${who} picked ${ch}</div><div class="opts"><button class="pill on" data-next>Next ›</button></div>`;
+  }
+  if (k === 'rps') {
+    const R = ['✊', '✋', '✌️'];
+    body = `<div class="q">first to 3 · you ${cg.score.me} – ${cg.score.them} ${tn}</div><div class="opts">${R.map((r, i) => `<button class="pill rps${mine === i ? ' on' : ''}" data-p="${i}">${r}</button>`).join('')}</div>`;
+    if (both) { const res = (mine - theirs + 3) % 3; body += `<div class="st" style="font-size:16px;opacity:1">you ${R[mine]} vs ${R[theirs]} ${tn} · ${res === 0 ? 'tie!' : res === 1 ? 'you win this one!' : `${tn} wins this one`}</div><div class="opts"><button class="pill on" data-next>${cg.score.me >= 3 || cg.score.them >= 3 ? 'Play again' : 'Next round ›'}</button></div>`; }
+    else body += `<div class="st">${mine !== undefined ? `waiting for ${tn}…` : 'pick one (they can\'t see it yet)'}</div>`;
+  }
+  if (k === 'stare') body = `<div class="q big">${cg.stareMsg || 'get ready…'}</div><div class="st">first one to press anything or click loses 👀</div>${cg.done ? '<div class="opts"><button class="pill on" data-again>Again</button></div>' : ''}`;
+  el.innerHTML = `<div class="ttl"><span>${CG_NAME[k]}</span><button class="x" data-x>✕</button></div>${body}`; el.style.display = 'block';
+  el.querySelectorAll('[data-p]').forEach(b => b.onclick = () => cgPick(+b.dataset.p));
+  el.querySelectorAll('[data-tod]').forEach(b => b.onclick = () => { cg.picks.choice = b.dataset.tod; send({ t: 'cgt', i: cg.i, c: b.dataset.tod }); renderCG(); });
+  el.querySelectorAll('[data-next]').forEach(b => b.onclick = () => { cgNext(); send({ t: 'cgn', i: cg.i }); });
+  el.querySelectorAll('[data-again]').forEach(b => b.onclick = () => startCG('stare'));
+  el.querySelector('[data-x]').onclick = () => { send({ t: 'cgx' }); cgClose(); };
+}
+function cgPick(v) { if (!cg || cg.picks.mine !== undefined) return; cg.picks.mine = v; send({ t: 'cgp', i: cg.i, v }); cgReveal(); renderCG(); }
+function cgReveal() {
+  const { mine, theirs } = cg.picks; if (mine === undefined || theirs === undefined || cg.revealed === cg.i) return; cg.revealed = cg.i;
+  if (cg.k === 'wyr' && mine === theirs) { for (let i = 0; i < 5; i++) setTimeout(() => addHeart(me, 'mine'), i * 110); }
+  if (cg.k === 'rps') {
+    const res = (mine - theirs + 3) % 3;
+    if (res === 1) { cg.score.me++; me.emote = { k: 'cheer', t0: clock.elapsedTime }; } else if (res === 2) { cg.score.them++; me.emote = { k: 'cry', t0: clock.elapsedTime }; } else me.emote = { k: 'laugh', t0: clock.elapsedTime };
+    if (cg.score.me >= 3) { toast('🏆 You won rock paper scissors!'); launchFireworks && launchFireworks(); } else if (cg.score.them >= 3) toast(`🏆 ${them ? them.name : 'They'} won rock paper scissors`);
+  }
+}
+function cgNext(i) {
+  if (!cg) return; cg.i = i !== undefined ? i : (cg.i + 1) % cg.order.length; cg.picks = {};
+  if (cg.k === 'rps' && (cg.score.me >= 3 || cg.score.them >= 3)) cg.score = { me: 0, them: 0 };
+  renderCG();
+}
+function cgClose() { cg = null; renderCG(); }
+// staring contest: you face each other, and the first one to touch anything loses
+function stareStart() {
+  if (them) { me.seat = -1; me.ry = Math.atan2(them.x - me.x, them.z - me.z); cam.yaw = me.ry + PI; }
+  cg.done = false; const steps = ['3…', '2…', '1…', "👀 Don't. Move."]; steps.forEach((m, i) => setTimeout(() => { if (!cg || cg.k !== 'stare') return; cg.stareMsg = m; if (i === 3) cg.live = clock.elapsedTime; renderCG(); }, i * 900));
+}
+function stareLose() { if (!cg || cg.k !== 'stare' || !cg.live || cg.done) return; send({ t: 'stare' }); stareEnd(false); }
+function stareEnd(won) {
+  cg.done = true; cg.live = 0; const secs = (clock.elapsedTime - (cg.liveAt || clock.elapsedTime)).toFixed(1);
+  cg.stareMsg = won ? `🏆 ${them ? them.name : 'They'} blinked! You win` : '😵 You blinked! They win';
+  me.emote = { k: won ? 'cheer' : 'cry', t0: clock.elapsedTime }; renderCG();
+}
+addEventListener('keydown', e => { if (cg && cg.k === 'stare' && cg.live && e.target.tagName !== 'INPUT') stareLose(); }, true);
+addEventListener('pointerdown', e => { if (cg && cg.k === 'stare' && cg.live && !e.target.closest('#cg')) stareLose(); }, true);
+// love letters
+let notes = []; try { notes = JSON.parse(localStorage.getItem('ols-notes') || '[]'); } catch {}
+function showLetter(n) {
+  const el = $('letter'); el.innerHTML = `<div class="paper">${n.text.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}<div class="from">— ${n.from} ♥</div><div class="row" style="justify-content:center"><button class="pill on" id="letterOk">aww ♥</button></div></div>`;
+  el.style.display = 'flex'; $('letterOk').onclick = () => { el.style.display = 'none'; for (let i = 0; i < 5; i++) setTimeout(() => addHeart(me, 'mine'), i * 100); };
+}
+function openCouple() {
+  if (panel.dataset.k === 'couple') return closePanel();
+  if (decorating) toggleDecorate();
+  panel.dataset.k = 'couple'; panel.classList.remove('side');
+  const G = [['wyr', 'Both pick, see if you match'], ['deep', 'Cards to talk about real stuff'], ['tod', 'Take turns, cute dares'], ['rps', 'First to 3 wins'], ['stare', 'Face each other, first to move loses']];
+  panel.innerHTML = `<h3>💞 Just us</h3><div class="grid">${G.map(([k, d]) => `<button class="tile" data-cg="${k}"><b>${CG_NAME[k]}</b><span>${d}</span></button>`).join('')}</div>
+    <h3 style="margin-top:14px">💗 Couple moves</h3><div class="grid"><button class="tile" data-mv="smooch"><b>💋 Kiss</b><span>walk up close first</span></button><button class="tile" data-mv="slowdance"><b>💃 Slow dance</b><span>pull them in for a sway</span></button><button class="tile" data-mv="hug"><b>🤗 Hug</b><span>a big squeeze</span></button><button class="tile" data-mv="massage"><b>💆 Massage</b><span>shoulders or back rub</span></button></div>
+    <h3 style="margin-top:14px">✉️ Love letter</h3><div class="row" style="margin-top:0"><input id="noteIn" maxlength="220" placeholder="write them something sweet…" style="flex:1;border:0;border-radius:999px;padding:10px 16px;background:#ffffff14;color:var(--ink);font:inherit"><button class="pill on" id="noteSend">Send ✉️</button></div>
+    ${notes.length ? `<div class="row hintrow">📬 letters you got: ${notes.slice(-6).reverse().map((n, i) => `<button class="pill" data-note="${notes.length - 1 - i}">${n.from} · ${new Date(n.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</button>`).join('')}</div>` : ''}`;
+  panel.style.display = 'block';
+  panel.querySelectorAll('[data-cg]').forEach(b => b.onclick = () => startCG(b.dataset.cg));
+  panel.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => doEmote(b.dataset.mv));
+  panel.querySelectorAll('[data-note]').forEach(b => b.onclick = () => showLetter(notes[+b.dataset.note]));
+  $('noteSend').onclick = () => { const text = $('noteIn').value.trim(); if (!text) return; if (!them) { toast('Invite them first ♥'); return; } send({ t: 'note', text, from: me.name }); floatText(me, '✉️ sent!', '#ff9ab8'); closePanel(); };
+}
+$('couple').onclick = openCouple;
+function onFun10(m) {
+  switch (m.t) {
+    case 'cg': beginCG(m.k, m.order, m.first); toast(`${them ? them.name : 'They'} started ${CG_NAME[m.k]}`); return true;
+    case 'cgp': if (cg && m.i === cg.i) { cg.picks.theirs = m.v; cgReveal(); renderCG(); } return true;
+    case 'cgt': if (cg && m.i === cg.i) { cg.picks.choice = m.c; renderCG(); } return true;
+    case 'cgn': cgNext(m.i); return true;
+    case 'cgx': if (cg) toast(`${them ? them.name : 'They'} closed the game`); cgClose(); return true;
+    case 'stare': if (cg && cg.k === 'stare' && !cg.done) stareEnd(true); return true;
+    case 'note': { const n = { text: String(m.text || '').slice(0, 220), from: String(m.from || 'them').slice(0, 14), at: Date.now() }; notes.push(n); try { localStorage.setItem('ols-notes', JSON.stringify(notes.slice(-40))); } catch {} if (them) floatText(them, '✉️', '#ff9ab8'); setTimeout(() => showLetter(n), 700); return true; }
+  }
+  return false;
+}
+
+// ---------- intro: quick picks next to your little you ----------
+function renderQuick() {
+  const L = myLook, el = $('qPicks'); if (!el) return;
+  el.innerHTML = `<div class="opts">${BODIES.map(([k, n]) => `<button class="pill${L.body === k ? ' on' : ''}" data-qb="${k}">${n}</button>`).join('')}</div>
+    <div class="opts">${SPECIES.map(([k, e]) => `<button class="tile emo${L.sp === k ? ' sel' : ''}" data-qs="${k}">${e}</button>`).join('')}</div>
+    <div class="opts">${BODYCOLS.map(c => `<button class="sw${L.col === c ? ' on' : ''}" data-qc="${c}" style="background:${c}"></button>`).join('')}</div>`;
+  const set = (k, v) => { myLook = { ...myLook, [k]: v }; if (k === 'body' && v === 'doll' && (myLook.hair || 'none') === 'none') myLook.hair = 'buns'; try { localStorage.setItem('ols-char', JSON.stringify(myLook)); } catch {} pvSet(myLook); renderQuick(); };
+  el.querySelectorAll('[data-qb]').forEach(b => b.onclick = () => set('body', b.dataset.qb));
+  el.querySelectorAll('[data-qs]').forEach(b => b.onclick = () => set('sp', b.dataset.qs));
+  el.querySelectorAll('[data-qc]').forEach(b => b.onclick = () => set('col', b.dataset.qc));
+}
+for (let i = 0; i < 26; i++) { const sp = document.createElement('i'); sp.className = 'spark'; const z = 2 + Math.random() * 4; Object.assign(sp.style, { left: Math.random() * 100 + '%', top: 40 + Math.random() * 60 + '%', width: z + 'px', height: z + 'px', animationDuration: 4 + Math.random() * 6 + 's', animationDelay: -Math.random() * 8 + 's', background: ['#ffcf6b', '#ff9ab8', '#cdb8ff'][i % 3] }); $('start').appendChild(sp); }
+
 // ---------- start ----------
 if (ROOM) { $('sub').textContent = 'You were invited ♥ pick your little you.'; $('go').textContent = 'Join'; }
 $('go').onclick = () => {
+  if ($('go').disabled) return; $('go').disabled = true;
   me.name = ($('name').value.trim() || (ROOM ? 'you' : 'me')).slice(0, 14); me.look = myLook;
   try { localStorage.setItem('ols-name', me.name); localStorage.setItem('ols-char', JSON.stringify(myLook)); } catch {}
-  $('start').remove(); $('loading').remove(); resize();
-  meMesh = makeChar(me.look, me.name); scene.add(meMesh);
-  setPlace(PLACES[0].id, false); connect(); loop();
+  pv.v = 9; pv.p.emote = null; // a happy little spin, then in you go
+  setTimeout(() => $('start').classList.add('leaving'), 380);
+  setTimeout(() => {
+    $('start').remove(); $('loading').remove(); resize();
+    meMesh = makeChar(me.look, me.name); scene.add(meMesh);
+    setPlace(PLACES[0].id, false); connect(); loop();
+    startSwoop(true); me.emote = { k: 'wave', t0: 0 }; setTimeout(() => emoteFx(me, 'wave'), 1300); showTitle(place.name);
+  }, 980);
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: v => hanging = v, doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: v => hanging = v, doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
