@@ -195,6 +195,8 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const ROOM = params.get('room');
+const OWN = (() => { try { return sessionStorage.getItem('ols-own-room'); } catch { return null; } })(); // the room this tab created (survives a reload)
+const INVITED = !!ROOM && ROOM !== OWN;
 const HOUR_OVERRIDE = params.has('hour') ? parseFloat(params.get('hour')) : null;
 const PI = Math.PI;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => t.style.opacity = 0, 2400); }
@@ -1202,13 +1204,13 @@ function animChar(c, p, t) {
 
 // ---------- state ----------
 let myLook = null;
-try { myLook = JSON.parse(localStorage.getItem('ols-char') || 'null') || normLook(localStorage.getItem('ols-look') || (ROOM ? 'bear' : 'sprout')); } catch { myLook = normLook(ROOM ? 'bear' : 'sprout'); }
+try { myLook = JSON.parse(localStorage.getItem('ols-char') || 'null') || normLook(localStorage.getItem('ols-look') || (INVITED ? 'bear' : 'sprout')); } catch { myLook = normLook(INVITED ? 'bear' : 'sprout'); }
 try { $('name').value = localStorage.getItem('ols-name') || ''; } catch {}
 
 const me = { name: '', look: myLook, x: 0, z: 3, ry: PI, jy: 0, vy: 0, tx: 0, tz: 3, seat: -1, want: -1, walking: false, share: false };
 let them = null, meMesh = null, themMesh = null;
 let place = null; const built = {};
-let isHost = !ROOM;
+let isHost = !INVITED;
 
 function getPlace(id) { const def = PLACES.find(p => p.id === id) || PLACES[0]; if (!built[def.id]) built[def.id] = Object.assign(def.build(), { id: def.id, name: def.name, outdoor: ['rooftop', 'beach', 'camping', 'drivein'].includes(def.id) }); return built[def.id]; }
 function setPlace(id, broadcast = true) {
@@ -1220,7 +1222,7 @@ function setPlace(id, broadcast = true) {
   document.querySelectorAll('#places .pill').forEach(b => b.classList.toggle('on', b.dataset.id === place.id));
   const [mine, theirs] = isHost ? place.spawn : [place.spawn[1], place.spawn[0]];
   Object.assign(me, { x: mine[0], z: mine[1], tx: mine[0], tz: mine[1], seat: -1, want: -1, ry: PI });
-  if (them) Object.assign(them, { x: theirs[0], z: theirs[1], rx: theirs[0], rz: theirs[1], seat: -1 });
+  if (them) Object.assign(them, { x: theirs[0], z: theirs[1], rx: theirs[0], rz: theirs[1], seat: -1, away: true, rt: 0 }); // hidden until they arrive here too
   cam.yaw = 0; cam.pitch = .22; cam.fp = 0; snapCam = true; me.jy = 0; me.vy = 0;
   onPlaceChanged();
   if (broadcast) send({ t: 'place', id: place.id });
@@ -1494,6 +1496,9 @@ $('pop').onclick = throwPop;
 
 // little games: tag, hide & seek, star race
 let game = null;
+let lastStart = 0, lastStartMsg = null; // starting a game/quiz/couple game: if both start at once, the host's wins
+function startSend(m) { lastStart = performance.now(); lastStartMsg = m; send(m); }
+function startClash() { if (!isHost || performance.now() - lastStart > 1500 || !(game || quiz || cg)) return false; if (lastStartMsg) send(lastStartMsg); return true; }
 const hud = $('hud'), blind = $('blind');
 const itRing = new THREE.Mesh(new THREE.TorusGeometry(.17, .03, 8, 32), GLOW('#ff5a3d', 3)); itRing.rotation.x = PI / 2;
 const starGeo = new THREE.OctahedronGeometry(1, 0);
@@ -1512,7 +1517,7 @@ function newGame(mode) {
     for (let i = 0; i < 12; i++) pts.push([+(b[0] + .4 + Math.random() * (b[1] - b[0] - .8)).toFixed(2), +(b[2] + .4 + Math.random() * (b[3] - b[2] - .8)).toFixed(2)]);
     g = { mode, pts, dur: 45 };
   }
-  send({ t: 'game', g }); beginGame(g);
+  startSend({ t: 'game', g }); beginGame(g);
 }
 function beginGame(g) {
   endGame(true);
@@ -1659,7 +1664,17 @@ function rebuildDeco(id) {
   (pl.wallMats || []).forEach(mt => { mt.userData.base ||= '#' + mt.color.getHexString(); mt.color.set(st.wall || mt.userData.base); });
 }
 function applyMood() { const st = decoOf(place.id); moodLight.intensity = st.mood ? 10 : 0; if (st.mood) moodLight.color.set(st.mood); }
-function decoChanged(id = place.id) { saveDeco(); send({ t: 'deco', id, d: decoOf(id) }); rebuildDeco(id); applyMood(); }
+// edits go out as small ops, not whole snapshots, so two people decorating at once don't wipe each other's changes
+function decoChanged(op, id = place.id) { saveDeco(); send({ t: 'decoOp', id, op }); rebuildDeco(id); applyMood(); }
+const decoUid = it => it.u ||= it.k + '@' + it.x + ',' + it.z; // older saved items have no uid: derive the same one on both sides
+function applyDecoOp(id, o) {
+  const st = decoOf(id), cell = b => b.slice(0, 3).join(); st.blocks ||= [];
+  if (o.op === 'wall') st.wall = o.v; else if (o.op === 'mood') st.mood = o.v; else if (o.op === 'clear') st.items = []; else if (o.op === 'clearB') st.blocks = [];
+  else if (o.op === 'add' && o.it) { if (!st.items.some(it => decoUid(it) === o.it.u)) st.items.push(o.it); }
+  else if (o.op === 'del') { const i = st.items.findIndex(it => decoUid(it) === o.u); if (i >= 0) st.items.splice(i, 1); }
+  else if (o.op === 'bAdd' && o.b) { if (!st.blocks.some(b => cell(b) === cell(o.b))) st.blocks.push(o.b); }
+  else if (o.op === 'bDel' && o.b) { const i = st.blocks.findIndex(b => cell(b) === cell(o.b)); if (i >= 0) st.blocks.splice(i, 1); }
+}
 
 let decorating = false, held = null, lastPtr = null;
 const panel = $('panel');
@@ -1685,11 +1700,11 @@ function renderDecoPanel() {
   panel.style.display = 'block';
   panel.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { pickCatalog(b.dataset.k); renderDecoPanel(); });
   panel.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => { decoCat = b.dataset.cat; renderDecoPanel(); });
-  panel.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { st.wall = b.dataset.w; decoChanged(); renderDecoPanel(); });
-  panel.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { st.mood = b.dataset.m; decoChanged(); renderDecoPanel(); });
+  panel.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { st.wall = b.dataset.w; decoChanged({ op: 'wall', v: st.wall }); renderDecoPanel(); });
+  panel.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { st.mood = b.dataset.m; decoChanged({ op: 'mood', v: st.mood }); renderDecoPanel(); });
   panel.querySelector('[data-rot]').onclick = () => { if (held) held.r += PI / 4; };
   panel.querySelector('[data-del]').onclick = dropHeld;
-  panel.querySelector('[data-clear]').onclick = () => { if (confirm('Remove everything you placed here?')) { st.items = []; decoChanged(); } };
+  panel.querySelector('[data-clear]').onclick = () => { if (confirm('Remove everything you placed here?')) { st.items = []; decoChanged({ op: 'clear' }); } };
   panel.querySelector('[data-done]').onclick = toggleDecorate;
 }
 function floorAt(cx, cy) {
@@ -1699,12 +1714,12 @@ function floorAt(cx, cy) {
 }
 function decoClick(e) {
   const st = decoOf(place.id);
-  if (held) { const f = floorAt(e.clientX, e.clientY); if (!f) return; st.items.push({ k: held.k, x: +f[0].toFixed(2), z: +f[1].toFixed(2), r: +held.r.toFixed(2) }); dropHeld(); decoChanged(); return; }
+  if (held) { const f = floorAt(e.clientX, e.clientY); if (!f) return; const it = { k: held.k, x: +f[0].toFixed(2), z: +f[1].toFixed(2), r: +held.r.toFixed(2), u: Math.random().toString(36).slice(2, 10) }; st.items.push(it); dropHeld(); decoChanged({ op: 'add', it }); return; }
   if (!place.deco) return;
   const hit = ray.intersectObject(place.deco, true)[0]; if (!hit) return;
   let o = hit.object; while (o && o.userData.decoIndex === undefined) o = o.parent;
   if (!o) return;
-  const [it] = st.items.splice(o.userData.decoIndex, 1); decoChanged();
+  const [it] = st.items.splice(o.userData.decoIndex, 1); decoChanged({ op: 'del', u: decoUid(it) });
   held = { k: it.k, r: it.r || 0, mesh: DECO_BUILD[it.k]() }; scene.add(held.mesh);
 }
 cv.addEventListener('pointermove', e => lastPtr = [e.clientX, e.clientY]);
@@ -2321,7 +2336,7 @@ let quiz = null;
 function startQuiz() {
   if (!them) { toast('Invite them first ♥ this one needs two'); return; }
   const idx = QUIZ.map((_, i) => i).sort(() => Math.random() - .5).slice(0, 7);
-  send({ t: 'quiz', qs: idx }); beginQuiz(idx);
+  startSend({ t: 'quiz', qs: idx }); beginQuiz(idx);
 }
 function beginQuiz(qs) { endGame(true); quiz = { qs, i: 0, ans: [], score: 0 }; renderQuiz(); }
 function renderQuiz() {
@@ -2382,7 +2397,7 @@ function onFun3(m) {
     case 'fw': launchFireworks(m.seed); return true;
     case 'ink': inkLine(m.pts, m.c, m.w); return true;
     case 'inkClear': paintPlaceholder(); return true;
-    case 'quiz': beginQuiz(m.qs); return true;
+    case 'quiz': if (startClash()) return true; beginQuiz(m.qs); return true;
     case 'qa': if (quiz) { (quiz.ans[m.i] ||= {}).theirs = m.pick; if (m.i === quiz.i) { checkQuiz(); renderQuiz(); } } return true;
   }
   return false;
@@ -2585,15 +2600,16 @@ function blockAction(cx, cy, tool) {
   const tg = buildTarget(cx, cy, tool); if (!tg) return;
   const st = decoOf(place.id); st.blocks ||= [];
   const same = b => b[0] === tg.cell[0] && b[1] === tg.cell[1] && b[2] === tg.cell[2];
-  if (tool === 'break') { const i = st.blocks.findIndex(same); if (i < 0) return; bHistory.push(['del', st.blocks[i]]); st.blocks.splice(i, 1); }
-  else { if (!cellOk(tg.cell) || st.blocks.some(same)) return; const b = [...tg.cell, bKind]; st.blocks.push(b); bHistory.push(['add', b]); }
-  decoChanged();
+  let op;
+  if (tool === 'break') { const i = st.blocks.findIndex(same); if (i < 0) return; bHistory.push(['del', st.blocks[i]]); op = { op: 'bDel', b: st.blocks[i] }; st.blocks.splice(i, 1); }
+  else { if (!cellOk(tg.cell) || st.blocks.some(same)) return; const b = [...tg.cell, bKind]; st.blocks.push(b); bHistory.push(['add', b]); op = { op: 'bAdd', b }; }
+  decoChanged(op);
 }
 function undoBlock() {
   const h = bHistory.pop(); if (!h) return; const st = decoOf(place.id); st.blocks ||= [];
   if (h[0] === 'add') { const i = st.blocks.indexOf(h[1]); if (i >= 0) st.blocks.splice(i, 1); else { const j = st.blocks.findIndex(b => b.join() === h[1].join()); if (j >= 0) st.blocks.splice(j, 1); } }
-  else st.blocks.push(h[1]);
-  decoChanged();
+  else if (!st.blocks.some(b => b.slice(0, 3).join() === h[1].slice(0, 3).join())) st.blocks.push(h[1]);
+  decoChanged({ op: h[0] === 'add' ? 'bDel' : 'bAdd', b: h[1] });
 }
 cv.addEventListener('pointerdown', e => { if (building && (!bDown || bDown[3] === e.pointerId)) bDown = [e.clientX, e.clientY, e.button, e.pointerId]; }, { capture: true });
 cv.addEventListener('pointerup', e => {
@@ -2620,7 +2636,7 @@ function renderBuildPanel() {
   panel.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { bKind = b.dataset.b; bTool = 'place'; renderBuildPanel(); });
   panel.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { bTool = b.dataset.t; renderBuildPanel(); });
   panel.querySelector('[data-undo]').onclick = undoBlock;
-  panel.querySelector('[data-clear]').onclick = () => { if (confirm('Remove every block in this place?')) { decoOf(place.id).blocks = []; bHistory.length = 0; decoChanged(); } };
+  panel.querySelector('[data-clear]').onclick = () => { if (confirm('Remove every block in this place?')) { decoOf(place.id).blocks = []; bHistory.length = 0; decoChanged({ op: 'clearB' }); } };
   panel.querySelector('[data-done]').onclick = toggleBuild;
 }
 
@@ -2960,11 +2976,12 @@ function onFun(m) {
     case 'pic': if (!(picsState.places[m.id] ||= []).some(x => x.id === m.q.id)) { picsState.places[m.id].push(m.q); picsChanged(m.id); toast(`📌 ${them ? them.name : 'They'} stuck a photo up`); } return true;
     case 'picDel': dropPic(m.id, m.pid); return true;
     case 'decoAll': decoState = m.all || {}; saveDeco(); for (const id in built) rebuildDeco(id); applyMood(); if (decorating) renderDecoPanel(); return true;
+    case 'decoOp': if (!m.id || !m.op) return true; applyDecoOp(m.id, m.op); saveDeco(); rebuildDeco(m.id); applyMood(); if (decorating && m.id === place.id) renderDecoPanel(); return true;
     case 'deco': decoState[m.id] = m.d; saveDeco(); rebuildDeco(m.id); applyMood(); if (decorating && m.id === place.id) renderDecoPanel(); return true;
     case 'pop': spawnPop(new THREE.Vector3(...m.p), new THREE.Vector3(...m.v), 'theirs'); return true;
     case 'booped': boops++; if (them) { floatText(them, boops > 1 ? `boop! ×${boops}` : 'boop!', '#ff7a59'); them.squish = 1; } return true;
     case 'nom': if (them) floatText(them, 'nom! 🍿', '#ffcf6b'); return true;
-    case 'game': beginGame(m.g); return true;
+    case 'game': if (startClash()) return true; beginGame(m.g); return true;
     case 'gameEnd': endGame(true); toast('Game stopped'); return true;
     case 'tag': if (game && (game.mode === 'tag' || game.mode === 'potato')) { game.it = myRole(); game.cool = clock.elapsedTime - game.t0 + 1.5; floatText(me, "tag! you're it", '#ff7a59'); } return true;
     case 'found': if (game && game.mode === 'hide') endGame(false, `🙈 ${them ? them.name : 'They'} found you!`); return true;
@@ -3005,17 +3022,17 @@ function loop() {
   const raw = clock.getDelta(), dt = Math.min(.05, raw), t = clock.elapsedTime; watchFps();
   step(dt);
   placeChar(meMesh, me); animChar(meMesh, me, t);
-  if (them) { if (!themMesh || themMesh.userData.look !== them.look || themMesh.userData.name !== them.name) { if (themMesh) scene.remove(themMesh); themMesh = makeChar(them.look, them.name); scene.add(themMesh); } placeChar(themMesh, them); animChar(themMesh, them, t); }
+  if (them) { if (!themMesh || themMesh.userData.look !== them.look || themMesh.userData.name !== them.name) { if (themMesh) scene.remove(themMesh); themMesh = makeChar(them.look, them.name); scene.add(themMesh); } placeChar(themMesh, them); animChar(themMesh, them, t); themMesh.visible = !them.away; }
   else if (themMesh) { scene.remove(themMesh); themMesh = null; }
   hemi.intensity = hemiBase; place.tick(t, dt); if (key.castShadow) { hemi.intensity *= .5; for (const l of placeSuns) l.intensity *= .45; } fitScreen(place.scr); funTick(dt, t);
   solveLegs(meMesh, me); if (them && themMesh) solveLegs(themMesh, them);
-  const close = them && me.seat >= 0 && them.seat >= 0 && Math.abs(me.seat - them.seat) === 1;
+  const close = them && !them.away && me.seat >= 0 && them.seat >= 0 && Math.abs(me.seat - them.seat) === 1;
   cuddle.visible = !!close; if (close) { cuddle.position.copy(headOf(me)).lerp(headOf(them), .5).add(new THREE.Vector3(0, .45 + Math.sin(t * 2) * .05, 0)); }
   for (let i = hearts.length - 1; i >= 0; i--) { const h = hearts[i], a = (t - h.t0) / 2.2; if (a > 1) { scene.remove(h.s); hearts.splice(i, 1); continue; } h.s.position.y += dt * .5; h.s.position.x += Math.sin(a * 9 + h.p) * .004; h.s.material.opacity = 1 - a; }
   tickSwoop(t); tick11(dt, t); stepCam(dt); highCam(t); followKey(); if (frameN % 20 === 0) shadowize();
   if ((frameN = (frameN || 0) + 1) % 3 === 0) grain.uniforms.t.value = (grain.uniforms.t.value + 1.7) % 100; composer.render();
   if (snapNext) { snapNext = false; grabPhoto(); }
-  if (t - lastSent > .05) { lastSent = t; send({ t: 'me', x: +me.x.toFixed(3), z: +me.z.toFixed(3), ry: +me.ry.toFixed(3), seat: me.seat, w: me.walking, j: +me.jy.toFixed(3), a: me.vy !== 0 ? 1 : 0, ps: me.pose || '', fl: me.flipT ? 1 : 0, hy: +(me.lookY || 0).toFixed(2), hp: +(me.lookP || 0).toFixed(2) }); }
+  if (t - lastSent > .05) { lastSent = t; send({ t: 'me', pl: place.id, x: +me.x.toFixed(3), z: +me.z.toFixed(3), ry: +me.ry.toFixed(3), seat: me.seat, w: me.walking, j: +me.jy.toFixed(3), a: me.vy !== 0 ? 1 : 0, ps: me.pose || '', fl: me.flipT ? 1 : 0, hy: +(me.lookY || 0).toFixed(2), hp: +(me.lookP || 0).toFixed(2) }); }
   requestAnimationFrame(loop);
 }
 
@@ -3024,7 +3041,7 @@ let peer, conn, call, myStream, myRoom = '';
 function send(m) { if (conn && conn.open) conn.send(m); }
 function setStatus(s) { $('status').textContent = s; }
 function onData(m) {
-  if (onFun(m)) return;
+  if (!(m.t === 'hello' && m.reply) && onFun(m)) return; // each side gets two hellos; run the extras once
   if (m.t === 'hello') {
     const sp = isHost ? place.spawn[1] : place.spawn[0];
     them = them || { x: sp[0], z: sp[1], rx: sp[0], rz: sp[1], ry: PI, rry: PI, jy: 0, seat: -1, share: false };
@@ -3034,8 +3051,8 @@ function onData(m) {
     send({ t: 'hello', name: me.name, look: me.look, reply: true });
     if (isHost) send({ t: 'place', id: place.id });
     if (myStream) { startCall(); send({ t: 'share', on: true }); }
-  } else if (m.t === 'me' && them) { const now = clock.elapsedTime, gap = Math.max(.03, Math.min(.3, now - (them.rt || now - .05))); them.rvx = (m.x - (them.rx ?? m.x)) / gap; them.rvz = (m.z - (them.rz ?? m.z)) / gap; if (Math.hypot(them.rvx, them.rvz) > 9) them.rvx = them.rvz = 0; them.rt = now; them.rx = m.x; them.rz = m.z; them.rry = m.ry; them.seat = m.seat; if (!isHost && m.seat >= 0 && me.seat === m.seat) { leaveSeat(); me.want = -1; toast('Oops, that seat is taken'); } them.walking = m.w; them.rjy = m.j || 0; them.lookY = m.hy; them.lookP = m.hp; them.air = !!m.a; them.pose = m.ps === 'ko' ? '' : m.ps || ''; if (m.fl && !them.flipT) them.flipT = clock.elapsedTime; if (!m.fl) them.flipT = 0; }
-  else if (m.t === 'place') { if (m.id !== place.id) goPlace(m.id, false, them ? them.name : 'They'); }
+  } else if (m.t === 'me' && them) { if (m.pl && m.pl !== place.id) { them.away = true; return; } if (them.away) { them.away = false; them.x = them.rx = m.x; them.z = them.rz = m.z; them.rt = 0; } const now = clock.elapsedTime, gap = Math.max(.03, Math.min(.3, now - (them.rt || now - .05))); them.rvx = (m.x - (them.rx ?? m.x)) / gap; them.rvz = (m.z - (them.rz ?? m.z)) / gap; if (Math.hypot(them.rvx, them.rvz) > 9) them.rvx = them.rvz = 0; them.rt = now; them.rx = m.x; them.rz = m.z; them.rry = m.ry; them.seat = m.seat; if (!isHost && m.seat >= 0 && me.seat === m.seat) { leaveSeat(); me.want = -1; toast('Oops, that seat is taken'); } them.walking = m.w; them.rjy = m.j || 0; them.lookY = m.hy; them.lookP = m.hp; them.air = !!m.a; them.pose = m.ps === 'ko' ? '' : m.ps || ''; if (m.fl && !them.flipT) them.flipT = clock.elapsedTime; if (!m.fl) them.flipT = 0; }
+  else if (m.t === 'place') { if (m.id !== (travelling ? travelTo : place.id)) goPlace(m.id, isHost, them ? them.name : 'They'); } // the host echoes where it ends up, the guest just follows
   else if (m.t === 'heart' && them) addHeart(them, 'theirs');
   else if (m.t === 'share' && them) {
     them.share = m.on;
@@ -3043,26 +3060,52 @@ function onData(m) {
     if (!m.on && !myStream) showStream(null);
   }
 }
+// the partner left: clear everything that belonged to them or needs two
+function partnerGone() {
+  if (them && them.petObj) { dropBall(them.petObj); scene.remove(them.petObj.mesh); them.petObj = null; }
+  if (game && game.mode !== 'stars' && game.mode !== 'lava') { endGame(true); toast('💔 They left, game ended'); }
+  if (cg) cgClose();
+  if (quiz) { quiz = null; if (panel.dataset.k === 'quiz') closePanel(); }
+  hand = null; pendingHat = ''; pendingPet = ''; pendingPetName = '';
+  them = null; conn = null; if (!myStream) showStream(null);
+}
+let joined = false, rejoinTries = 0, reclaim = isHost && !!ROOM, hostTries = 0;
+function rejoin() { // guest: keep knocking for a while (the host may be reloading)
+  if (isHost || conn) return;
+  if (++rejoinTries > (joined ? 12 : 4)) { setStatus(joined ? '💔 disconnected, refresh to rejoin' : '🫥 room not found, ask for a new link'); return; }
+  setStatus(joined ? 'reconnecting…' : 'connecting…');
+  setTimeout(() => { if (!conn && peer && !peer.destroyed) wire(peer.connect(ROOM, { reliable: true })); }, 2500);
+}
 function wire(c) {
   conn = c;
   c.on('open', () => send({ t: 'hello', name: me.name, look: me.look }));
-  c.on('data', onData);
-  c.on('close', () => { them = null; conn = null; setStatus(isHost ? '💌 waiting… send the invite link' : '💔 disconnected, refresh to rejoin'); if (!myStream) showStream(null); });
+  c.on('data', m => { c.rx = performance.now(); if (m && m.t === 'hello') { joined = true; rejoinTries = 0; } onData(m); });
+  c.on('close', () => { if (conn !== c) return; partnerGone(); setStatus(isHost ? '💌 waiting… send the invite link' : 'reconnecting…'); rejoin(); }); // a replaced connection closing late must not end the live one
 }
 function connect() {
-  const id = isHost ? 'ols-' + Math.random().toString(36).slice(2, 8) : undefined;
-  peer = new Peer(id, { debug: 1 });
-  peer.on('open', pid => {
-    if (isHost) { myRoom = pid; history.replaceState(null, '', '?room=' + pid + (HOUR_OVERRIDE !== null ? '&hour=' + HOUR_OVERRIDE : '')); setStatus('💌 waiting… send the invite link'); }
-    else { myRoom = ROOM; setStatus('connecting…'); wire(peer.connect(ROOM, { reliable: true })); }
+  const id = isHost ? (reclaim ? ROOM : 'ols-' + Math.random().toString(36).slice(2, 8)) : undefined;
+  const p = peer = new Peer(id, { debug: 1 });
+  p.on('open', pid => {
+    if (isHost) { myRoom = pid; hostTries = 0; try { sessionStorage.setItem('ols-own-room', pid); } catch {} history.replaceState(null, '', '?room=' + pid + (HOUR_OVERRIDE !== null ? '&hour=' + HOUR_OVERRIDE : '')); setStatus('💌 waiting… send the invite link'); }
+    else { myRoom = ROOM; setStatus('connecting…'); wire(p.connect(ROOM, { reliable: true })); }
   });
-  peer.on('connection', c => { if (conn && conn.open) { c.close(); return; } wire(c); });
-  peer.on('call', c => {
+  // a returning partner replaces a connection that has gone quiet instead of being turned away
+  p.on('connection', c => { if (conn && conn.open && performance.now() - (conn.rx || 0) < 4000) { c.close(); return; } if (conn) { const old = conn; partnerGone(); old.close(); } wire(c); });
+  p.on('call', c => {
     if (c.metadata && c.metadata.kind === 'cam') { c.answer(); c.on('stream', st => { if (them) faceFor(them, st, false); }); return; }
     if (c.metadata && c.metadata.kind === 'voice') { c.answer(); c.on('stream', st => { voiceAudio.srcObject = st; listenTalk('them', st); voiceAudio.play().catch(() => toast('Click anywhere to hear them')); }); return; }
     call = c; c.answer(); c.on('stream', s => { if (!myStream) showStream(s); }); });
-  peer.on('error', e => setStatus(e.type === 'peer-unavailable' ? '🫥 room not found, ask for a new link' : '⚠️ ' + e.type));
-  peer.on('disconnected', () => peer.reconnect());
+  p.on('error', e => {
+    if (p.gone) return;
+    if (isHost && reclaim && e.type === 'unavailable-id') { // after a reload the server may still hold our old id for a moment
+      p.gone = true; p.destroy();
+      if (++hostTries > 8) { reclaim = false; try { sessionStorage.removeItem('ols-own-room'); } catch {} }
+      setStatus('reopening your room…'); setTimeout(connect, 1500); return;
+    }
+    if (!isHost && e.type === 'peer-unavailable' && !(conn && conn.open)) { if (conn) { const c = conn; conn = null; c.close(); } rejoin(); return; }
+    setStatus('⚠️ ' + e.type);
+  });
+  p.on('disconnected', () => setTimeout(() => { if (!p.gone && !p.destroyed && p.disconnected) p.reconnect(); }, 500));
 }
 $('invite').onclick = async () => {
   const link = location.origin + location.pathname + '?room=' + myRoom;
@@ -3336,12 +3379,12 @@ function tick11(dt, t) {
 }
 function onFun11(m) {
   switch (m.t) {
-    case 'hello': send({ t: 'love', s: love }); if (radio) send({ t: 'radio', st: radio.st }); return false;
+    case 'hello': send({ t: 'love', s: love }); if (radio && isHost) send({ t: 'radio', st: radio.st }); return false;
     case 'love': { const o = m.s || {}; love.xp = Math.max(love.xp, o.xp || 0); love.ach = { ...(o.ach || {}), ...love.ach }; for (const k of ['days', 'places']) love[k] = [...new Set([...(love[k] || []), ...(o[k] || [])])];
       love.matches = Math.max(love.matches || 0, o.matches || 0); love.watchMin = Math.max(love.watchMin || 0, o.watchMin || 0); saveLove(); checkLevel(); return true; }
     case 'lovexp': loveAdd(m.n, true); return true;
     case 'ach': achieve(m.id, true); return true;
-    case 'radio': if (m.st) { radioOn(m.st, false); toast(`📻 ${them ? them.name : 'They'} put on ${STATIONS[m.st].name}`); } else radioOff(false); return true;
+    case 'radio': if (m.st && radio && radio.st === m.st) return true; if (m.st) { radioOn(m.st, false); toast(`📻 ${them ? them.name : 'They'} put on ${STATIONS[m.st].name}`); } else radioOff(false); return true;
     case 'roast': if (!them) return true; if (m.on) them.roast = { t0: clock.elapsedTime }; else { them.roast = null; if (m.res) smoreFx(them, m.res); } return true;
     case 'sstar': shootStar(m.s); return true;
     case 'wished': if (them) floatText(them, '🌠 made a wish', '#ffcf6b'); return true;
@@ -3351,16 +3394,16 @@ function onFun11(m) {
 setTimeout(lovePill);
 
 // ---------- travelling between places: fade, title card, camera swoop ----------
-let travelling = false, swoop = null;
+let travelling = false, swoop = null, travelTo = null, pendingPlace = null;
 const PLACE_TAG = { apartment: 'our cozy apartment · reading nook · kitchen', penthouse: 'city lights · balcony · two bedrooms', cinema: 'the big screen · popcorn · arcade lobby', rooftop: 'sunset deck · hot tub · fire table',
   cabin: 'fireplace · snow outside · warm blankets', beach: 'bonfire · tiki bar · waves', camping: 'all the stars · campfire · a little pond', drivein: 'old cars · snacks · a giant screen' };
 function goPlace(id, broadcast = true, who) {
+  if (travelling) { pendingPlace = id === travelTo ? null : [id, broadcast, who]; return; } // only the latest target counts
   if (place && place.id === id) return;
-  if (travelling) { setTimeout(() => goPlace(id, broadcast, who), 500); return; }
-  travelling = true; closePanel(); sfx('whoosh'); const P = PLACES.find(q => q.id === id) || PLACES[0];
+  travelling = true; travelTo = id; closePanel(); sfx('whoosh'); const P = PLACES.find(q => q.id === id) || PLACES[0];
   $('fadeTitle').textContent = P.name; $('fadeSub').textContent = who ? `${who} took you here ♥` : (PLACE_TAG[id] || '');
   $('fade').classList.add('on');
-  setTimeout(() => { setPlace(id, broadcast); startSwoop(); setTimeout(() => { $('fade').classList.remove('on'); travelling = false; }, 380); }, 520);
+  setTimeout(() => { setPlace(id, broadcast); startSwoop(); setTimeout(() => { $('fade').classList.remove('on'); travelling = false; travelTo = null; const q = pendingPlace; pendingPlace = null; if (q) goPlace(...q); }, 380); }, 520);
 }
 function startSwoop(big) { swoop = { t0: clock.elapsedTime, e: 0, dur: big ? 2.6 : 1.6, big }; }
 function tickSwoop(t) {
@@ -3424,7 +3467,7 @@ const cgDeck = k => ({ wyr: WYR, deep: DEEP, tod: TRUTH, rps: [0], stare: [0] }[
 function startCG(k) {
   if (!them) { toast('Invite them first ♥ this one needs two'); return; }
   const n = cgDeck(k).length, order = [...Array(Math.max(n, 30)).keys()].map(i => i % n).sort(() => Math.random() - .5);
-  send({ t: 'cg', k, order, first: myRole() }); beginCG(k, order, myRole());
+  startSend({ t: 'cg', k, order, first: myRole() }); beginCG(k, order, myRole());
 }
 function beginCG(k, order, first) { endGame(true); cg = { k, order, i: 0, picks: {}, score: { me: 0, them: 0 }, first }; closePanel(); renderCG(); if (k === 'stare') stareStart(); }
 function cgTurn() { const other = cg.first === 'host' ? 'guest' : 'host'; return cg.i % 2 ? other : cg.first; }
@@ -3453,7 +3496,7 @@ function renderCG() {
   el.innerHTML = `<div class="ttl"><span>${CG_NAME[k]}</span><button class="x" data-x>✕</button></div>${body}`; el.style.display = 'block';
   el.querySelectorAll('[data-p]').forEach(b => b.onclick = () => cgPick(+b.dataset.p));
   el.querySelectorAll('[data-tod]').forEach(b => b.onclick = () => { cg.picks.choice = b.dataset.tod; send({ t: 'cgt', i: cg.i, c: b.dataset.tod }); renderCG(); });
-  el.querySelectorAll('[data-next]').forEach(b => b.onclick = () => { cgNext(); send({ t: 'cgn', i: cg.i }); });
+  el.querySelectorAll('[data-next]').forEach(b => b.onclick = () => { const from = cg.i; cgNext(); send({ t: 'cgn', from, i: cg.i }); });
   el.querySelectorAll('[data-again]').forEach(b => b.onclick = () => startCG('stare'));
   el.querySelector('[data-x]').onclick = () => { send({ t: 'cgx' }); cgClose(); };
 }
@@ -3511,10 +3554,10 @@ function openCouple() {
 $('couple').onclick = openCouple;
 function onFun10(m) {
   switch (m.t) {
-    case 'cg': beginCG(m.k, m.order, m.first); toast(`${them ? them.name : 'They'} started ${CG_NAME[m.k]}`); return true;
-    case 'cgp': if (cg && m.i === cg.i) { cg.picks.theirs = m.v; cgReveal(); renderCG(); } return true;
-    case 'cgt': if (cg && m.i === cg.i) { cg.picks.choice = m.c; renderCG(); } return true;
-    case 'cgn': cgNext(m.i); return true;
+    case 'cg': if (startClash()) return true; beginCG(m.k, m.order, m.first); toast(`${them ? them.name : 'They'} started ${CG_NAME[m.k]}`); return true;
+    case 'cgp': if (cg && m.i === cg.i && cg.picks.theirs === undefined) { cg.picks.theirs = m.v; cgReveal(); renderCG(); } return true;
+    case 'cgt': if (cg && m.i === cg.i && !cg.picks.choice) { cg.picks.choice = m.c; renderCG(); } return true;
+    case 'cgn': if (cg && (m.from === undefined || m.from === cg.i)) cgNext(m.i); return true; // both pressed Next: drop the late one
     case 'cgx': if (cg) toast(`${them ? them.name : 'They'} closed the game`); cgClose(); return true;
     case 'stare': if (cg && cg.k === 'stare' && !cg.done) stareEnd(true); return true;
     case 'note': { const n = { text: String(m.text || '').slice(0, 220), from: String(m.from || 'them').slice(0, 14), at: Date.now() }; notes.push(n); try { localStorage.setItem('ols-notes', JSON.stringify(notes.slice(-40))); } catch {} if (them) floatText(them, '✉️', '#ff9ab8'); setTimeout(() => showLetter(n), 700); return true; }
@@ -3536,10 +3579,10 @@ function renderQuick() {
 for (let i = 0; i < 26; i++) { const sp = document.createElement('i'); sp.className = 'spark'; const z = 2 + Math.random() * 4; Object.assign(sp.style, { left: Math.random() * 100 + '%', top: 40 + Math.random() * 60 + '%', width: z + 'px', height: z + 'px', animationDuration: 4 + Math.random() * 6 + 's', animationDelay: -Math.random() * 8 + 's', background: ['#ffcf6b', '#ff9ab8', '#cdb8ff'][i % 3] }); $('start').appendChild(sp); }
 
 // ---------- start ----------
-if (ROOM) { $('sub').textContent = 'You were invited ♥ pick your little you.'; $('go').textContent = 'Join'; }
+if (INVITED) { $('sub').textContent = 'You were invited ♥ pick your little you.'; $('go').textContent = 'Join'; }
 $('go').onclick = () => {
   if ($('go').disabled) return; $('go').disabled = true;
-  me.name = ($('name').value.trim() || (ROOM ? 'you' : 'me')).slice(0, 14); me.look = myLook;
+  me.name = ($('name').value.trim() || (INVITED ? 'you' : 'me')).slice(0, 14); me.look = myLook;
   try { localStorage.setItem('ols-name', me.name); localStorage.setItem('ols-char', JSON.stringify(myLook)); } catch {}
   pv.v = 9; pv.p.emote = null; // a happy little spin, then in you go
   setTimeout(() => $('start').classList.add('leaving'), 380);
