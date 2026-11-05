@@ -1234,7 +1234,7 @@ const camLook = new THREE.Vector3();
 const cv = renderer.domElement;
 const isTouch = matchMedia('(pointer: coarse)').matches;
 const locked = () => document.pointerLockElement === cv;
-function lockMouse() { if (!locked() && cv.requestPointerLock && !isTouch) { try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch {} } }
+function lockMouse() { if (started && !locked() && cv.requestPointerLock && !isTouch) { try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch {} } }
 function unlockMouse() { if (locked()) document.exitPointerLock(); }
 function headOf(p) { return new THREE.Vector3(p.x, (p.seat >= 0 && place.seats[p.seat] ? place.seats[p.seat].y - .1 : 0) + .6 + (p.jy || 0), p.z); }
 let headDrop = 0, lieTilt = 0; // eased eye drop / look-up while crouched, lying or knocked
@@ -1248,8 +1248,10 @@ function stepCam(dt) {
     const look = head.clone().add(new THREE.Vector3(-Math.sin(cam.yaw) * Math.cos(fp), Math.sin(fp), -Math.cos(cam.yaw) * Math.cos(fp)));
     camera.position.copy(head); camLook.copy(look); camera.lookAt(look);
   } else {
-    const d = cam.dist, off = new THREE.Vector3(Math.sin(cam.yaw) * Math.cos(cam.pitch), Math.sin(cam.pitch), Math.cos(cam.yaw) * Math.cos(cam.pitch)).multiplyScalar(d);
-    const right = new THREE.Vector3(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw)).multiplyScalar(shiftLock ? .7 : 0);
+    // the place swoop is a fading offset on top of the player's own camera, so zoom/drag during it stick
+    const s = swoop ? 1 - swoop.e : 0, B = swoop && swoop.big ? 1.6 : 1, yaw = cam.yaw + (swoop && swoop.big ? s * 1.4 : 0), pitch = Math.min(1.45, cam.pitch + s * .5 * B);
+    const d = cam.dist + s * 5 * B, off = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)).multiplyScalar(d);
+    const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)).multiplyScalar(shiftLock ? .7 : 0);
     const pos = head.clone().add(off).add(right);
     const look = head.clone().add(right).add(new THREE.Vector3(0, .25, 0)); // orbit right around your head, like Roblox
     const c = place.camAt ? place.camAt(me.x, me.z) : place.cam; pos.x = Math.max(c[0], Math.min(c[1], pos.x)); pos.z = Math.max(c[2], Math.min(c[3], pos.z)); pos.y = Math.max(.3, Math.min(c[4], pos.y));
@@ -1268,32 +1270,51 @@ function setShiftLock(on) {
   if (pov === 1) return;
   shiftLock = on; if (on) lockMouse(); else unlockMouse();
 }
-document.addEventListener('pointerlockchange', () => { if (!locked() && shiftLock) shiftLock = false; });
+document.addEventListener('pointerlockchange', () => { if (locked()) lockFails = 0; else if (shiftLock) shiftLock = false; });
+// lock refused (wheel isn't a user gesture, re-lock right after Esc, sandboxed iframe): don't leave a shifted camera with a dead mouse
+let lockFails = 0;
+document.addEventListener('pointerlockerror', () => { lockFails++; if (shiftLock) { shiftLock = false; toast('Shift lock needs the mouse, press L again'); } else if (pov === 1 && lockFails < 3) toast('Click to look around'); });
 
 // ---------- input ----------
 const keys = {}, joy = { x: 0, y: 0, on: false };
+let started = false;
+// only text fields eat game keys (a focused slider shouldn't)
+function isTyping(t) { return !!(t && t.matches && t.matches('textarea, [contenteditable], input:not([type]), input[type=text], input[type=search]')); }
+// before Join no game hotkey runs; Enter joins from anywhere on the start screen (#name has its own Enter)
 addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT') return;
+  if (started || e.target.id === 'name') return;
+  e.stopImmediatePropagation();
+  if (e.key === 'Enter' && !e.repeat) { e.preventDefault(); $('go').click(); }
+}, true);
+addEventListener('keydown', e => {
+  if (isTyping(e.target)) return;
+  if (e.metaKey || e.ctrlKey) { for (const k in keys) keys[k] = false; return; } // macOS drops the letter's keyup while Cmd is held
   const k = e.key.toLowerCase(); keys[k] = true;
   if (k === ' ') { e.preventDefault(); jump(); }
   if (e.repeat) return;
   if (k === 'h') sendHeart(); if (k === 'v') togglePov(); if (k === 'l') setShiftLock(!shiftLock);
 });
-addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (k === 'meta' || k === 'control') { for (const j in keys) keys[j] = false; } else keys[k] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+document.addEventListener('visibilitychange', () => { if (document.hidden) for (const k in keys) keys[k] = false; });
 let drag = null, rmb = false;
 cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
-  if (!isTouch && (pov === 1 || shiftLock)) { lockMouse(); return; }
+  if (drag && e.pointerId !== drag.id) return; // a second finger never hijacks the drag
+  const lk = !isTouch && (pov === 1 || shiftLock);
+  if (lk) { if (locked()) return; if (lockFails < 2) lockMouse(); } // drag-look still works until the lock arrives (or if it never does)
   if (e.button === 2 && !isTouch) { rmb = true; cv.style.cursor = 'none'; } // hold the two-finger / right click: cursor hides, the camera turns
-  drag = { x: e.clientX, y: e.clientY, moved: 0, btn: e.button }; try { cv.setPointerCapture(e.pointerId); } catch {}
+  drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: 0, btn: e.button, lk }; try { cv.setPointerCapture(e.pointerId); } catch {}
 });
 cv.addEventListener('pointermove', e => {
-  if (!drag || locked()) return; const dx = rmb ? e.movementX : e.clientX - drag.x, dy = rmb ? e.movementY : e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
-  if (drag.moved < 6 && drag.btn !== 2) return;
+  if (!drag || drag.id !== e.pointerId || locked()) return;
+  if (e.pointerType === 'mouse' && e.buttons === 0 && !rmb) { drag = null; return; } // its pointerup was swallowed: never orbit on hover
+  const dx = rmb ? e.movementX : e.clientX - drag.x, dy = rmb ? e.movementY : e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
+  if (drag.moved < 6 && drag.btn !== 2 && pov !== 1) return;
   turn(dx * 1.6, dy * 1.6);
 });
-cv.addEventListener('pointerup', e => { if (drag && drag.moved < 6 && drag.btn === 0 && (hanging || pov === 3)) (hanging ? hangClick(e) : decorating ? decoClick(e) : picClick(e) || clickWorld(e)); drag = null; });
+cv.addEventListener('pointerup', e => { if (!drag || e.pointerId !== drag.id) return; if (drag.moved < 6 && drag.btn === 0 && !drag.lk && (hanging || pov === 3)) (hanging ? hangClick(e) : decorating ? decoClick(e) : picClick(e) || clickWorld(e)); drag = null; });
+cv.addEventListener('pointercancel', e => { if (drag && e.pointerId === drag.id) drag = null; });
 document.addEventListener('mousemove', e => { if (locked()) turn(e.movementX, e.movementY); });
 const rmbUp = () => { if (!rmb) return; rmb = false; drag = null; cv.style.cursor = ''; };
 document.addEventListener('mouseup', e => { if (e.button === 2) rmbUp(); });
@@ -1701,7 +1722,7 @@ function openGames() {
 $('games').onclick = openGames;
 
 addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' || e.repeat) return;
+  if (isTyping(e.target) || e.repeat || e.metaKey || e.ctrlKey) return;
   const k = e.key.toLowerCase();
   if (k === 'f' && !decorating) throwPop();
   if (decorating && held) { if (k === 'r') held.r += PI / 4; if (k === 'delete' || k === 'backspace' || k === 'escape') dropHeld(); }
@@ -1945,7 +1966,7 @@ function mergePics(all) {
 }
 
 addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' || e.repeat) return;
+  if (isTyping(e.target) || e.repeat || e.metaKey || e.ctrlKey) return;
   const n = parseInt(e.key); if (n >= 1 && n <= EMOTES.length) doEmote(EMOTES[n - 1][0]);
 });
 function funTick2(dt, t) {
@@ -1999,7 +2020,7 @@ function say(mesh, text) {
   u.bubble = sp; u.bubbleEnd = clock.elapsedTime + 5 + text.length * .06; u.talkEnd = clock.elapsedTime + Math.min(3.5, .5 + text.length * .07);
 }
 const chat = $('chat');
-function openChat() { for (const k in keys) keys[k] = false; if (locked()) unlockMouse(); chat.style.display = 'block'; chat.value = ''; chat.focus(); }
+function openChat() { if (!started) return; for (const k in keys) keys[k] = false; if (locked()) unlockMouse(); chat.style.display = 'block'; chat.value = ''; chat.focus(); }
 function closeChat() { chat.style.display = 'none'; chat.blur(); }
 chat.addEventListener('keydown', e => {
   e.stopPropagation();
@@ -2316,7 +2337,7 @@ function checkQuiz() {
 }
 
 addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' || e.repeat) return;
+  if (isTyping(e.target) || e.repeat || e.metaKey || e.ctrlKey) return;
   const k = e.key.toLowerCase();
   if (k === 'enter') { e.preventDefault(); openChat(); }
   if (k === 'e') useE();
@@ -2565,13 +2586,15 @@ function undoBlock() {
   else st.blocks.push(h[1]);
   decoChanged();
 }
-cv.addEventListener('pointerdown', e => { if (building) bDown = [e.clientX, e.clientY, e.button]; }, { capture: true });
+cv.addEventListener('pointerdown', e => { if (building && (!bDown || bDown[3] === e.pointerId)) bDown = [e.clientX, e.clientY, e.button, e.pointerId]; }, { capture: true });
 cv.addEventListener('pointerup', e => {
-  if (!building || !bDown) return; const [x0, y0, btn] = bDown; bDown = null;
+  if (!building || !bDown || bDown[3] !== e.pointerId) return; const [x0, y0, btn] = bDown; bDown = null;
   if (Math.hypot(e.clientX - x0, e.clientY - y0) > 6) return;
+  if (drag && drag.id === e.pointerId) drag = null; if (btn === 2) rmbUp(); // the main pointerup won't run, so end the camera drag here
   e.stopImmediatePropagation();
   blockAction(e.clientX, e.clientY, btn === 2 || e.altKey ? 'break' : bTool);
 }, { capture: true });
+cv.addEventListener('pointercancel', e => { if (bDown && bDown[3] === e.pointerId) bDown = null; });
 function toggleBuild() {
   building = !building; $('build').classList.toggle('on', building);
   if (!building) { ghost.visible = false; if (panel.dataset.k === 'build') closePanel(); return; }
@@ -2893,7 +2916,7 @@ function onFun9(m) {
   return false;
 }
 addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' || e.repeat) return;
+  if (isTyping(e.target) || e.repeat || e.metaKey || e.ctrlKey) return;
   const k = e.key.toLowerCase();
   if (k === 'c') startSlide();
   if (k === 'x' && me.seat < 0 && me.vy === 0 && !me.ko) layDown({ false: true, true: 'back', back: 'belly', belly: false }[me.floor || false]);
@@ -3179,7 +3202,7 @@ function openRadio() {
   panel.style.display = 'block';
   panel.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { if (b.dataset.st) radioOn(b.dataset.st); else radioOff(); panel.dataset.k = ''; openRadio(); });
   panel.querySelectorAll('[data-gfx]').forEach(b => b.onclick = () => { setGfx(b.dataset.gfx); panel.dataset.k = ''; openRadio(); });
-  panel.querySelectorAll('[data-vol]').forEach(r => r.oninput = () => { const k = r.dataset.vol; AU.vol[k] = +r.value; au(); if (AU[k]) AU[k].gain.value = AU.vol[k]; try { localStorage.setItem('ols-vol', JSON.stringify(AU.vol)); } catch {} });
+  panel.querySelectorAll('[data-vol]').forEach(r => (r.onpointerup = r.onchange = () => r.blur(), r.oninput = () => { const k = r.dataset.vol; AU.vol[k] = +r.value; au(); if (AU[k]) AU[k].gain.value = AU.vol[k]; try { localStorage.setItem('ols-vol', JSON.stringify(AU.vol)); } catch {} }));
 }
 $('radiob').onclick = openRadio;
 
@@ -3329,12 +3352,11 @@ function goPlace(id, broadcast = true, who) {
   $('fade').classList.add('on');
   setTimeout(() => { setPlace(id, broadcast); startSwoop(); setTimeout(() => { $('fade').classList.remove('on'); travelling = false; }, 380); }, 520);
 }
-function startSwoop(big) { swoop = { t0: clock.elapsedTime, d: cam.dist, p: cam.pitch, dur: big ? 2.6 : 1.6, big }; }
+function startSwoop(big) { swoop = { t0: clock.elapsedTime, e: 0, dur: big ? 2.6 : 1.6, big }; }
 function tickSwoop(t) {
   if (!swoop || pov === 1) { swoop = null; return; }
-  const k = Math.min(1, (t - swoop.t0) / swoop.dur), e = 1 - Math.pow(1 - k, 3), B = swoop.big ? 1.6 : 1;
-  cam.dist = swoop.d + (1 - e) * 5 * B; cam.pitch = swoop.p + (1 - e) * .5 * B; if (swoop.big) cam.yaw = (1 - e) * 1.4;
-  if (k >= 1) { cam.dist = swoop.d; cam.pitch = swoop.p; swoop = null; }
+  const k = Math.min(1, (t - swoop.t0) / swoop.dur); swoop.e = 1 - Math.pow(1 - k, 3);
+  if (k >= 1) swoop = null;
 }
 function showTitle(txt) { const el = $('ptitle'); el.textContent = txt; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); }
 function openPlaces() {
@@ -3360,7 +3382,7 @@ $('watch').onclick = cycleWatch;
 $('fs').onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => toast('Full screen is blocked here')); };
 document.addEventListener('fullscreenchange', () => { $('fs').classList.toggle('on', !!document.fullscreenElement); setTimeout(resize, 60); });
 $('moreb').onclick = () => { const m = $('more'), on = m.style.display === 'none'; m.style.display = on ? 'flex' : 'none'; $('moreb').classList.toggle('on', on); };
-addEventListener('keydown', e => { if (e.target.tagName === 'INPUT' || e.repeat) return; if (e.key.toLowerCase() === 't') cycleWatch(); });
+addEventListener('keydown', e => { if (isTyping(e.target) || e.repeat || e.metaKey || e.ctrlKey) return; if (e.key.toLowerCase() === 't') cycleWatch(); });
 
 // ---------- controls sheet ----------
 function openHelp() {
@@ -3453,7 +3475,7 @@ function stareEnd(won) {
   cg.stareMsg = won ? `🏆 ${them ? them.name : 'They'} blinked! You win` : '😵 You blinked! They win';
   me.emote = { k: won ? 'cheer' : 'cry', t0: clock.elapsedTime }; renderCG();
 }
-addEventListener('keydown', e => { if (cg && cg.k === 'stare' && cg.live && e.target.tagName !== 'INPUT') stareLose(); }, true);
+addEventListener('keydown', e => { if (cg && cg.k === 'stare' && cg.live && !isTyping(e.target)) stareLose(); }, true);
 addEventListener('pointerdown', e => { if (cg && cg.k === 'stare' && cg.live && !e.target.closest('#cg')) stareLose(); }, true);
 // love letters
 let notes = []; try { notes = JSON.parse(localStorage.getItem('ols-notes') || '[]'); } catch {}
@@ -3512,7 +3534,7 @@ $('go').onclick = () => {
   pv.v = 9; pv.p.emote = null; // a happy little spin, then in you go
   setTimeout(() => $('start').classList.add('leaving'), 380);
   setTimeout(() => {
-    $('start').remove(); $('loading').remove(); resize();
+    $('start').remove(); $('loading').remove(); resize(); started = true; closeChat();
     meMesh = makeChar(me.look, me.name); scene.add(meMesh);
     setPlace(PLACES[0].id, false); connect(); loop();
     startSwoop(true); me.emote = { k: 'wave', t0: 0 }; setTimeout(() => emoteFx(me, 'wave'), 1300); showTitle(place.name);
