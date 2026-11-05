@@ -1563,6 +1563,11 @@ function endGame(silent, msg) {
   if (wasSeeker) setPov(3);
   if (!silent && msg) { toast(msg); burst(); }
 }
+function finishTagPotato(it) {
+  if (!game) return; const mine = it === myRole();
+  if (game.mode === 'potato') { boom(.5); return endGame(false, mine ? '💥 BOOM! It blew up in your hands 😝' : `💥 BOOM! ${nameOf(it)} got potato'd, you win!`); }
+  endGame(false, mine ? '🏃 You were it at the end… you lose 😝' : `🏃 ${nameOf(it)} was it at the end… you win!`);
+}
 function tickGame(t) {
   if (!game) { hud.style.display = 'none'; return; }
   const el = t - game.t0, left = game.dur - el; let txt = '';
@@ -1572,10 +1577,13 @@ function tickGame(t) {
     if (holder && mk.parent !== holder) { holder.add(mk); mk.position.set(0, 1.3, 0); }
     itRing.rotation.z = t * 3; potato.rotation.y = t * 4; spark.visible = Math.sin(t * 30) > 0;
     potato.scale.setScalar(1 + Math.max(0, el / game.dur - .55) * Math.abs(Math.sin(t * 10)) * .6);
-    if (game.it === myRole() && them && el > game.cool && Math.hypot(me.x - them.x, me.z - them.z) < .75) { game.it = otherRole(); game.cool = el + 1.5; send({ t: 'tag' }); floatText(them, 'tag!', '#ff7a59'); }
-    if (game.mode === 'potato') { txt = `🥔 Hot potato · ${game.it === myRole() ? 'YOU have it, pass it!' : nameOf(game.it) + ' has it'}`; if (left <= 0) { boom(.5); return endGame(false, game.it === myRole() ? '💥 BOOM! It blew up in your hands 😝' : `💥 BOOM! ${nameOf(game.it)} got potato'd, you win!`); } }
+    if (game.it === myRole() && them && left > 0 && el > game.cool && Math.hypot(me.x - them.x, me.z - them.z) < .75) { game.it = otherRole(); game.cool = el + 1.5; send({ t: 'tag' }); floatText(them, 'tag!', '#ff7a59'); }
+    if (game.mode === 'potato') txt = `🥔 Hot potato · ${game.it === myRole() ? 'YOU have it, pass it!' : nameOf(game.it) + ' has it'}`;
     else txt = `🏃 Tag · ${fmt(left)} · ${game.it === myRole() ? 'you are it!' : nameOf(game.it) + ' is it'}`;
-    if (game.mode === 'tag' && left <= 0) return endGame(false, game.it === myRole() ? '🏃 You were it at the end… you lose 😝' : `🏃 ${nameOf(game.it)} was it at the end… you win!`);
+    // the host decides who held it at the end, so both screens agree; the guest only ends alone if that never arrives
+    if (left <= 0 && (isHost || !them)) { send({ t: 'gameOver', it: game.it }); return finishTagPotato(game.it); }
+    if (left <= -3) return finishTagPotato(game.it);
+    if (left <= 0) txt = '⏰ Time!…';
   } else if (game.mode === 'hide') {
     const seeker = game.seeker === myRole();
     if (el < game.count) {
@@ -1590,11 +1598,12 @@ function tickGame(t) {
   } else if (game.mode === 'stars') {
     game.stars.forEach((st, i) => {
       if (!st) return; st.rotation.y = t * 2 + i; st.position.y = .7 + Math.sin(t * 3 + i) * .08;
-      if (Math.hypot(me.x - st.position.x, me.z - st.position.z) < .6) { scene.remove(st); game.stars[i] = null; game.score[myRole()]++; send({ t: 'star', i }); floatText(me, '+1 ⭐', '#ffcf6b'); }
+      if (Math.hypot(me.x - st.position.x, me.z - st.position.z) < .6) { scene.remove(st); game.stars[i] = null; (game.owner ||= [])[i] = myRole(); game.score[myRole()]++; send({ t: 'star', i }); floatText(me, '+1 ⭐', '#ffcf6b'); }
     });
     const a = game.score[myRole()], b = game.score[otherRole()];
     txt = them ? `⭐ you ${a} · ${nameOf(otherRole())} ${b} · ${fmt(left)}` : `⭐ ${a} stars · ${fmt(left)}`;
-    if (left <= 0 || game.stars.every(st => !st)) return endGame(false, !them ? `⭐ You got ${a} stars!` : a > b ? `⭐ You win ${a}–${b}!` : a < b ? `⭐ ${nameOf(otherRole())} wins ${b}–${a}` : `⭐ Tie ${a}–${b} ♥`);
+    if (game.stars.every(st => !st)) game.goneAt ??= t; // short grace so a tie-break on the last star can still land
+    if (left <= 0 || t - (game.goneAt ?? t) > .5) return endGame(false, !them ? `⭐ You got ${a} stars!` : a > b ? `⭐ You win ${a}–${b}!` : a < b ? `⭐ ${nameOf(otherRole())} wins ${b}–${a}` : `⭐ Tie ${a}–${b} ♥`);
   }
   hud.style.display = 'block'; hud.textContent = txt;
 }
@@ -1709,7 +1718,10 @@ function closePanel() { panel.style.display = 'none'; panel.dataset.k = ''; pane
 function claimPanel() { if (decorating) toggleDecorate(); if (doodling) toggleDoodle(); if (building) toggleBuild(); } // another panel takes over: end the mode that owned it
 const MENU_PANELS = ['games', 'couple', 'places'];
 function panelFree() { return panel.style.display !== 'block' || !panel.dataset.k || panel.dataset.k === 'quiz' || MENU_PANELS.includes(panel.dataset.k); }
-function dropHeld() { if (held) { disposeTree(held.mesh); held = null; } }
+function dropHeld(restore = true) { // restore: a moved item goes back where it was; only Delete / 🗑 throw it away
+  if (!held) return; disposeTree(held.mesh); const f = held.from; held = null;
+  if (restore && f) { decoOf(f.id).items.push(f.it); decoChanged({ op: 'add', it: f.it }, f.id); }
+}
 function pickCatalog(k) { dropHeld(); held = { k, r: 0, mesh: DECO_BUILD[k]() }; scene.add(held.mesh); }
 function toggleDecorate() {
   decorating = !decorating; $('decor').classList.toggle('on', decorating);
@@ -1733,7 +1745,7 @@ function renderDecoPanel() {
   panel.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { st.wall = b.dataset.w; decoChanged({ op: 'wall', v: st.wall }); renderDecoPanel(); });
   panel.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { st.mood = b.dataset.m; decoChanged({ op: 'mood', v: st.mood }); renderDecoPanel(); });
   panel.querySelector('[data-rot]').onclick = () => { if (held) held.r += PI / 4; };
-  panel.querySelector('[data-del]').onclick = dropHeld;
+  panel.querySelector('[data-del]').onclick = () => dropHeld(false);
   panel.querySelector('[data-clear]').onclick = () => { if (confirm('Remove everything you placed here?')) { st.items = []; decoChanged({ op: 'clear' }); } };
   panel.querySelector('[data-done]').onclick = toggleDecorate;
 }
@@ -1744,13 +1756,13 @@ function floorAt(cx, cy) {
 }
 function decoClick(e) {
   const st = decoOf(place.id);
-  if (held) { const f = floorAt(e.clientX, e.clientY); if (!f) return; const it = { k: held.k, x: +f[0].toFixed(2), z: +f[1].toFixed(2), r: +held.r.toFixed(2), u: Math.random().toString(36).slice(2, 10) }; st.items.push(it); dropHeld(); decoChanged({ op: 'add', it }); return; }
-  if (!place.deco) return;
+  if (held) { const f = floorAt(e.clientX, e.clientY); if (!f) return; const it = { k: held.k, x: +f[0].toFixed(2), z: +f[1].toFixed(2), r: +held.r.toFixed(2), u: Math.random().toString(36).slice(2, 10) }; st.items.push(it); dropHeld(false); decoChanged({ op: 'add', it }); return; }
+  if (!place.deco) return; rayAt(e);
   const hit = ray.intersectObject(place.deco, true)[0]; if (!hit) return;
   let o = hit.object; while (o && o.userData.decoIndex === undefined) o = o.parent;
   if (!o) return;
   const [it] = st.items.splice(o.userData.decoIndex, 1); decoChanged({ op: 'del', u: decoUid(it) });
-  held = { k: it.k, r: it.r || 0, mesh: DECO_BUILD[it.k]() }; scene.add(held.mesh);
+  held = { k: it.k, r: it.r || 0, mesh: DECO_BUILD[it.k](), from: { id: place.id, it } }; scene.add(held.mesh);
 }
 cv.addEventListener('pointermove', e => lastPtr = [e.clientX, e.clientY]);
 cv.addEventListener('pointerdown', e => lastPtr = [e.clientX, e.clientY]);
@@ -1774,7 +1786,7 @@ addEventListener('keydown', e => {
   if (isTyping(e.target) || e.repeat || e.metaKey || e.ctrlKey) return;
   const k = e.key.toLowerCase();
   if (k === 'f' && !decorating) throwPop();
-  if (decorating && held) { if (k === 'r') held.r += PI / 4; if (k === 'delete' || k === 'backspace' || k === 'escape') dropHeld(); }
+  if (decorating && held) { if (k === 'r') held.r += PI / 4; if (k === 'delete' || k === 'backspace') dropHeld(false); if (k === 'escape') dropHeld(); }
 });
 
 // emotes + hugs
@@ -2169,7 +2181,7 @@ function tickPet(p, dt, t) {
   else { tx = p.x - fx * .7 - fz * .45; tz = p.z - fz * .7 + fx * .45; }
   // two pets left alone together start chasing each other around
   const other = p === me ? them : me, op = other && other.petObj;
-  o.playing = !!(op && !bl && !rest && !ownerMoving && o.idle > 5 && Math.hypot(op.x - o.x, op.z - o.z) < 3.5 && (t / 8 | 0) % 3 === 1);
+  o.playing = !!(op && !bl && !rest && !ownerMoving && (o.playing || o.idle > 5) && Math.hypot(op.x - o.x, op.z - o.z) < 3.5 && (t / 8 | 0) % 3 === 1); // latched: playing resets idle below
   if (o.playing && p === me) achieve('pets');
   if (o.playing) { const cx = (o.x + op.x) / 2, cz = (o.z + op.z) / 2, a = t * 2.6 + (p === me ? 0 : PI); tx = cx + Math.cos(a) * .7; tz = cz + Math.sin(a) * .7; }
   const dx = tx - o.x, dz = tz - o.z, d = Math.hypot(dx, dz), moving = d > (o.playing || bl ? .06 : .25);
@@ -2258,7 +2270,8 @@ function sideOf(lead, p) { const rx = -Math.cos(lead.ry), rz = Math.sin(lead.ry)
 function followTarget() { if (!hand || hand.leader === myRole() || !them) return null; const r = them.ry; return [them.x - Math.cos(r) * .6 * hand.side, them.z + Math.sin(r) * .6 * hand.side]; }
 function holdArm(p, mesh, other) { const sd = sideOf(p, other), a = mesh.userData.arms[sd > 0 ? 0 : 1]; a.position.set(sd > 0 ? -.36 : .36, .36, .04); }
 const handHeart = new THREE.Sprite(new THREE.SpriteMaterial({ map: heartTexs.mine, transparent: true, depthWrite: false })); handHeart.scale.setScalar(.18); handHeart.visible = false; scene.add(handHeart);
-function useE() { if (nearTea()) { drinkTea(me); send({ t: 'tea' }); return; } if (nearBong()) { const cough = Math.random() < .35; bongHit(me, cough); send({ t: 'bong', cough }); return; } const o = petNearest(); if (o) { petIt(o); send({ t: 'petpet', whose: o === me.petObj ? 'mine' : 'theirs' }); return; } if (roastE()) return; toggleHands(); }
+function useE() { if (me.roast) { eatSmore(); return; } if (nearTea()) { drinkTea(me); send({ t: 'tea' }); return; } if (nearBong()) { const cough = Math.random() < .35; bongHit(me, cough); send({ t: 'bong', cough }); return; } const o = petNearest(); if (nearFire() && !(o && Math.hypot(o.x - me.x, o.z - me.z) < .5) && roastE()) return; // a heeling pet sits ~.8 away: the fire wins unless you're right on the pet
+  if (o) { petIt(o); send({ t: 'petpet', whose: o === me.petObj ? 'mine' : 'theirs' }); return; } toggleHands(); }
 $('hands').onclick = useE;
 
 // fireworks (outdoor places), same show on both screens
@@ -3025,8 +3038,12 @@ function onFun(m) {
     case 'game': if (startClash()) return true; beginGame(m.g, true); return true;
     case 'gameEnd': endGame(true); toast('Game stopped'); return true;
     case 'tag': if (game && (game.mode === 'tag' || game.mode === 'potato')) { game.it = myRole(); game.cool = clock.elapsedTime - game.t0 + 1.5; floatText(me, "tag! you're it", '#ff7a59'); } return true;
+    case 'gameOver': if (game && (game.mode === 'tag' || game.mode === 'potato')) finishTagPotato(m.it); return true;
     case 'found': if (game && game.mode === 'hide') endGame(false, `🙈 ${them ? them.name : 'They'} found you!`); return true;
-    case 'star': if (game && game.stars && game.stars[m.i]) { scene.remove(game.stars[m.i]); game.stars[m.i] = null; game.score[otherRole()]++; } return true;
+    case 'star': if (!game || !game.stars) return true; game.owner ||= [];
+      if (game.stars[m.i]) { scene.remove(game.stars[m.i]); game.stars[m.i] = null; game.owner[m.i] = otherRole(); game.score[otherRole()]++; }
+      else if (game.owner[m.i] === myRole() && !isHost) { game.score[myRole()]--; game.score[otherRole()]++; game.owner[m.i] = otherRole(); floatText(me, 'too slow!', '#ff7a59'); } // both grabbed it: the host keeps it on both screens
+      return true;
   }
   return false;
 }
@@ -3304,7 +3321,7 @@ $('radiob').onclick = openRadio;
 // ---------- our love level: do sweet things together, level up, unlock achievements ----------
 const LV = [[0, 'just met'], [30, 'crushing'], [90, 'talking stage'], [180, 'dating'], [320, 'official'], [520, 'in love'], [800, 'soulmates'], [1200, 'forever'], [1800, 'legendary ♾']];
 const ACH = { hug: '🤗 First hug', kiss: '💋 First kiss', dance: '💃 First slow dance', beachdance: '🌅 Slow dance on the beach', massage: '💆 Spa day', letter: '✉️ Love letter', watch30: '🍿 30 min watching together',
-  days7: '📅 7 days together', match5: '💞 Matched 5 times', rpswin: '✊ RPS champ', stare: '👀 Won a staring contest', wish: '🌠 Made a wish', smore: "🔥 Perfect s'more", places: '🗺 Been everywhere', pets: '🐾 Pet playdate', wall: '📌 Photo on the wall', fetch: '🎾 Good pet' };
+  days7: '📅 7 days together', match5: '💞 Matched 5 times', rpswin: '✊ Played RPS to 3', stare: '👀 Had a staring contest', wish: '🌠 Made a wish', smore: "🔥 Perfect s'more", places: '🗺 Been everywhere', pets: '🐾 Pet playdate', wall: '📌 Photo on the wall', fetch: '🎾 Good pet' };
 let love = { xp: 0, ach: {}, days: [], places: [], matches: 0, watchMin: 0, lastLv: 1 };
 try { love = { ...love, ...JSON.parse(localStorage.getItem('ols-love') || '{}') }; } catch {}
 let wishes = []; try { wishes = JSON.parse(localStorage.getItem('ols-wishes') || '[]'); } catch {}
@@ -3573,7 +3590,7 @@ function stareStart() {
 }
 function stareLose() { if (!cg || cg.k !== 'stare' || !cg.live || cg.done) return; send({ t: 'stare' }); stareEnd(false); }
 function stareEnd(won) {
-  cg.done = true; cg.live = 0; const secs = (clock.elapsedTime - (cg.liveAt || clock.elapsedTime)).toFixed(1);
+  cg.done = true; cg.won = won; cg.live = 0; const secs = (clock.elapsedTime - (cg.liveAt || clock.elapsedTime)).toFixed(1);
   if (won) { achieve('stare'); sfx('win'); }
   cg.stareMsg = won ? `🏆 ${esc(them ? them.name : 'They')} blinked! You win` : '😵 You blinked! They win';
   me.emote = { k: won ? 'cheer' : 'cry', t0: clock.elapsedTime }; renderCG();
@@ -3611,7 +3628,7 @@ function onFun10(m) {
     case 'cgt': if (cg && m.i === cg.i && !cg.picks.choice) { cg.picks.choice = m.c; renderCG(); } return true;
     case 'cgn': if (cg && (m.from === undefined || m.from === cg.i)) cgNext(m.i); return true; // both pressed Next: drop the late one
     case 'cgx': if (cg) toast(`${them ? them.name : 'They'} closed the game`); cgClose(); return true;
-    case 'stare': if (cg && cg.k === 'stare' && !cg.done) stareEnd(true); return true;
+    case 'stare': if (cg && cg.k === 'stare') { if (!cg.done) stareEnd(true); else if (cg.won === false) { cg.stareMsg = '😳 You both blinked! Tie'; me.emote = { k: 'laugh', t0: clock.elapsedTime }; renderCG(); } } return true; // both lost at once: same tie on both screens
     case 'note': { const n = { text: String(m.text || '').slice(0, 220), from: String(m.from || 'them').slice(0, 14), at: Date.now() }; notes.push(n); try { localStorage.setItem('ols-notes', JSON.stringify(notes.slice(-40))); } catch {} if (them) floatText(them, '✉️', '#ff9ab8'); setTimeout(() => showLetter(n), 700); return true; }
   }
   return false;
