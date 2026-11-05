@@ -1237,11 +1237,15 @@ const locked = () => document.pointerLockElement === cv;
 function lockMouse() { if (!locked() && cv.requestPointerLock && !isTouch) { try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch {} } }
 function unlockMouse() { if (locked()) document.exitPointerLock(); }
 function headOf(p) { return new THREE.Vector3(p.x, (p.seat >= 0 && place.seats[p.seat] ? place.seats[p.seat].y - .1 : 0) + .6 + (p.jy || 0), p.z); }
+let headDrop = 0, lieTilt = 0; // eased eye drop / look-up while crouched, lying or knocked
 function stepCam(dt) {
   const head = headOf(me); snapCam = false;
+  const k = Math.min(1, dt * 8), drop = me.seat >= 0 ? 0 : me.ko ? -.4 : ({ crouch: -.2, floor: -.3, slide: -.3, back: -.45, belly: -.42 }[me.pose] || 0);
+  headDrop += (drop - headDrop) * k; lieTilt += ((me.pose === 'back' ? 1.2 : me.pose === 'belly' ? -.2 : 0) - lieTilt) * k; head.y += headDrop;
   if (pov === 1) {
     // no smoothing in 1st person: the view follows the mouse 1:1
-    const look = head.clone().add(new THREE.Vector3(-Math.sin(cam.yaw) * Math.cos(cam.fp), Math.sin(cam.fp), -Math.cos(cam.yaw) * Math.cos(cam.fp)));
+    const fp = Math.max(-1.5, Math.min(1.5, cam.fp + lieTilt));
+    const look = head.clone().add(new THREE.Vector3(-Math.sin(cam.yaw) * Math.cos(fp), Math.sin(fp), -Math.cos(cam.yaw) * Math.cos(fp)));
     camera.position.copy(head); camLook.copy(look); camera.lookAt(look);
   } else {
     const d = cam.dist, off = new THREE.Vector3(Math.sin(cam.yaw) * Math.cos(cam.pitch), Math.sin(cam.pitch), Math.cos(cam.yaw) * Math.cos(cam.pitch)).multiplyScalar(d);
@@ -1310,8 +1314,21 @@ function clickWorld(e) {
   const r = cv.getBoundingClientRect(); ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
   let best = -1, bd = .7;
   place.seats.forEach((s, i) => { const d = ray.ray.distanceToPoint(new THREE.Vector3(s.x, s.y + .2, s.z)); if (d < bd && !(them && them.seat === i)) { bd = d; best = i; } });
-  if (best >= 0) { [me.tx, me.tz] = seatOut(place.seats[best]); me.want = best; me.seat = -1; return; }
-  const hit = new THREE.Vector3(); if (ray.ray.intersectPlane(floorPlane, hit)) { const b = place.box || place.bounds; me.tx = Math.max(b[0], Math.min(b[1], hit.x)); me.tz = Math.max(b[2], Math.min(b[3], hit.z)); me.want = -1; me.seat = -1; }
+  if (best >= 0) { leaveSeat(); let a = seatOut(place.seats[best]); if (place.rects && !inRects(a[0], a[1])) a = nearRect(a[0], a[1]); me.path = routeTo(a); [me.tx, me.tz] = me.path.shift(); me.want = best; return; }
+  const hit = new THREE.Vector3(); if (ray.ray.intersectPlane(floorPlane, hit)) { leaveSeat(); const b = place.box || place.bounds; me.tx = Math.max(b[0], Math.min(b[1], hit.x)); me.tz = Math.max(b[2], Math.min(b[3], hit.z)); me.want = -1; }
+}
+// seat walks go around walls: shortest path through the room/doorway centres when the straight line leaves the rects
+const lineIn = (p, q) => { const n = Math.max(1, Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / .2)); for (let k = 0; k <= n; k++) if (!inRects(p[0] + (q[0] - p[0]) * k / n, p[1] + (q[1] - p[1]) * k / n)) return false; return true; };
+function routeTo(a) {
+  const p0 = [me.x, me.z]; if (!place.rects || lineIn(p0, a)) return [a];
+  const pts = [p0, ...place.rects.map(r => [(r[0] + r[1]) / 2, (r[2] + r[3]) / 2]), a], n = pts.length, dist = pts.map((_, i) => i ? Infinity : 0), prev = [], done = [];
+  for (;;) {
+    let u = -1; for (let i = 0; i < n; i++) if (!done[i] && dist[i] < Infinity && (u < 0 || dist[i] < dist[u])) u = i;
+    if (u < 0 || u === n - 1) break; done[u] = 1;
+    for (let v = 0; v < n; v++) if (!done[v] && lineIn(pts[u], pts[v])) { const d = dist[u] + Math.hypot(pts[v][0] - pts[u][0], pts[v][1] - pts[u][1]); if (d < dist[v]) { dist[v] = d; prev[v] = u; } }
+  }
+  if (dist[n - 1] === Infinity) return [a];
+  const out = []; for (let v = n - 1; v > 0; v = prev[v]) out.unshift(pts[v]); return out;
 }
 // phone: thumbstick on the left, jump button on the right, drag anywhere else to look
 if (isTouch) {
@@ -1328,7 +1345,7 @@ if (isTouch) {
 function angLerp(a, b, k) { let d = ((b - a + PI) % (2 * PI) + 2 * PI) % (2 * PI) - PI; return a + d * k; }
 function layDown(v) {
   if (me.seat >= 0 || me.vy !== 0 || me.ko) return; me.floor = v;
-  if (v) { me.vx = me.vz = 0; me.tx = me.tz = NaN; toast({ true: 'Sitting · X again to lie on your back', back: 'On your back · X again for your stomach', belly: 'On your stomach · X again to get up' }[v]); }
+  if (v) { me.vx = me.vz = 0; me.tx = me.tz = NaN; me.want = -1; toast({ true: 'Sitting · X again to lie on your back', back: 'On your back · X again for your stomach', belly: 'On your stomach · X again to get up' }[v]); }
 }
 function jump() {
   if (me.vy !== 0 || me.ko) return; me.floor = false; me.slide = null;
@@ -1344,6 +1361,7 @@ function step(dt) {
   if (me.ko || me.slide) { f = r = 0; me.tx = me.tz = NaN; me.want = -1; }
   if (me.floor && Math.hypot(f, r) > .15) me.floor = false;
   if (hand && hand.leader !== myRole()) { if (Math.hypot(f, r) > .15) breakHands(); else { const g = followTarget(); if (g && Math.hypot(g[0] - me.x, g[1] - me.z) > .05) { me.tx = g[0]; me.tz = g[1]; me.want = -1; } } }
+  if (me.floor && (me.seat >= 0 || me.want >= 0 || Math.hypot(me.tx - me.x, me.tz - me.z) > .06)) me.floor = false; // being walked anywhere gets you up
   const faceCam = pov === 1 || shiftLock;
   let wx = 0, wz = 0; // where we want to be going, as a velocity
   if (Math.hypot(f, r) > .15) {
@@ -1354,7 +1372,7 @@ function step(dt) {
   } else if (me.seat < 0) {
     const dx = me.tx - me.x, dz = me.tz - me.z, d = Math.hypot(dx, dz);
     if (d > .06) { const v = Math.min(sp, d * 5); wx = dx / d * v; wz = dz / d * v; } // slow down as you arrive
-    else if (me.want >= 0) { if (them && them.seat === me.want) me.want = -1; else { me.seat = me.want; me.want = -1; } }
+    else if (me.want >= 0 && Number.isFinite(d)) { if (me.path && me.path.length) [me.tx, me.tz] = me.path.shift(); else if (them && them.seat === me.want) me.want = -1; else { me.seat = me.want; me.want = -1; me.floor = false; } }
   }
   const acc = me.slide ? 0 : 1 - Math.exp(-dt * (me.vy !== 0 ? 2.5 : wx || wz ? 9 : me.ko ? 4 : 14));
   me.vx = (me.vx || 0) + (wx - (me.vx || 0)) * acc; me.vz = (me.vz || 0) + (wz - (me.vz || 0)) * acc;
@@ -1366,23 +1384,21 @@ function step(dt) {
   if (me.seat >= 0) { const s = place.seats[me.seat]; me.walking = false; me.x = s.x; me.z = s.z; me.ry = angLerp(me.ry, s.ry, Math.min(1, dt * 10)); }
   else {
     if (faceCam && !me.ko) me.ry = angLerp(me.ry, cam.yaw + PI, Math.min(1, dt * 20));
-    if (me.want < 0) {
-      if (place.rects) { if (!inRects(me.x, me.z)) { if (inRects(me.x, pz)) { me.z = pz; me.vz = 0; } else if (inRects(px, me.z)) { me.x = px; me.vx = 0; } else { me.x = px; me.z = pz; me.vx = me.vz = 0; } me.tx = me.tz = NaN; } }
-      else { const cx = Math.max(b[0], Math.min(b[1], me.x)), cz = Math.max(b[2], Math.min(b[3], me.z)); if (cx !== me.x) me.vx = 0; if (cz !== me.z) me.vz = 0; me.x = cx; me.z = cz; }
-    }
+    if (place.rects) { if (!inRects(me.x, me.z)) { if (inRects(me.x, pz)) { me.z = pz; me.vz = 0; } else if (inRects(px, me.z)) { me.x = px; me.vx = 0; } else { [me.x, me.z] = inRects(px, pz) ? [px, pz] : nearRect(me.x, me.z); me.vx = me.vz = 0; } me.tx = me.tz = NaN; me.want = -1; } }
+    else if (me.want < 0) { const cx = Math.max(b[0], Math.min(b[1], me.x)), cz = Math.max(b[2], Math.min(b[3], me.z)); if (cx !== me.x) me.vx = 0; if (cz !== me.z) me.vz = 0; me.x = cx; me.z = cz; }
   }
   if (me.seat < 0) {
-    const lim = me.jy + .3;
-    if (groundAt(me.x, me.z) > lim && groundAt(px, pz) <= lim) {
+    const y = me.jy;
+    if (blockedAt(me.x, me.z, y) && !blockedAt(px, pz, y)) {
       const q = place.seats[me.want];
-      if (q && Math.hypot(q.x - me.x, q.z - me.z) < 1.4 && !(them && them.seat === me.want)) { me.seat = me.want; me.want = -1; me.vx = me.vz = 0; }
-      else if (groundAt(me.x, pz) <= lim) { me.z = pz; me.vz = 0; }
-      else if (groundAt(px, me.z) <= lim) { me.x = px; me.vx = 0; }
+      if (q && Math.hypot(q.x - me.x, q.z - me.z) < 1.4 && !(them && them.seat === me.want)) { me.seat = me.want; me.want = -1; me.vx = me.vz = 0; me.floor = false; }
+      else if (!blockedAt(me.x, pz, y)) { me.z = pz; me.vz = 0; }
+      else if (!blockedAt(px, me.z, y)) { me.x = px; me.vx = 0; }
       else { me.x = px; me.z = pz; me.vx = me.vz = 0; me.tx = me.tz = NaN; me.want = -1; }
     }
   }
   if (me.seat >= 0) { me.jy = 0; me.vy = 0; }
-  else { const gy = groundAt(me.x, me.z); if (me.vy !== 0 || me.jy > gy + .001) { me.vy -= 13 * dt; me.jy += me.vy * dt; if (me.jy <= gy) { me.jy = gy; me.vy = 0; } } else me.jy = gy; }
+  else { const gy = groundAt(me.x, me.z, me.jy); if (me.vy !== 0 || me.jy > gy + .001) { const c = me.vy > 0 ? ceilAt(me.x, me.z, me.jy) : Infinity; me.vy -= 13 * dt; me.jy += me.vy * dt; if (me.jy + HEAD > c) { me.jy = c - HEAD; me.vy = -.01; } if (me.jy <= gy) { me.jy = gy; me.vy = 0; } } else me.jy = gy; }
   if (them) { const k = Math.min(1, dt * 12), ahead = them.seat >= 0 ? 0 : Math.min(.1, clock.elapsedTime - (them.rt || 0)); them.x += (them.rx + (them.rvx || 0) * ahead - them.x) * k; them.z += (them.rz + (them.rvz || 0) * ahead - them.z) * k; them.ry = angLerp(them.ry, them.rry, k); them.jy += ((them.rjy || 0) - (them.jy || 0)) * Math.min(1, dt * 20); }
 }
 function placeChar(mesh, p) { const y = (p.seat >= 0 && place.seats[p.seat] ? place.seats[p.seat].y - .05 : 0) + (p.jy || 0); mesh.position.set(p.x, y, p.z); mesh.rotation.y = p.ry; }
@@ -1585,11 +1601,12 @@ function decoPhysics(pl, items) {
   items.forEach(it => {
     const d = SOLID[it.k]; if (!d) return; const r = it.r || 0, c = Math.cos(r), sn = Math.sin(r);
     const w = (lx, lz) => [it.x + lx * c + lz * sn, it.z - lx * sn + lz * c];
-    solids.push({ x: it.x, z: it.z, r, hw: d[0], hd: d[1], top: d[2] });
+    const base = colTopAt(pl, it.x, it.z); // matches the mesh, which sits on any blocks under it
+    solids.push({ x: it.x, z: it.z, r, hw: d[0], hd: d[1], top: base + d[2] });
     (d[3] || []).forEach(q => {
       const [x, z] = w(q[0], q[1]), ry = q[3] + r;
       const [ax, az] = q[4] !== undefined ? w(q[4], q[5]) : [x + Math.sin(ry) * .65, z + Math.cos(ry) * .65];
-      seats.push({ x, z, y: q[2], ry, ax, az });
+      seats.push({ x, z, y: base + q[2], ry, ax, az });
     });
   });
   pl.seats = pl.baseSeats.concat(seats); pl.solids = pl.baseSolids.concat(solids);
@@ -1606,11 +1623,15 @@ const seatOut = q => [q.ax ?? q.x, q.az ?? q.z + .8];
 function leaveSeat() { const q = place.seats[me.seat]; me.seat = -1; if (!q) return; [me.x, me.z] = seatOut(q); me.tx = me.x; me.tz = me.z; }
 function rebuildDeco(id) {
   const pl = built[id]; if (!pl) return; const st = decoOf(id);
+  const here = pl === place, oldQ = here && pl.seats[me.seat], oldW = here && pl.seats[me.want]; // seats are indices, so re-find yours after the list changes
   if (pl.deco) pl.g.remove(pl.deco);
   pl.deco = new THREE.Group(); pl.g.add(pl.deco);
   rebuildBlocks(pl, st);
   st.items.forEach((it, i) => { const f = DECO_BUILD[it.k]; if (!f) return; const m = f(); m.position.set(it.x, colTopAt(pl, it.x, it.z), it.z); m.rotation.y = it.r || 0; m.userData.decoIndex = i; pl.deco.add(m); });
   decoPhysics(pl, st.items);
+  const find = q => pl.seats.findIndex(s => Math.abs(s.x - q.x) < 1e-3 && Math.abs(s.z - q.z) < 1e-3 && Math.abs(s.y - q.y) < 1e-3 && Math.abs(s.ry - q.ry) < 1e-3);
+  if (oldQ) { me.seat = find(oldQ); if (me.seat < 0) { [me.x, me.z] = seatOut(oldQ); me.tx = me.x; me.tz = me.z; } }
+  if (oldW) { me.want = find(oldW); if (me.want < 0) { me.path = null; me.tx = me.tz = NaN; } }
   (pl.wallMats || []).forEach(mt => { mt.userData.base ||= '#' + mt.color.getHexString(); mt.color.set(st.wall || mt.userData.base); });
 }
 function applyMood() { const st = decoOf(place.id); moodLight.intensity = st.mood ? 10 : 0; if (st.mood) moodLight.color.set(st.mood); }
@@ -1694,12 +1715,12 @@ function doEmote(k) {
   if (k === 'massage') {
     if (!them || Math.hypot(me.x - them.x, me.z - them.z) > 2.5) { toast('Walk closer to give a massage 💆'); return; }
     const down = them.pose === 'back' || them.pose === 'belly', fx = Math.sin(them.ry), fz = Math.cos(them.ry);
-    me.seat = -1; me.want = -1; me.floor = false;
+    leaveSeat(); me.want = -1; me.floor = false;
     if (down) { me.tx = them.x + fz * .5; me.tz = them.z - fx * .5; } else { me.tx = them.x - fx * .42; me.tz = them.z - fz * .42; } // kneel beside, or stand behind
   }
   if (k === 'hug' || k === 'smooch' || k === 'slowdance') {
     if (!them || Math.hypot(me.x - them.x, me.z - them.z) > 2.5) { toast('Walk closer to them first ♥'); return; }
-    const d = Math.hypot(them.x - me.x, them.z - me.z) || 1; me.seat = -1; me.want = -1;
+    leaveSeat(); const d = Math.hypot(them.x - me.x, them.z - me.z) || 1; me.want = -1;
     me.tx = them.x - (them.x - me.x) / d * .5; me.tz = them.z - (them.z - me.z) / d * .5;
   }
   me.emote = { k, t0: clock.elapsedTime }; send({ t: 'emote', k }); emoteFx(me, k); closePanel(); loveFor(k);
@@ -2327,7 +2348,7 @@ function onFun3(m) {
     case 'petk': if (them) { them.pet = m.k; them.petName = m.n || ''; } else { pendingPet = m.k; pendingPetName = m.n || ''; } return true;
     case 'fetch': if (them) throwBall(them, m.x, m.z); return true;
     case 'petpet': { const o = m.whose === 'mine' ? them && them.petObj : me.petObj; if (o) petIt(o); return true; }
-    case 'hand': if (m.on && them) { hand = { leader: otherRole(), side: sideOf(them, me) }; floatText(them, '🤝', '#ffcf6b'); } else hand = null; return true;
+    case 'hand': if (m.on && them) { if (hand && hand.leader === myRole() && isHost) return true; /* both pressed at once: the host keeps leading */ hand = { leader: otherRole(), side: sideOf(them, me) }; floatText(them, '🤝', '#ffcf6b'); } else hand = null; return true;
     case 'fw': launchFireworks(m.seed); return true;
     case 'ink': inkLine(m.pts, m.c, m.w); return true;
     case 'inkClear': paintPlaceholder(); return true;
@@ -2505,14 +2526,18 @@ const blockMat = k => blockMats[k] ||= (BLOCKS.find(b => b[0] === k) || BLOCKS[0
 function rebuildBlocks(pl, st) {
   st.blocks ||= [];
   if (pl.blocksG) pl.g.remove(pl.blocksG);
-  pl.blocksG = new THREE.Group(); pl.g.add(pl.blocksG); pl.colTop = new Map();
+  pl.blocksG = new THREE.Group(); pl.g.add(pl.blocksG); pl.colTop = new Map(); pl.colCells = new Map();
   for (const [ix, iy, iz, k] of st.blocks) {
     const m = put(new THREE.Mesh(blockGeo, blockMat(k)), (ix + .5) * BS, (iy + .5) * BS, (iz + .5) * BS, pl.blocksG); m.userData.cell = [ix, iy, iz];
-    const key = ix + ',' + iz; pl.colTop.set(key, Math.max(pl.colTop.get(key) || 0, (iy + 1) * BS));
+    const key = ix + ',' + iz; pl.colTop.set(key, Math.max(pl.colTop.get(key) || 0, (iy + 1) * BS)); (pl.colCells.get(key) || pl.colCells.set(key, []).get(key)).push(iy);
   }
 }
 function colTopAt(pl, x, z) { return (pl && pl.colTop && pl.colTop.get(Math.floor(x / BS) + ',' + Math.floor(z / BS))) || 0; }
-const groundAt = (x, z) => Math.max(colTopAt(place, x, z), solidTop(x, z));
+// blocks only count as floor below your feet (+ step height) and as wall where they overlap your body, so arches/roofs work
+const HEAD = .9, cellsAt = (x, z) => (place && place.colCells && place.colCells.get(Math.floor(x / BS) + ',' + Math.floor(z / BS))) || [];
+const groundAt = (x, z, y) => { let g = solidTop(x, z); for (const iy of cellsAt(x, z)) if ((iy + 1) * BS <= y + .3) g = Math.max(g, (iy + 1) * BS); return g; };
+const blockedAt = (x, z, y) => solidTop(x, z) > y + .3 || cellsAt(x, z).some(iy => (iy + 1) * BS > y + .3 && iy * BS < y + HEAD);
+const ceilAt = (x, z, y) => { let c = Infinity; for (const iy of cellsAt(x, z)) if (iy * BS >= y + HEAD - .01) c = Math.min(c, iy * BS); return c; };
 
 let building = false, bTool = 'place', bKind = 'oak', bDown = null;
 const bHistory = [];
@@ -2710,6 +2735,7 @@ function onFun6(m) {
   return false;
 }
 const inRects = (x, z) => place.rects.some(r => x >= r[0] && x <= r[1] && z >= r[2] && z <= r[3]);
+const nearRect = (x, z) => { let best = [x, z], bd = Infinity; for (const r of place.rects) { const q = [Math.max(r[0], Math.min(r[1], x)), Math.max(r[2], Math.min(r[3], z))], d = Math.hypot(q[0] - x, q[1] - z); if (d < bd) { bd = d; best = q; } } return best; };
 
 function desk() { const g = new THREE.Group(), wd = woodMat('#d09070', 1); put(rbox(1.2, .05, .6, wd, .02), 0, .75, 0, g); for (const sx of [-1, 1]) put(rbox(.05, .73, .55, '#3a2418', .01), sx * .56, .365, 0, g); put(rbox(.62, .4, .03, '#1a1820', .02), 0, 1.04, -.18, g); put(rbox(.56, .32, .01, GLOW('#7ad8ff', .9), .01), 0, 1.04, -.16, g); put(cyl(.03, .05, .14, '#1a1820', 8), 0, .84, -.2, g); put(rbox(.4, .02, .14, '#e8e4ec', .01), 0, .785, .08, g); put(cyl(.04, .035, .09, '#ff9ab8'), .42, .82, .1, g); put(cyl(.2, .2, .05, '#a77bff', 20), 0, .45, .55, g); put(cyl(.03, .03, .44, '#3a2a20', 8), 0, .22, .55, g); return g; }
 function dresser() { const g = new THREE.Group(); put(rbox(1.2, .9, .5, '#f4efe6', .05), 0, .45, 0, g); for (let i = 0; i < 3; i++) { put(rbox(1.1, .01, .02, '#d8ccc0', .005), 0, .2 + i * .27, .255, g); for (const sx of [-.3, .3]) put(new THREE.Mesh(SPH, M('#ffcf6b', { metalness: .7, roughness: .3 })), sx, .32 + i * .27 - .1, .27, g).scale.setScalar(.022); } put(plant(.4), -.4, .9, 0, g); put(cyl(.04, .04, .14, '#fff4e2', 12), .35, .97, 0, g); put(new THREE.Mesh(SPH, GLOW('#ffcf6b', 5)), .35, 1.06, 0, g).scale.set(.018, .03, .018); return g; }
@@ -2822,7 +2848,7 @@ function attack(kind) {
 }
 function knocked(dx, dz, kind) { sfx('bonk');
   const power = kind === 'smack' ? 6.5 : 5;
-  me.seat = -1; me.want = -1; me.floor = false; me.slide = null; me.emote = null; if (hand) breakHands();
+  leaveSeat(); me.want = -1; me.floor = false; me.slide = null; me.emote = null; if (hand) breakHands();
   me.ko = { t0: clock.elapsedTime, dx, dz, kind }; me.vx = dx * power; me.vz = dz * power; me.vy = kind === 'smack' ? 3.4 : 2.4; me.jy += .001;
   me.spinV = kind === 'smack' ? 16 : 0; me.tx = me.tz = NaN;
   if (kind === 'smack') smackSound(); else boom(.18);
@@ -2975,7 +3001,7 @@ function onData(m) {
     send({ t: 'hello', name: me.name, look: me.look, reply: true });
     if (isHost) send({ t: 'place', id: place.id });
     if (myStream) { startCall(); send({ t: 'share', on: true }); }
-  } else if (m.t === 'me' && them) { const now = clock.elapsedTime, gap = Math.max(.03, Math.min(.3, now - (them.rt || now - .05))); them.rvx = (m.x - (them.rx ?? m.x)) / gap; them.rvz = (m.z - (them.rz ?? m.z)) / gap; if (Math.hypot(them.rvx, them.rvz) > 9) them.rvx = them.rvz = 0; them.rt = now; them.rx = m.x; them.rz = m.z; them.rry = m.ry; them.seat = m.seat; them.walking = m.w; them.rjy = m.j || 0; them.lookY = m.hy; them.lookP = m.hp; them.air = !!m.a; them.pose = m.ps === 'ko' ? '' : m.ps || ''; if (m.fl && !them.flipT) them.flipT = clock.elapsedTime; if (!m.fl) them.flipT = 0; }
+  } else if (m.t === 'me' && them) { const now = clock.elapsedTime, gap = Math.max(.03, Math.min(.3, now - (them.rt || now - .05))); them.rvx = (m.x - (them.rx ?? m.x)) / gap; them.rvz = (m.z - (them.rz ?? m.z)) / gap; if (Math.hypot(them.rvx, them.rvz) > 9) them.rvx = them.rvz = 0; them.rt = now; them.rx = m.x; them.rz = m.z; them.rry = m.ry; them.seat = m.seat; if (!isHost && m.seat >= 0 && me.seat === m.seat) { leaveSeat(); me.want = -1; toast('Oops, that seat is taken'); } them.walking = m.w; them.rjy = m.j || 0; them.lookY = m.hy; them.lookP = m.hp; them.air = !!m.a; them.pose = m.ps === 'ko' ? '' : m.ps || ''; if (m.fl && !them.flipT) them.flipT = clock.elapsedTime; if (!m.fl) them.flipT = 0; }
   else if (m.t === 'place') { if (m.id !== place.id) goPlace(m.id, false, them ? them.name : 'They'); }
   else if (m.t === 'heart' && them) addHeart(them, 'theirs');
   else if (m.t === 'share' && them) {
@@ -3417,7 +3443,7 @@ function cgNext(i) {
 function cgClose() { cg = null; renderCG(); }
 // staring contest: you face each other, and the first one to touch anything loses
 function stareStart() {
-  if (them) { me.seat = -1; me.ry = Math.atan2(them.x - me.x, them.z - me.z); cam.yaw = me.ry + PI; }
+  if (them) { leaveSeat(); me.ry = Math.atan2(them.x - me.x, them.z - me.z); cam.yaw = me.ry + PI; }
   cg.done = false; const steps = ['3…', '2…', '1…', "👀 Don't. Move."]; steps.forEach((m, i) => setTimeout(() => { if (!cg || cg.k !== 'stare') return; cg.stareMsg = m; if (i === 3) cg.live = clock.elapsedTime; renderCG(); }, i * 900));
 }
 function stareLose() { if (!cg || cg.k !== 'stare' || !cg.live || cg.done) return; send({ t: 'stare' }); stareEnd(false); }
