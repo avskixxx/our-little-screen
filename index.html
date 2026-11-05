@@ -1327,7 +1327,7 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
   if (drag && e.pointerId !== drag.id) return; // a second finger never hijacks the drag
   const lk = !isTouch && (pov === 1 || shiftLock);
-  if (lk) { if (locked()) return; if (lockFails < 2) lockMouse(); } // drag-look still works until the lock arrives (or if it never does)
+  if (lk) { if (locked()) return; lockMouse(); } // drag-look still works until the lock arrives (or if it never does)
   if (e.button === 2 && !isTouch) { rmb = true; cv.style.cursor = 'none'; } // hold the two-finger / right click: cursor hides, the camera turns
   drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: 0, btn: e.button, lk }; try { cv.setPointerCapture(e.pointerId); } catch {}
 });
@@ -1522,6 +1522,8 @@ let game = null;
 let lastStart = 0, lastStartMsg = null; // starting a game/quiz/couple game: if both start at once, the host's wins
 function startSend(m) { lastStart = performance.now(); lastStartMsg = m; send(m); }
 function startClash() { if (!isHost || performance.now() - lastStart > 1500 || !(game || quiz || cg)) return false; if (lastStartMsg) send(lastStartMsg); return true; }
+let lastGot = '', lastGotAt = 0; // guest: skip the host's clash re-send of the setup we just began
+function dupStart(m) { if (isHost) return false; const k = JSON.stringify(m), now = performance.now(), d = k === lastGot && now - lastGotAt < 3000; lastGot = k; lastGotAt = now; return d; }
 const hud = $('hud'), blind = $('blind');
 const itRing = new THREE.Mesh(shared(new THREE.TorusGeometry(.17, .03, 8, 32)), GLOW('#ff5a3d', 3)); itRing.rotation.x = PI / 2;
 const starGeo = shared(new THREE.OctahedronGeometry(1, 0));
@@ -1681,7 +1683,7 @@ function solidTop(x, z) {
   return top;
 }
 const seatOut = q => [q.ax ?? q.x, q.az ?? q.z + .8];
-function leaveSeat() { const q = place.seats[me.seat]; me.seat = -1; if (!q) return; [me.x, me.z] = seatOut(q); me.tx = me.x; me.tz = me.z; }
+function leaveSeat() { const q = place.seats[me.seat]; me.seat = -1; if (!q) return; [me.x, me.z] = seatOut(q); me.tx = me.x; me.tz = me.z; me.jy = cellsAt(me.x, me.z).reduce((g, iy) => (iy + 1) * BS <= q.y + .3 ? Math.max(g, (iy + 1) * BS) : g, 0); me.vy = 0; } // stand on the block platform under the seat, not inside it
 function rebuildDeco(id, blocksOnly) {
   const pl = built[id]; if (!pl) return; const st = decoOf(id);
   const here = pl === place, oldQ = here && pl.seats[me.seat], oldW = here && pl.seats[me.want]; // seats are indices, so re-find yours after the list changes
@@ -1692,6 +1694,7 @@ function rebuildDeco(id, blocksOnly) {
     rebuildBlocks(pl, st);
     st.items.forEach((it, i) => { const f = DECO_BUILD[it.k]; if (!f) return; const m = f(); m.position.set(it.x, colTopAt(pl, it.x, it.z), it.z); m.rotation.y = it.r || 0; m.userData.decoIndex = i; pl.deco.add(m); });
   }
+  if (here && me.seat < 0) me.jy = cellsAt(me.x, me.z).reduce((g, iy) => iy * BS <= me.jy + .3 && (iy + 1) * BS > me.jy ? Math.max(g, (iy + 1) * BS) : g, me.jy); // a block placed at your feet lifts you onto it
   decoPhysics(pl, st.items);
   const find = q => pl.seats.findIndex(s => Math.abs(s.x - q.x) < 1e-3 && Math.abs(s.z - q.z) < 1e-3 && Math.abs(s.y - q.y) < 1e-3 && Math.abs(s.ry - q.ry) < 1e-3);
   if (oldQ) { me.seat = find(oldQ); if (me.seat < 0) { [me.x, me.z] = seatOut(oldQ); me.tx = me.x; me.tz = me.z; } }
@@ -1832,7 +1835,7 @@ function animEmote(p, mesh, t) {
   const u = mesh.userData, e = p.emote; if (!e) return;
   const el = t - e.t0, hug = ['hug', 'hug-back', 'massage', 'massaged', 'smooch', 'slowdance'].includes(e.k), dur = e.k === 'slowdance' ? 10 : e.k === 'smooch' ? 2.6 : e.k === 'massage' || e.k === 'massaged' ? 5.5 : e.k === 'sleep' ? 4.5 : hug ? 3.2 : e.k === 'spin' ? 1.4 : 2.6;
   if (el > dur) { p.emote = null; return; }
-  if (p === me && (hug ? me.input || me.vy !== 0 || (them && e.k !== 'massage' && e.k !== 'massaged' && el > 1.2 && Math.hypot(them.x - me.x, them.z - me.z) > 1.6) : me.vy !== 0 || (me.walking && e.k !== 'wave'))) { me.emote = null; send({ t: 'emote', k: null }); return; }
+  if (p === me && (hug ? me.input || me.vy !== 0 || (them && e.k !== 'massage' && e.k !== 'massaged' && el > 1.2 && Math.hypot(them.x - me.x, them.z - me.z) > 1.6) : me.vy !== 0 || (me.walking && e.k !== 'wave'))) { if (them && them.emote && EPAIR[me.emote.k] === them.emote.k) them.emote = null; me.emote = null; send({ t: 'emote', k: null }); return; }
   const b = u.body, h = u.head, A = u.arms;
   if (e.k === 'massaged') { // melting: eyes shut, a slow happy sway, stays lying if lying
     if (p.pose !== 'back' && p.pose !== 'belly') { b.rotation.z = Math.sin(t * 2) * .06; h.rotation.x = .15; A.forEach((a, i) => a.rotation.z *= .3); }
@@ -2448,7 +2451,7 @@ function onFun3(m) {
     case 'fw': launchFireworks(m.seed); return true;
     case 'ink': inkLine(m.pts, m.c, m.w); return true;
     case 'inkClear': paintPlaceholder(); return true;
-    case 'quiz': if (startClash()) return true; beginQuiz(m.qs, true); return true;
+    case 'quiz': if (startClash() || dupStart(m)) return true; beginQuiz(m.qs, true); return true;
     case 'quizEnd': if (quiz) { stopQuiz(true); toast(`${them ? them.name : 'They'} left the quiz`); } return true;
     case 'qa': if (quiz) { (quiz.ans[m.i] ||= {}).theirs = m.pick; if (m.i === quiz.i) { checkQuiz(); renderQuiz(); } } return true;
   }
@@ -2665,7 +2668,7 @@ function undoBlock() {
 }
 cv.addEventListener('pointerdown', e => { if (building && (!bDown || bDown[3] === e.pointerId)) bDown = [e.clientX, e.clientY, e.button, e.pointerId]; }, { capture: true });
 cv.addEventListener('pointerup', e => {
-  if (!building || !bDown || bDown[3] !== e.pointerId) return; const [x0, y0, btn] = bDown; bDown = null;
+  if (!building) { bDown = null; return; } if (!bDown || bDown[3] !== e.pointerId) return; const [x0, y0, btn] = bDown; bDown = null;
   if (Math.hypot(e.clientX - x0, e.clientY - y0) > 6) return;
   if (drag && drag.id === e.pointerId) drag = null; if (btn === 2) rmbUp(); // the main pointerup won't run, so end the camera drag here
   e.stopImmediatePropagation();
@@ -2950,7 +2953,7 @@ function attack(kind) {
 }
 function knocked(dx, dz, kind) { sfx('bonk');
   const power = kind === 'smack' ? 6.5 : 5;
-  leaveSeat(); me.want = -1; me.floor = false; me.slide = null; if (me.emote) send({ t: 'emote', k: null }); me.emote = null; if (hand) breakHands();
+  leaveSeat(); me.want = -1; me.floor = false; me.slide = null; if (me.emote) { send({ t: 'emote', k: null }); if (them && them.emote && EPAIR[me.emote.k] === them.emote.k) them.emote = null; } me.emote = null; if (hand) breakHands();
   me.ko = { t0: clock.elapsedTime, dx, dz, kind }; me.vx = dx * power; me.vz = dz * power; me.vy = kind === 'smack' ? 3.4 : 2.4; me.jy += .001;
   me.spinV = kind === 'smack' ? 16 : 0; me.tx = me.tz = NaN;
   if (kind === 'smack') smackSound(); else boom(.18);
@@ -3035,7 +3038,7 @@ function onFun(m) {
     case 'pop': spawnPop(new THREE.Vector3(...m.p), new THREE.Vector3(...m.v), 'theirs'); return true;
     case 'booped': boops++; if (them) { floatText(them, boops > 1 ? `boop! ×${boops}` : 'boop!', '#ff7a59'); them.squish = 1; } return true;
     case 'nom': if (them) floatText(them, 'nom! 🍿', '#ffcf6b'); return true;
-    case 'game': if (startClash()) return true; beginGame(m.g, true); return true;
+    case 'game': if (startClash() || dupStart(m)) return true; beginGame(m.g, true); return true;
     case 'gameEnd': endGame(true); toast('Game stopped'); return true;
     case 'tag': if (game && (game.mode === 'tag' || game.mode === 'potato')) { game.it = myRole(); game.cool = clock.elapsedTime - game.t0 + 1.5; floatText(me, "tag! you're it", '#ff7a59'); } return true;
     case 'gameOver': if (game && (game.mode === 'tag' || game.mode === 'potato')) finishTagPotato(m.it); return true;
@@ -3132,7 +3135,7 @@ function rejoin() { // guest: keep knocking for a while (the host may be reloadi
   if (isHost || conn) return;
   if (++rejoinTries > (joined ? 12 : 4)) { setStatus(joined ? '💔 disconnected, refresh to rejoin' : '🫥 room not found, ask for a new link'); return; }
   setStatus(joined ? 'reconnecting…' : 'connecting…');
-  setTimeout(() => { if (!conn && peer && !peer.destroyed) wire(peer.connect(ROOM, { reliable: true })); }, 2500);
+  setTimeout(() => { if (conn || !peer || peer.destroyed) return; if (peer.disconnected) { try { peer.reconnect(); } catch {} rejoin(); return; } const c = peer.connect(ROOM, { reliable: true }); if (c) wire(c); else rejoin(); }, 2500); // connect() returns nothing while off the signaling server
 }
 function wire(c) {
   conn = c;
@@ -3591,7 +3594,7 @@ function stareStart() {
 function stareLose() { if (!cg || cg.k !== 'stare' || !cg.live || cg.done) return; send({ t: 'stare' }); stareEnd(false); }
 function stareEnd(won) {
   cg.done = true; cg.won = won; cg.live = 0; const secs = (clock.elapsedTime - (cg.liveAt || clock.elapsedTime)).toFixed(1);
-  if (won) { achieve('stare'); sfx('win'); }
+  achieve('stare'); if (won) sfx('win');
   cg.stareMsg = won ? `🏆 ${esc(them ? them.name : 'They')} blinked! You win` : '😵 You blinked! They win';
   me.emote = { k: won ? 'cheer' : 'cry', t0: clock.elapsedTime }; renderCG();
 }
@@ -3623,7 +3626,7 @@ function openCouple() {
 $('couple').onclick = openCouple;
 function onFun10(m) {
   switch (m.t) {
-    case 'cg': if (startClash()) return true; beginCG(m.k, m.order, m.first, true); toast(`${them ? them.name : 'They'} started ${CG_NAME[m.k]}`); return true;
+    case 'cg': if (startClash() || dupStart(m)) return true; beginCG(m.k, m.order, m.first, true); toast(`${them ? them.name : 'They'} started ${CG_NAME[m.k]}`); return true;
     case 'cgp': if (cg && m.i === cg.i && cg.picks.theirs === undefined) { cg.picks.theirs = m.v; cgReveal(); renderCG(); } return true;
     case 'cgt': if (cg && m.i === cg.i && !cg.picks.choice) { cg.picks.choice = m.c; renderCG(); } return true;
     case 'cgn': if (cg && (m.from === undefined || m.from === cg.i)) cgNext(m.i); return true; // both pressed Next: drop the late one
