@@ -130,6 +130,17 @@
   #qPicks .sw{width:22px;height:22px}
   #qPicks .tile.emo{width:40px;height:40px;font-size:20px}
   #qPicks .pill{padding:6px 12px;font-size:13px}
+  #qPicks .tile{flex:none}
+  /* small screens: the intro scrolls instead of clipping the Go button */
+  #start{overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+  #intro{margin:auto}
+  #start .spark{position:fixed} /* keep the drifting sparks out of the scroll area */
+  .pvbox.hero{height:min(52vh,52dvh,400px)}
+  @media (max-height:760px),(max-width:700px){.pvbox.hero{height:min(30vh,30dvh,240px);width:min(60vw,220px)}#intro{gap:12px;padding:12px}}
+  @media (max-height:500px){.pvbox.hero{height:min(70vh,70dvh,260px)}}
+  /* narrow top bar: icons only, then side-scroll as a last resort */
+  @media (max-width:1000px){#top .pill .lbl{display:none}#top{gap:6px}#status{min-width:96px}}
+  @media (max-width:700px){#top{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:4px 2px 8px;margin-top:-4px}#top::-webkit-scrollbar{display:none}#top>*{flex-shrink:0}#top>#status{flex-shrink:1}.grp .pill{padding:6px 8px}}
   .spark{position:absolute;border-radius:50%;background:#ffcf6b;box-shadow:0 0 12px #ffcf6b;opacity:.0;animation:spark linear infinite;pointer-events:none}
   @keyframes spark{0%{opacity:0;transform:translateY(20px)}20%{opacity:.8}100%{opacity:0;transform:translateY(-140px)}}
   #wishb{position:absolute;left:50%;top:112px;transform:translateX(-50%);z-index:5;display:none;animation:pulse 1.2s ease-in-out infinite}
@@ -149,7 +160,7 @@
     <div class="vig"></div><div class="grain"></div>
     <div id="stick"><div id="knob"></div></div>
     <button id="jump">⤒</button>
-    <div id="top"><span id="status">…</span><button class="pill" id="loveb" title="Our love level">💗 Lv 1</button><button class="pill" id="invite">💌 Invite</button><button class="pill" id="placesb">🗺 Places</button><span style="flex:1"></span><div class="grp"><button class="pill" id="charb" title="Your character">👤</button><button class="pill" id="pets" title="Pets">🐾</button><button class="pill" id="hats" title="Hats">🎩</button><button class="pill" id="fw" title="Fireworks">🎆</button><button class="pill" id="doodle" title="Doodle on the screen">✏️</button><button class="pill" id="radiob" title="Radio, sound & graphics">📻</button></div><button class="pill" id="couple">💞 Us</button><button class="pill" id="games">🎲 Games</button><button class="pill" id="decor">🛋 Decorate</button><button class="pill" id="helpb" title="Controls">?</button></div>
+    <div id="top"><span id="status">…</span><button class="pill" id="loveb" title="Our love level">💗 <span class="lbl">Lv </span>1</button><button class="pill" id="invite">💌 <span class="lbl">Invite</span></button><button class="pill" id="placesb">🗺 <span class="lbl">Places</span></button><span style="flex:1"></span><div class="grp"><button class="pill" id="charb" title="Your character">👤</button><button class="pill" id="pets" title="Pets">🐾</button><button class="pill" id="hats" title="Hats">🎩</button><button class="pill" id="fw" title="Fireworks">🎆</button><button class="pill" id="doodle" title="Doodle on the screen">✏️</button><button class="pill" id="radiob" title="Radio, sound & graphics">📻</button></div><button class="pill" id="couple">💞 <span class="lbl">Us</span></button><button class="pill" id="games">🎲 <span class="lbl">Games</span></button><button class="pill" id="decor">🛋 <span class="lbl">Decorate</span></button><button class="pill" id="helpb" title="Controls">?</button></div>
     <div id="hud"></div><input id="chat" maxlength="80" placeholder="say something sweet… (Enter to send)" autocomplete="off"><div id="blind"></div><div id="panel"></div>
     <div id="actions">
       <div class="grp" id="more" style="display:none"><button class="pill" id="pov" title="Switch view (V)">👀 3rd person</button><button class="pill" id="pop" title="Throw popcorn (F)">🍿</button><button class="pill" id="pushb" title="Push (Q)">🫸</button><button class="pill" id="smackb" title="Smack (G)">🖐</button></div>
@@ -199,6 +210,7 @@ const OWN = (() => { try { return sessionStorage.getItem('ols-own-room'); } catc
 const INVITED = !!ROOM && ROOM !== OWN;
 const HOUR_OVERRIDE = params.has('hour') ? parseFloat(params.get('hour')) : null;
 const PI = Math.PI;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => t.style.opacity = 0, 2400); }
 
 // ---------- renderer ----------
@@ -1365,6 +1377,8 @@ if (isTouch) {
   const end = () => { id = null; joy.on = false; joy.x = joy.y = 0; knob.style.transform = ''; };
   stick.addEventListener('pointerup', end); stick.addEventListener('pointercancel', end);
   $('jump').addEventListener('pointerdown', e => { e.stopPropagation(); jump(); });
+  const dock = $('actions'), fit = () => { const h = dock.offsetHeight + 22; stick.style.bottom = h + 'px'; $('jump').style.bottom = (h + 25) + 'px'; }; // sit above the dock, however it wraps
+  new ResizeObserver(fit).observe(dock); addEventListener('resize', fit); fit();
 }
 
 function angLerp(a, b, k) { let d = ((b - a + PI) % (2 * PI) + 2 * PI) % (2 * PI) - PI; return a + d * k; }
@@ -1519,10 +1533,10 @@ function newGame(mode) {
   }
   startSend({ t: 'game', g }); beginGame(g);
 }
-function beginGame(g) {
-  endGame(true);
+function beginGame(g, remote) {
+  endGame(true); stopQuiz(true); claimPanel();
   game = { ...g, t0: clock.elapsedTime, score: { host: 0, guest: 0 }, cool: 0 };
-  closePanel();
+  if (!remote || panelFree()) closePanel();
   if (g.mode === 'potato') toast(g.it === myRole() ? '🥔 You have the hot potato! Touch them to pass it' : `🥔 ${nameOf(g.it)} has the hot potato… run!`);
   if (g.mode === 'lava') toast('🔥 Floor is lava! Hop on a glowing pad (or a seat) before it rises');
   if (g.mode === 'tag') toast(g.it === myRole() ? '🏃 Tag! You are it, go catch them' : `🏃 Tag! ${nameOf(g.it)} is it, run!`);
@@ -1679,12 +1693,15 @@ function applyDecoOp(id, o) {
 let decorating = false, held = null, lastPtr = null;
 const panel = $('panel');
 function closePanel() { panel.style.display = 'none'; panel.dataset.k = ''; panel.classList.remove('side'); }
+function claimPanel() { if (decorating) toggleDecorate(); if (doodling) toggleDoodle(); if (building) toggleBuild(); } // another panel takes over: end the mode that owned it
+const MENU_PANELS = ['games', 'couple', 'places'];
+function panelFree() { return panel.style.display !== 'block' || !panel.dataset.k || panel.dataset.k === 'quiz' || MENU_PANELS.includes(panel.dataset.k); }
 function dropHeld() { if (held) { scene.remove(held.mesh); held = null; } }
 function pickCatalog(k) { dropHeld(); held = { k, r: 0, mesh: DECO_BUILD[k]() }; scene.add(held.mesh); }
 function toggleDecorate() {
   decorating = !decorating; $('decor').classList.toggle('on', decorating);
   if (!decorating) { dropHeld(); closePanel(); return; }
-  if (pov === 1) setPov(3); if (shiftLock) setShiftLock(false); if (building) toggleBuild();
+  if (pov === 1) setPov(3); if (shiftLock) setShiftLock(false); if (building) toggleBuild(); if (doodling) toggleDoodle();
   renderDecoPanel();
 }
 function renderDecoPanel() {
@@ -1727,8 +1744,9 @@ cv.addEventListener('pointerdown', e => lastPtr = [e.clientX, e.clientY]);
 $('decor').onclick = toggleDecorate;
 
 function openGames() {
-  if (panel.dataset.k === 'games') return closePanel();
-  if (decorating) toggleDecorate();
+  if (panel.dataset.k === 'games' || (quiz && panel.dataset.k === 'quiz')) return closePanel();
+  if (quiz) return renderQuiz(true); // a quiz is still going: Games brings it back
+  claimPanel();
   panel.dataset.k = 'games'; panel.classList.remove('side');
   panel.innerHTML = `<h3>🎲 Little games</h3><div class="grid">${[['quiz', "💘 Who's more likely", 'Both answer, see if you match'], ['lava', '🔥 Floor is lava', 'Hop on a pad or a seat before the lava rises'], ['potato', '🥔 Hot potato', 'Touch them to pass it before it blows'], ['tag', '🏃 Tag', 'Catch each other. Whoever is it at the end loses'], ['hide', '🙈 Hide & seek', 'You count, they hide, then go find them'], ['stars', '⭐ Star race', 'Grab more glowing stars than them']].map(([k, a, b]) => `<button class="tile" data-g="${k}"><b>${a}</b><span>${b}</span></button>`).join('')}</div>
     ${game ? '<div class="row"><button class="pill" data-stop>Stop the game</button></div>' : ''}
@@ -1836,7 +1854,7 @@ function animEmote(p, mesh, t) {
 }
 function openEmotes() {
   if (panel.dataset.k === 'emotes') return closePanel();
-  if (decorating) toggleDecorate();
+  claimPanel();
   panel.dataset.k = 'emotes'; panel.classList.remove('side');
   panel.innerHTML = `<h3>😊 Emotes</h3><div class="grid">${EMOTES.map(([k, e, n], i) => `<button class="tile" data-e="${k}"><b>${e} ${n}</b>${i < 9 ? `<span>key ${i + 1}</span>` : '<span>tap</span>'}</button>`).join('')}</div><div class="row hintrow">Hug and massage work when you're close to them 🤗 · lie down on them first for a back rub</div>`;
   panel.style.display = 'block';
@@ -1899,7 +1917,7 @@ function syncHat(p, mesh) {
 }
 function openHats() {
   if (panel.dataset.k === 'hats') return closePanel();
-  if (decorating) toggleDecorate();
+  claimPanel();
   panel.dataset.k = 'hats'; panel.classList.remove('side');
   panel.innerHTML = `<h3>🎩 Hats · ⭐ ${found.size}/${TOTAL} hidden stars found</h3><div class="grid"><button class="tile${!me.hat ? ' sel' : ''}" data-h=""><b>🙂 No hat</b><span>just you</span></button>${HATS.map(h => { const ok = found.size >= h.need; return `<button class="tile${me.hat === h.k ? ' sel' : ''}" data-h="${h.k}" ${ok ? '' : 'disabled'}><b>${h.icon} ${h.name}</b><span>${ok ? 'tap to wear' : `🔒 find ${h.need} stars`}</span></button>`; }).join('')}</div><div class="row hintrow">Little glowing stars are hidden in every place. Look behind things and in corners!</div>`;
   panel.style.display = 'block';
@@ -2044,7 +2062,8 @@ function say(mesh, text) {
   u.bubble = sp; u.bubbleEnd = clock.elapsedTime + 5 + text.length * .06; u.talkEnd = clock.elapsedTime + Math.min(3.5, .5 + text.length * .07);
 }
 const chat = $('chat');
-function openChat() { if (!started) return; for (const k in keys) keys[k] = false; if (locked()) unlockMouse(); chat.style.display = 'block'; chat.value = ''; chat.focus(); }
+function openChat() { if (!started) return; for (const k in keys) keys[k] = false; if (locked()) unlockMouse(); if (chat.style.display !== 'block') { chat.style.display = 'block'; chat.value = ''; } chat.focus(); } // already open (just blurred): keep the half-typed text
+chat.addEventListener('blur', () => { if (!chat.value.trim()) chat.style.display = 'none'; });
 function closeChat() { chat.style.display = 'none'; chat.blur(); }
 chat.addEventListener('keydown', e => {
   e.stopPropagation();
@@ -2201,7 +2220,7 @@ function petIt(o) {
 }
 function openPets() {
   if (panel.dataset.k === 'pets') return closePanel();
-  if (decorating) toggleDecorate();
+  claimPanel();
   panel.dataset.k = 'pets'; panel.classList.remove('side');
   panel.innerHTML = `<h3>🐾 Your pet</h3><div class="grid">${PETS.map(([k, e, n]) => `<button class="tile${(me.pet || '') === k ? ' sel' : ''}" data-pet="${k}"><b>${e} ${n}</b></button>`).join('')}</div>
     <div class="row"><input id="petName" maxlength="14" placeholder="Name your pet…" value="${(me.petName || '').replace(/"/g, '')}" style="flex:1;border:0;border-radius:999px;padding:9px 14px;background:#ffffff14;color:var(--ink);font:inherit"><button class="pill on" id="petBall">🎾 Throw ball (B)</button></div>
@@ -2313,7 +2332,7 @@ cv.addEventListener('pointerup', e => { if (!stroke) return; e.stopImmediateProp
 function toggleDoodle() {
   doodling = !doodling; $('doodle').classList.toggle('on', doodling);
   if (!doodling) { if (panel.dataset.k === 'doodle') closePanel(); return; }
-  if (decorating) toggleDecorate();
+  if (decorating) toggleDecorate(); if (building) toggleBuild();
   if (screenLive) toast('Stop sharing first to doodle on the screen');
   panel.dataset.k = 'doodle'; panel.classList.remove('side');
   panel.innerHTML = `<h3>✏️ Doodle on the screen</h3><div class="row" style="margin-top:0">${INKS.map(c => `<button class="sw${ink.c === c ? ' on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('')}
@@ -2338,22 +2357,26 @@ function startQuiz() {
   const idx = QUIZ.map((_, i) => i).sort(() => Math.random() - .5).slice(0, 7);
   startSend({ t: 'quiz', qs: idx }); beginQuiz(idx);
 }
-function beginQuiz(qs) { endGame(true); quiz = { qs, i: 0, ans: [], score: 0 }; renderQuiz(); }
-function renderQuiz() {
-  if (!quiz) return; const q = quiz; panel.dataset.k = 'quiz'; panel.classList.remove('side'); panel.style.display = 'block';
+function beginQuiz(qs, remote) { endGame(true); quiz = { qs, i: 0, ans: [], score: 0 }; if (remote && !panelFree()) toast(`💘 ${them ? them.name : 'They'} started a quiz · open 🎲 Games to play`); else renderQuiz(true); }
+function stopQuiz(remote) { if (!quiz) return; quiz = null; if (panel.dataset.k === 'quiz') closePanel(); if (!remote) send({ t: 'quizEnd' }); }
+function renderQuiz(force) {
+  if (!quiz) return; const q = quiz;
+  if (!force && !panelFree()) { toast('💘 quiz updated · open 🎲 Games to answer'); return; } // don't take over a panel they're using
+  claimPanel(); panel.dataset.k = 'quiz'; panel.classList.remove('side'); panel.style.display = 'block';
   if (q.i >= q.qs.length) {
     const n = q.qs.length;
     panel.innerHTML = `<h3>💘 Results</h3><div style="font-size:22px;margin:6px 0">You matched <b>${q.score}/${n}</b></div><div class="row hintrow">${q.score === n ? 'Same brain. Soulmates confirmed 💞' : q.score >= n * .6 ? 'You know each other so well ♥' : 'Time for a little debate 😳'}</div><div class="row"><button class="pill on" data-again>Play again</button><button class="pill" data-close>Close</button></div>`;
     panel.querySelector('[data-again]').onclick = startQuiz; panel.querySelector('[data-close]').onclick = () => { quiz = null; closePanel(); };
     return;
   }
-  const a = q.ans[q.i] || {}, reveal = a.mine && a.theirs, tn = them ? them.name : 'them';
+  const a = q.ans[q.i] || {}, reveal = a.mine && a.theirs, tn = esc(them ? them.name : 'them');
   panel.innerHTML = `<h3>💘 Who's more likely to… (${q.i + 1}/${q.qs.length})</h3><div style="font-size:21px;font-weight:700;margin:4px 0 12px">${QUIZ[q.qs[q.i]]}?</div>
-    <div class="grid"><button class="tile${a.mine === myRole() ? ' sel' : ''}" data-p="${myRole()}" ${a.mine ? 'disabled' : ''}><b>🙋 ${me.name}</b></button><button class="tile${a.mine === otherRole() ? ' sel' : ''}" data-p="${otherRole()}" ${a.mine ? 'disabled' : ''}><b>👉 ${tn}</b></button></div>
-    <div class="row" style="font-size:15px">${reveal ? (a.mine === a.theirs ? `💞 You both said ${nameOf(a.mine)}!` : `😳 You said ${nameOf(a.mine)}, ${tn} said ${nameOf(a.theirs)}`) : a.mine ? `waiting for ${tn}…` : 'pick one'}</div>`;
+    <div class="grid"><button class="tile${a.mine === myRole() ? ' sel' : ''}" data-p="${myRole()}" ${a.mine ? 'disabled' : ''}><b>🙋 ${esc(me.name)}</b></button><button class="tile${a.mine === otherRole() ? ' sel' : ''}" data-p="${otherRole()}" ${a.mine ? 'disabled' : ''}><b>👉 ${tn}</b></button></div>
+    <div class="row" style="font-size:15px">${reveal ? (a.mine === a.theirs ? `💞 You both said ${esc(nameOf(a.mine))}!` : `😳 You said ${esc(nameOf(a.mine))}, ${tn} said ${esc(nameOf(a.theirs))}`) : a.mine ? `waiting for ${tn}…` : 'pick one'}</div><div class="row"><button class="pill" data-quit>✕ Quit</button></div>`;
   panel.querySelectorAll('[data-p]').forEach(b => b.onclick = () => answerQuiz(b.dataset.p));
+  panel.querySelector('[data-quit]').onclick = () => stopQuiz();
 }
-function answerQuiz(role) { const a = quiz.ans[quiz.i] ||= {}; if (a.mine) return; a.mine = role; send({ t: 'qa', i: quiz.i, pick: role }); checkQuiz(); renderQuiz(); }
+function answerQuiz(role) { const a = quiz.ans[quiz.i] ||= {}; if (a.mine) return; a.mine = role; send({ t: 'qa', i: quiz.i, pick: role }); checkQuiz(); renderQuiz(true); }
 function checkQuiz() {
   const a = quiz.ans[quiz.i]; if (!a || !a.mine || !a.theirs || a.done) return;
   a.done = true; if (a.mine === a.theirs) { quiz.score++; burst(); }
@@ -2397,7 +2420,8 @@ function onFun3(m) {
     case 'fw': launchFireworks(m.seed); return true;
     case 'ink': inkLine(m.pts, m.c, m.w); return true;
     case 'inkClear': paintPlaceholder(); return true;
-    case 'quiz': if (startClash()) return true; beginQuiz(m.qs); return true;
+    case 'quiz': if (startClash()) return true; beginQuiz(m.qs, true); return true;
+    case 'quizEnd': if (quiz) { stopQuiz(true); toast(`${them ? them.name : 'They'} left the quiz`); } return true;
     case 'qa': if (quiz) { (quiz.ans[m.i] ||= {}).theirs = m.pick; if (m.i === quiz.i) { checkQuiz(); renderQuiz(); } } return true;
   }
   return false;
@@ -2820,6 +2844,8 @@ pv.s.add(new THREE.HemisphereLight('#fff4e8', '#3a2a3a', 2.2)); { const dl = new
 pv.c.position.set(0, .72, 2.9); pv.c.lookAt(0, .52, 0);
 function pvSet(look) { if (pv.mesh) pv.s.remove(pv.mesh); pv.mesh = makeChar(look, ''); pv.mesh.userData.tag.visible = false; syncHat({ hat: me.hat }, pv.mesh); pv.s.add(pv.mesh); }
 function pvAttach(box) { pv.box = box; box.appendChild(pv.r.domElement); const w = box.clientWidth || 180, h = box.clientHeight || 180; pv.r.setSize(w, h, false); pv.c.aspect = w / h; pv.c.updateProjectionMatrix(); }
+function pvFit() { const b = pv.box; if (!b || !b.clientWidth || !b.clientHeight) return; const w = b.clientWidth, h = b.clientHeight; pv.r.setSize(w, h, false); pv.c.aspect = w / h; pv.c.updateProjectionMatrix(); } // skips hidden boxes
+addEventListener('resize', pvFit); if ($('pvStart')) new ResizeObserver(pvFit).observe($('pvStart'));
 let pvDrag = null;
 pv.r.domElement.addEventListener('pointerdown', e => { pvDrag = e.clientX; pv.r.domElement.setPointerCapture(e.pointerId); });
 pv.r.domElement.addEventListener('pointermove', e => { if (pvDrag === null) return; pv.spin += (e.clientX - pvDrag) * .02; pvDrag = e.clientX; pv.v = 0; });
@@ -2981,7 +3007,7 @@ function onFun(m) {
     case 'pop': spawnPop(new THREE.Vector3(...m.p), new THREE.Vector3(...m.v), 'theirs'); return true;
     case 'booped': boops++; if (them) { floatText(them, boops > 1 ? `boop! ×${boops}` : 'boop!', '#ff7a59'); them.squish = 1; } return true;
     case 'nom': if (them) floatText(them, 'nom! 🍿', '#ffcf6b'); return true;
-    case 'game': if (startClash()) return true; beginGame(m.g); return true;
+    case 'game': if (startClash()) return true; beginGame(m.g, true); return true;
     case 'gameEnd': endGame(true); toast('Game stopped'); return true;
     case 'tag': if (game && (game.mode === 'tag' || game.mode === 'potato')) { game.it = myRole(); game.cool = clock.elapsedTime - game.t0 + 1.5; floatText(me, "tag! you're it", '#ff7a59'); } return true;
     case 'found': if (game && game.mode === 'hide') endGame(false, `🙈 ${them ? them.name : 'They'} found you!`); return true;
@@ -3039,7 +3065,7 @@ function loop() {
 // ---------- networking (PeerJS: a direct connection between the two of you) ----------
 let peer, conn, call, myStream, myRoom = '';
 function send(m) { if (conn && conn.open) conn.send(m); }
-function setStatus(s) { $('status').textContent = s; }
+function setStatus(s) { $('status').textContent = s; $('status').title = s; }
 function onData(m) {
   if (!(m.t === 'hello' && m.reply) && onFun(m)) return; // each side gets two hellos; run the extras once
   if (m.t === 'hello') {
@@ -3247,6 +3273,7 @@ function radioOn(st, tell = true) {
 function radioOff(tell = true) { if (!radio) return; clearInterval(radio.timer); radio.nodes.forEach(n => { try { n.stop(); } catch {} }); radio = null; $('radiob').classList.remove('on'); if (tell) send({ t: 'radio', st: '' }); }
 function openRadio() {
   if (panel.dataset.k === 'radio') return closePanel();
+  claimPanel();
   panel.dataset.k = 'radio'; panel.classList.remove('side');
   const sl = (k, n) => `<div class="row" style="margin-top:6px"><span style="width:90px">${n}</span><input type="range" min="0" max="1" step=".05" value="${AU.vol[k]}" data-vol="${k}"></div>`;
   panel.innerHTML = `<h3>📻 Radio</h3><div class="grid">${Object.entries(STATIONS).map(([k, S]) => `<button class="tile${radio && radio.st === k ? ' sel' : ''}" data-st="${k}"><b>${S.name}</b><span>${radio && radio.st === k ? 'playing ♪' : 'tap to play (for both of you)'}</span></button>`).join('')}<button class="tile" data-st=""><b>🔇 Off</b><span>just the room sounds</span></button></div>
@@ -3268,7 +3295,7 @@ try { love = { ...love, ...JSON.parse(localStorage.getItem('ols-love') || '{}') 
 let wishes = []; try { wishes = JSON.parse(localStorage.getItem('ols-wishes') || '[]'); } catch {}
 function saveLove() { try { localStorage.setItem('ols-love', JSON.stringify(love)); } catch {} }
 function loveLv() { let l = 1; LV.forEach(([x], i) => { if (love.xp >= x) l = i + 1; }); return l; }
-function lovePill() { const l = loveLv(); $('loveb').textContent = `💗 Lv ${l}`; $('loveb').title = `${LV[l - 1][1]} · ${love.xp} love`; }
+function lovePill() { const l = loveLv(); $('loveb').innerHTML = `💗 <span class="lbl">Lv </span>${l}`; $('loveb').title = `${LV[l - 1][1]} · ${love.xp} love`; }
 function checkLevel() {
   const l = loveLv(); lovePill();
   if (l > (love.lastLv || 1)) {
@@ -3296,7 +3323,7 @@ function minuteTogether() {
 }
 function openLove() {
   if (panel.dataset.k === 'love') return closePanel();
-  if (decorating) toggleDecorate();
+  claimPanel();
   panel.dataset.k = 'love'; panel.classList.remove('side');
   const l = loveLv(), lo = LV[l - 1][0], hi = LV[l] ? LV[l][0] : lo + 1, pc = Math.min(100, (love.xp - lo) / (hi - lo) * 100);
   panel.innerHTML = `<h3>💗 Love level ${l} · ${LV[l - 1][1]}</h3><div class="lvbar"><i style="width:${pc}%"></i></div>
@@ -3356,12 +3383,14 @@ function starTick(t) {
   if (!place || !place.outdoor || !isHost) return;
   if (t > starNext) { starNext = t + 14 + Math.random() * 18; const s = { x: -25 + Math.random() * 50, y: 24 + Math.random() * 10, dx: Math.random() < .5 ? 1 : -1 }; send({ t: 'sstar', s }); shootStar(s); }
 }
+let wishDraft = '', noteDraft = ''; // kept outside the panel so a forced close can't lose them
 $('wishb').onclick = () => {
-  wishUntil = 0; $('wishb').style.display = 'none'; panel.dataset.k = 'wish'; panel.classList.remove('side');
-  panel.innerHTML = `<h3>🌠 Make a wish</h3><div class="row" style="margin-top:0"><input id="wishIn" maxlength="120" placeholder="it stays secret…" style="flex:1;border:0;border-radius:999px;padding:10px 16px;background:#ffffff14;color:var(--ink);font:inherit"><button class="pill on" id="wishGo">✨ Wish</button></div>`;
+  wishUntil = 0; $('wishb').style.display = 'none'; claimPanel(); panel.dataset.k = 'wish'; panel.classList.remove('side');
+  panel.innerHTML = `<h3>🌠 Make a wish</h3><div class="row" style="margin-top:0"><input id="wishIn" maxlength="120" placeholder="it stays secret…" value="${esc(wishDraft)}" style="flex:1;border:0;border-radius:999px;padding:10px 16px;background:#ffffff14;color:var(--ink);font:inherit"><button class="pill on" id="wishGo">✨ Wish</button><button class="pill" id="wishNo">Not now</button></div>`;
   panel.style.display = 'block'; $('wishIn').focus();
-  const go = () => { const text = $('wishIn').value.trim(); if (!text) return; wishes.push({ text, at: Date.now() }); try { localStorage.setItem('ols-wishes', JSON.stringify(wishes.slice(-50))); } catch {} closePanel(); floatText(me, '🌠 ✨', '#ffcf6b'); sfx('chime'); send({ t: 'wished' }); achieve('wish'); loveAdd(3); };
-  $('wishGo').onclick = go; $('wishIn').onkeydown = e => { if (e.key === 'Enter') go(); };
+  const go = () => { const text = $('wishIn').value.trim(); if (!text) return; wishDraft = ''; wishes.push({ text, at: Date.now() }); try { localStorage.setItem('ols-wishes', JSON.stringify(wishes.slice(-50))); } catch {} closePanel(); floatText(me, '🌠 ✨', '#ffcf6b'); sfx('chime'); send({ t: 'wished' }); achieve('wish'); loveAdd(3); };
+  $('wishGo').onclick = go; $('wishNo').onclick = closePanel; $('wishIn').oninput = e => wishDraft = e.target.value;
+  $('wishIn').onkeydown = e => { if (e.key === 'Enter') go(); else if (e.key === 'Escape') { e.preventDefault(); $('wishIn').blur(); closePanel(); } };
 };
 
 // ---------- sparkle trails + heart aura (love level unlocks), footsteps ----------
@@ -3414,7 +3443,7 @@ function tickSwoop(t) {
 function showTitle(txt) { const el = $('ptitle'); el.textContent = txt; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); }
 function openPlaces() {
   if (panel.dataset.k === 'places') return closePanel();
-  if (decorating) toggleDecorate();
+  claimPanel();
   panel.dataset.k = 'places'; panel.classList.remove('side');
   panel.innerHTML = `<h3>🗺 Where to?</h3><div class="grid">${PLACES.map(q => `<button class="tile${place && place.id === q.id ? ' sel' : ''}" data-pl="${q.id}"><b>${q.name}</b><span>${PLACE_TAG[q.id] || ''}</span></button>`).join('')}</div><div class="row hintrow">You both go together</div>`;
   panel.style.display = 'block';
@@ -3432,14 +3461,19 @@ function setWatch(m) {
 }
 const cycleWatch = () => setWatch({ world: 'theater', theater: 'split', split: 'world' }[watchMode]);
 $('watch').onclick = cycleWatch;
-$('fs').onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => toast('Full screen is blocked here')); };
-document.addEventListener('fullscreenchange', () => { $('fs').classList.toggle('on', !!document.fullscreenElement); setTimeout(resize, 60); });
+const fsRoot = document.documentElement, rqFs = fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen, exFs = document.exitFullscreen || document.webkitExitFullscreen;
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+if (!rqFs) $('fs').style.display = 'none'; // iPhone Safari has no element full screen
+$('fs').onclick = () => { try { Promise.resolve(fsEl() ? exFs.call(document) : rqFs.call(fsRoot)).catch(() => toast('Full screen is blocked here')); } catch { toast('Full screen is not available here'); } };
+const onFs = () => { $('fs').classList.toggle('on', !!fsEl()); setTimeout(resize, 60); };
+document.addEventListener('fullscreenchange', onFs); document.addEventListener('webkitfullscreenchange', onFs);
 $('moreb').onclick = () => { const m = $('more'), on = m.style.display === 'none'; m.style.display = on ? 'flex' : 'none'; $('moreb').classList.toggle('on', on); };
 addEventListener('keydown', e => { if (isTyping(e.target) || e.repeat || e.metaKey || e.ctrlKey) return; if (e.key.toLowerCase() === 't') cycleWatch(); });
 
 // ---------- controls sheet ----------
 function openHelp() {
   if (panel.dataset.k === 'help') return closePanel();
+  claimPanel();
   panel.dataset.k = 'help'; panel.classList.remove('side');
   const K = [['WASD', 'move'], ['Space', 'jump (run + jump = flip)'], ['Shift', 'run'], ['drag / 2-finger drag', 'turn the camera'], ['scroll', 'zoom · all the way in = 1st person'], ['C', 'crouch · slide while running'], ['X', 'sit → lie on back → lie on stomach'],
     ['E', 'hold hands · pet · bong · tea'], ['B', 'throw the ball for your pet'], ['F', 'throw popcorn'], ['Q / G', 'push / smack'], ['H', 'hearts'], ['1-9', 'emotes'], ['Enter', 'chat'], ['T', 'watch mode (theater / split)'], ['L', 'camera lock'], ['V', '1st / 3rd person']];
@@ -3469,11 +3503,11 @@ function startCG(k) {
   const n = cgDeck(k).length, order = [...Array(Math.max(n, 30)).keys()].map(i => i % n).sort(() => Math.random() - .5);
   startSend({ t: 'cg', k, order, first: myRole() }); beginCG(k, order, myRole());
 }
-function beginCG(k, order, first) { endGame(true); cg = { k, order, i: 0, picks: {}, score: { me: 0, them: 0 }, first }; closePanel(); renderCG(); if (k === 'stare') stareStart(); }
+function beginCG(k, order, first, remote) { endGame(true); stopQuiz(true); claimPanel(); cg = { k, order, i: 0, picks: {}, score: { me: 0, them: 0 }, first }; if (!remote || panelFree()) closePanel(); renderCG(); if (k === 'stare') stareStart(); }
 function cgTurn() { const other = cg.first === 'host' ? 'guest' : 'host'; return cg.i % 2 ? other : cg.first; }
 function renderCG() {
   const el = $('cg'); if (!cg) { el.style.display = 'none'; return; }
-  const k = cg.k, mine = cg.picks.mine, theirs = cg.picks.theirs, both = mine !== undefined && theirs !== undefined, tn = them ? them.name : 'them';
+  const k = cg.k, mine = cg.picks.mine, theirs = cg.picks.theirs, both = mine !== undefined && theirs !== undefined, tn = esc(them ? them.name : 'them');
   let body = '';
   if (k === 'wyr') {
     const [a, b] = WYR[cg.order[cg.i]];
@@ -3525,7 +3559,7 @@ function stareLose() { if (!cg || cg.k !== 'stare' || !cg.live || cg.done) retur
 function stareEnd(won) {
   cg.done = true; cg.live = 0; const secs = (clock.elapsedTime - (cg.liveAt || clock.elapsedTime)).toFixed(1);
   if (won) { achieve('stare'); sfx('win'); }
-  cg.stareMsg = won ? `🏆 ${them ? them.name : 'They'} blinked! You win` : '😵 You blinked! They win';
+  cg.stareMsg = won ? `🏆 ${esc(them ? them.name : 'They')} blinked! You win` : '😵 You blinked! They win';
   me.emote = { k: won ? 'cheer' : 'cry', t0: clock.elapsedTime }; renderCG();
 }
 addEventListener('keydown', e => { if (cg && cg.k === 'stare' && cg.live && !isTyping(e.target)) stareLose(); }, true);
@@ -3533,28 +3567,30 @@ addEventListener('pointerdown', e => { if (cg && cg.k === 'stare' && cg.live && 
 // love letters
 let notes = []; try { notes = JSON.parse(localStorage.getItem('ols-notes') || '[]'); } catch {}
 function showLetter(n) {
-  const el = $('letter'); el.innerHTML = `<div class="paper">${n.text.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}<div class="from">— ${n.from} ♥</div><div class="row" style="justify-content:center"><button class="pill on" id="letterOk">aww ♥</button></div></div>`;
-  sfx('letter'); el.style.display = 'flex'; $('letterOk').onclick = () => { el.style.display = 'none'; for (let i = 0; i < 5; i++) setTimeout(() => addHeart(me, 'mine'), i * 100); };
+  const el = $('letter'); el.innerHTML = `<div class="paper">${esc(n.text)}<div class="from">— ${esc(n.from)} ♥</div><div class="row" style="justify-content:center"><button class="pill on" id="letterOk">aww ♥</button></div></div>`;
+  el.onclick = e => { if (!e.target.closest('#letterOk') && e.target !== el) return; el.style.display = 'none'; for (let i = 0; i < 5; i++) setTimeout(() => addHeart(me, 'mine'), i * 100); };
+  sfx('letter'); el.style.display = 'flex';
 }
 function openCouple() {
   if (panel.dataset.k === 'couple') return closePanel();
-  if (decorating) toggleDecorate();
+  claimPanel();
   panel.dataset.k = 'couple'; panel.classList.remove('side');
   const G = [['wyr', 'Both pick, see if you match'], ['deep', 'Cards to talk about real stuff'], ['tod', 'Take turns, cute dares'], ['rps', 'First to 3 wins'], ['stare', 'Face each other, first to move loses']];
   panel.innerHTML = `<h3>💞 Just us</h3><div class="grid">${G.map(([k, d]) => `<button class="tile" data-cg="${k}"><b>${CG_NAME[k]}</b><span>${d}</span></button>`).join('')}</div>
     <h3 style="margin-top:14px">💗 Couple moves</h3><div class="grid"><button class="tile" data-mv="smooch"><b>💋 Kiss</b><span>walk up close first</span></button><button class="tile" data-mv="slowdance"><b>💃 Slow dance</b><span>pull them in for a sway</span></button><button class="tile" data-mv="hug"><b>🤗 Hug</b><span>a big squeeze</span></button><button class="tile" data-mv="massage"><b>💆 Massage</b><span>shoulders or back rub</span></button></div>
-    <h3 style="margin-top:14px">✉️ Love letter</h3><div class="row" style="margin-top:0"><input id="noteIn" maxlength="220" placeholder="write them something sweet…" style="flex:1;border:0;border-radius:999px;padding:10px 16px;background:#ffffff14;color:var(--ink);font:inherit"><button class="pill on" id="noteSend">Send ✉️</button></div>
-    ${notes.length ? `<div class="row hintrow">📬 letters you got: ${notes.slice(-6).reverse().map((n, i) => `<button class="pill" data-note="${notes.length - 1 - i}">${n.from} · ${new Date(n.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</button>`).join('')}</div>` : ''}`;
+    <h3 style="margin-top:14px">✉️ Love letter</h3><div class="row" style="margin-top:0"><input id="noteIn" maxlength="220" placeholder="write them something sweet…" value="${esc(noteDraft)}" style="flex:1;border:0;border-radius:999px;padding:10px 16px;background:#ffffff14;color:var(--ink);font:inherit"><button class="pill on" id="noteSend">Send ✉️</button></div>
+    ${notes.length ? `<div class="row hintrow">📬 letters you got: ${notes.slice(-6).reverse().map((n, i) => `<button class="pill" data-note="${notes.length - 1 - i}">${esc(n.from)} · ${new Date(n.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</button>`).join('')}</div>` : ''}`;
   panel.style.display = 'block';
   panel.querySelectorAll('[data-cg]').forEach(b => b.onclick = () => startCG(b.dataset.cg));
   panel.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => doEmote(b.dataset.mv));
   panel.querySelectorAll('[data-note]').forEach(b => b.onclick = () => showLetter(notes[+b.dataset.note]));
-  $('noteSend').onclick = () => { const text = $('noteIn').value.trim(); if (!text) return; if (!them) { toast('Invite them first ♥'); return; } send({ t: 'note', text, from: me.name }); floatText(me, '✉️ sent!', '#ff9ab8'); closePanel(); loveAdd(10); achieve('letter'); };
+  $('noteIn').oninput = e => noteDraft = e.target.value;
+  $('noteSend').onclick = () => { const text = $('noteIn').value.trim(); if (!text) return; if (!them) { toast('Invite them first ♥'); return; } noteDraft = ''; send({ t: 'note', text, from: me.name }); floatText(me, '✉️ sent!', '#ff9ab8'); closePanel(); loveAdd(10); achieve('letter'); };
 }
 $('couple').onclick = openCouple;
 function onFun10(m) {
   switch (m.t) {
-    case 'cg': if (startClash()) return true; beginCG(m.k, m.order, m.first); toast(`${them ? them.name : 'They'} started ${CG_NAME[m.k]}`); return true;
+    case 'cg': if (startClash()) return true; beginCG(m.k, m.order, m.first, true); toast(`${them ? them.name : 'They'} started ${CG_NAME[m.k]}`); return true;
     case 'cgp': if (cg && m.i === cg.i && cg.picks.theirs === undefined) { cg.picks.theirs = m.v; cgReveal(); renderCG(); } return true;
     case 'cgt': if (cg && m.i === cg.i && !cg.picks.choice) { cg.picks.choice = m.c; renderCG(); } return true;
     case 'cgn': if (cg && (m.from === undefined || m.from === cg.i)) cgNext(m.i); return true; // both pressed Next: drop the late one
