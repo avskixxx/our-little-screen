@@ -149,7 +149,7 @@
     <div class="vig"></div><div class="grain"></div>
     <div id="stick"><div id="knob"></div></div>
     <button id="jump">⤒</button>
-    <div id="top"><span id="status">…</span><button class="pill" id="loveb" title="Our love level">💗 Lv 1</button><button class="pill" id="invite">💌 Invite</button><button class="pill" id="placesb">🗺 Places</button><span style="flex:1"></span><div class="grp"><button class="pill" id="charb" title="Your character">👤</button><button class="pill" id="pets" title="Pets">🐾</button><button class="pill" id="hats" title="Hats">🎩</button><button class="pill" id="fw" title="Fireworks">🎆</button><button class="pill" id="doodle" title="Doodle on the screen">✏️</button><button class="pill" id="radiob" title="Radio & sound">📻</button></div><button class="pill" id="couple">💞 Us</button><button class="pill" id="games">🎲 Games</button><button class="pill" id="decor">🛋 Decorate</button><button class="pill" id="helpb" title="Controls">?</button></div>
+    <div id="top"><span id="status">…</span><button class="pill" id="loveb" title="Our love level">💗 Lv 1</button><button class="pill" id="invite">💌 Invite</button><button class="pill" id="placesb">🗺 Places</button><span style="flex:1"></span><div class="grp"><button class="pill" id="charb" title="Your character">👤</button><button class="pill" id="pets" title="Pets">🐾</button><button class="pill" id="hats" title="Hats">🎩</button><button class="pill" id="fw" title="Fireworks">🎆</button><button class="pill" id="doodle" title="Doodle on the screen">✏️</button><button class="pill" id="radiob" title="Radio, sound & graphics">📻</button></div><button class="pill" id="couple">💞 Us</button><button class="pill" id="games">🎲 Games</button><button class="pill" id="decor">🛋 Decorate</button><button class="pill" id="helpb" title="Controls">?</button></div>
     <div id="hud"></div><input id="chat" maxlength="80" placeholder="say something sweet… (Enter to send)" autocomplete="off"><div id="blind"></div><div id="panel"></div>
     <div id="actions">
       <div class="grp" id="more" style="display:none"><button class="pill" id="pov" title="Switch view (V)">👀 3rd person</button><button class="pill" id="pop" title="Throw popcorn (F)">🍿</button><button class="pill" id="pushb" title="Push (Q)">🫸</button><button class="pill" id="smackb" title="Smack (G)">🖐</button></div>
@@ -212,6 +212,7 @@ const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, 
 scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), .04).texture;
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), .75, .55, 1.3);
+{ const bs = bloom.setSize.bind(bloom); bloom.setSize = (w, h) => bs(Math.max(1, w >> 1), Math.max(1, h >> 1)); } // half-res glow: looks the same, much cheaper
 composer.addPass(bloom); composer.addPass(new OutputPass());
 // a soft film grain + vignette on top, for the cozy analog feel
 const grain = new ShaderPass({ uniforms: { tDiffuse: { value: null }, t: { value: 0 }, amt: { value: .025 }, vig: { value: .32 }, buzz: { value: 0 }, trip: { value: 0 }, tt: { value: 0 } },
@@ -2917,9 +2918,12 @@ function onFun(m) {
 // ---------- loop ----------
 const clock = new THREE.Clock(); let lastSent = 0;
 // auto quality: if frames run slow, step down resolution + edge smoothing until it's smooth again
-const QUALITY = [[2, 4, 2], [1.75, 4, 2], [1.5, 2, 1], [1.25, 0, 1], [1, 0, 0], [.8, 0, 0]]; // pixel ratio, MSAA, shadows (0 off, 1 soft, 2 sharp)
-let frameN = 0, qLevel = 0, qAcc = 0, qN = 0;
-try { qLevel = Math.min(QUALITY.length - 1, +localStorage.getItem('ols-q') || 0); } catch {}
+// graphics levels: pixel ratio, MSAA, shadows (0 off, 1 soft, 2 sharp). Auto picks one from the real frame time,
+// steps down fast when it's slow, and only creeps back up carefully so it never flip-flops (each switch costs a hitch).
+const QUALITY = [[1.5, 4, 2], [1.25, 4, 1], [1, 2, 1], [1, 0, 0], [.75, 0, 0]];
+const GFX = { pretty: 0, balanced: 1, smooth: 3 };
+let frameN = 0, qLevel = 1, qMode = 'auto', qTooSlow = 99, qLastT = 0, qAcc = 0, qN = 0, qPrevT = 0;
+try { qMode = localStorage.getItem('ols-gfx') || 'auto'; qLevel = qMode === 'auto' ? Math.min(QUALITY.length - 1, +(localStorage.getItem('ols-q2') ?? 1)) : GFX[qMode]; } catch {}
 function applyQuality() {
   const [pr, ms, sh] = QUALITY[qLevel]; renderer.setPixelRatio(Math.min(devicePixelRatio || 1, pr));
   key.castShadow = sh > 0; const sz = sh > 1 ? 2048 : 1024; if (key.shadow.mapSize.x !== sz) { key.shadow.mapSize.set(sz, sz); if (key.shadow.map) { key.shadow.map.dispose(); key.shadow.map = null; } }
@@ -2927,17 +2931,20 @@ function applyQuality() {
   for (const rt of [composer.renderTarget1, composer.renderTarget2]) if (rt.samples !== ms) { rt.samples = ms; rt.dispose(); }
   composer.setPixelRatio(renderer.getPixelRatio()); resize();
 }
-function watchFps(raw) {
-  if (raw > .25 || document.hidden || clock.elapsedTime < 6) return; // tab was asleep, or still warming up
-  qAcc += raw; qN++;
-  if (qAcc < 2) return;
-  const fps = qN / qAcc; qAcc = 0; qN = 0;
-  const to = fps < 48 && qLevel < QUALITY.length - 1 ? qLevel + 1 : fps > 80 && qLevel > 0 ? qLevel - 1 : qLevel;
-  if (to !== qLevel) { qLevel = to; applyQuality(); try { localStorage.setItem('ols-q', qLevel); } catch {} }
+function setGfx(m) { qMode = m; try { localStorage.setItem('ols-gfx', m); } catch {} if (m !== 'auto') { qLevel = GFX[m]; applyQuality(); } else qTooSlow = 99; }
+function watchFps() {
+  const now = performance.now(), d = now - qPrevT; qPrevT = now;
+  if (qMode !== 'auto' || d > 250 || document.hidden || clock.elapsedTime < 5) return; // tab was asleep, or still warming up
+  qAcc += d; qN++; if (qAcc < 2500) return;
+  const fps = qN * 1000 / qAcc; qAcc = 0; qN = 0; const t = clock.elapsedTime;
+  let to = qLevel;
+  if (fps < 45 && qLevel < QUALITY.length - 1) { to = qLevel + 1; qTooSlow = Math.min(qTooSlow, qLevel); }
+  else if (fps > 100 && qLevel > 0 && qLevel - 1 > qTooSlow && t - qLastT > 20) to = qLevel - 1; // only go prettier if that level never proved too slow
+  if (to !== qLevel) { qLevel = to; qLastT = t; applyQuality(); try { localStorage.setItem('ols-q2', qLevel); } catch {} }
 }
 applyQuality();
 function loop() {
-  const raw = clock.getDelta(), dt = Math.min(.05, raw), t = clock.elapsedTime; watchFps(raw);
+  const raw = clock.getDelta(), dt = Math.min(.05, raw), t = clock.elapsedTime; watchFps();
   step(dt);
   placeChar(meMesh, me); animChar(meMesh, me, t);
   if (them) { if (!themMesh || themMesh.userData.look !== them.look || themMesh.userData.name !== them.name) { if (themMesh) scene.remove(themMesh); themMesh = makeChar(them.look, them.name); scene.add(themMesh); } placeChar(themMesh, them); animChar(themMesh, them, t); }
@@ -3141,9 +3148,11 @@ function openRadio() {
   panel.dataset.k = 'radio'; panel.classList.remove('side');
   const sl = (k, n) => `<div class="row" style="margin-top:6px"><span style="width:90px">${n}</span><input type="range" min="0" max="1" step=".05" value="${AU.vol[k]}" data-vol="${k}"></div>`;
   panel.innerHTML = `<h3>📻 Radio</h3><div class="grid">${Object.entries(STATIONS).map(([k, S]) => `<button class="tile${radio && radio.st === k ? ' sel' : ''}" data-st="${k}"><b>${S.name}</b><span>${radio && radio.st === k ? 'playing ♪' : 'tap to play (for both of you)'}</span></button>`).join('')}<button class="tile" data-st=""><b>🔇 Off</b><span>just the room sounds</span></button></div>
-    <h3 style="margin-top:14px">🔊 Sound</h3>${sl('m', 'Music')}${sl('a', 'Room sounds')}${sl('s', 'Effects')}`;
+    <h3 style="margin-top:14px">🔊 Sound</h3>${sl('m', 'Music')}${sl('a', 'Room sounds')}${sl('s', 'Effects')}
+    <h3 style="margin-top:14px">✨ Graphics</h3><div class="row" style="margin-top:0">${[['auto', '🤖 Auto'], ['smooth', '🏎 Smooth'], ['balanced', '⚖️ Balanced'], ['pretty', '💎 Pretty']].map(([k, n]) => `<button class="pill${qMode === k ? ' on' : ''}" data-gfx="${k}">${n}</button>`).join('')}</div><div class="row hintrow">laggy? pick Smooth</div>`;
   panel.style.display = 'block';
   panel.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { if (b.dataset.st) radioOn(b.dataset.st); else radioOff(); panel.dataset.k = ''; openRadio(); });
+  panel.querySelectorAll('[data-gfx]').forEach(b => b.onclick = () => { setGfx(b.dataset.gfx); panel.dataset.k = ''; openRadio(); });
   panel.querySelectorAll('[data-vol]').forEach(r => r.oninput = () => { const k = r.dataset.vol; AU.vol[k] = +r.value; au(); if (AU[k]) AU[k].gain.value = AU.vol[k]; try { localStorage.setItem('ols-vol', JSON.stringify(AU.vol)); } catch {} });
 }
 $('radiob').onclick = openRadio;
@@ -3484,6 +3493,6 @@ $('go').onclick = () => {
   }, 980);
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: v => hanging = v, doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { setGfx, get qMode() { return qMode }, get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: v => hanging = v, doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
