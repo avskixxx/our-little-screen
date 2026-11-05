@@ -1026,6 +1026,19 @@ function talkLevel(key) {
   const tk = talkers.get(key); if (!tk) return 0; tk.an.getByteTimeDomainData(tk.buf);
   let s = 0; for (const v of tk.buf) s += (v - 128) * (v - 128); return Math.max(0, Math.min(1, (Math.sqrt(s / tk.buf.length) - 2) / 14));
 }
+// legs: a soft cylinder from under the body to each foot (solved last in the frame, after emotes/ragdoll move body and feet)
+function solveLegs(c, p) {
+  const u = c.userData, b = u.body; if (!u.legs.length) return;
+  u.hip.updateMatrix(); b.updateMatrix(); _m4.multiplyMatrices(u.hip.matrix, b.matrix);
+  const flipping = p.flipT && (p === me ? me.vy !== 0 : p.air);
+  u.legs.forEach((l, i) => {
+    const sd = i ? 1 : -1, top = _v1.set(sd * .1, .13, 0).applyMatrix4(_m4), f = u.feet[i].position;
+    if (flipping) f.copy(_v2.set(sd * .1, -.04, .05).applyMatrix4(_m4));
+    const dir = _v2.set(f.x - top.x, f.y + .02 - top.y, f.z - top.z), len = dir.length();
+    l.visible = len > .03; if (!l.visible) return;
+    l.position.copy(top).addScaledVector(dir, .5); l.scale.set(.06, len, .06); l.quaternion.setFromUnitVectors(UP, dir.divideScalar(len));
+  });
+}
 function lifeAnim(c, p, t, dt, walk, sit) {
   // breathing, weight shift, ear twitches, tail wag, legs that connect hip to feet, talking mouth
   const u = c.userData, b = u.body, br = Math.sin(t * 1.7 + (u.seed || 0));
@@ -1038,16 +1051,6 @@ function lifeAnim(c, p, t, dt, walk, sit) {
   const tw = t < u.twEnd ? Math.sin((u.twEnd - t) / .25 * PI) * .35 : 0;
   u.ears.forEach(e => { e.rotation.z = e.userData.rz + (e.userData.k === u.twK || !e.userData.k ? tw * (e.userData.k || 1) : 0) + (walk ? Math.sin(t * 12 + e.userData.k) * .08 : 0); });
   u.tail.rotation.y = Math.sin(t * (walk ? 9 : 2.4)) * (walk ? .5 : .25);
-  // legs: a soft cylinder from under the body to each foot
-  u.hip.updateMatrix(); b.updateMatrix(); _m4.multiplyMatrices(u.hip.matrix, b.matrix);
-  const flipping = p.flipT && (p === me ? me.vy !== 0 : p.air);
-  u.legs.forEach((l, i) => {
-    const sd = i ? 1 : -1, top = _v1.set(sd * .1, .13, 0).applyMatrix4(_m4), f = u.feet[i].position;
-    if (flipping) f.copy(_v2.set(sd * .1, -.04, .05).applyMatrix4(_m4));
-    const dir = _v2.set(f.x - top.x, f.y + .02 - top.y, f.z - top.z), len = dir.length();
-    l.visible = len > .03; if (!l.visible) return;
-    l.position.copy(top).addScaledVector(dir, .5); l.scale.set(.06, len, .06); l.quaternion.setFromUnitVectors(UP, dir.divideScalar(len));
-  });
   // mouth
   const key = p === me ? 'me' : p === them ? 'them' : '';
   let lvl = key ? talkLevel(key) : 0;
@@ -1076,8 +1079,7 @@ function moodFace(c, p, t, dt) {
   const u = c.userData, m = p.preview ? '' : moodOf(p, t), mk = u.moodK ||= { sad: 0, happy: 0 };
   for (const k of ['sad', 'happy']) mk[k] += ((m === k ? 1 : 0) - mk[k]) * Math.min(1, dt * 6);
   const sd = mk.sad, hp = mk.happy;
-  if (sd > .5 && !u.wasSad && !p.ko) floatText(p, ['hmph 😢', 'meanie…', 'owie 🥺'][Math.floor(Math.random() * 3)], '#7ad8ff');
-  u.wasSad = sd > .5;
+  if (!p.ko) { if (sd > .5 && !u.wasSad) floatText(p, ['hmph 😢', 'meanie…', 'owie 🥺'][Math.floor(Math.random() * 3)], '#7ad8ff'); u.wasSad = sd > .5; }
   u.brows.forEach(br => { const k = br.userData.k; br.rotation.z = k * (-.45 * sd + .18 * hp); br.position.y = .345 + .022 * hp - .012 * sd; });
   u.eyeG.visible = hp < .5; u.happyE.visible = hp >= .5;
   if (sd > .05) u.eyes.forEach(e => e.scale.y *= 1 - .3 * sd);
@@ -1135,7 +1137,7 @@ function moreLife(c, p, t, dt, walk, sit) {
   // they walk up after being apart: say hi
   if (p === me) {
     if (d > 6) u.apart = true;
-    if (u.apart && d < 2.6 && !me.emote && !sit && t > (u.hiAt || 0)) { u.apart = false; u.hiAt = t + 60; me.emote = { k: 'wave', t0: t }; send({ t: 'emote', k: 'wave' }); emoteFx(me, 'wave'); }
+    if (u.apart && d < 2.6 && !me.emote && !sit && !me.floor && !me.ko && !me.slide && t > (u.hiAt || 0)) { u.apart = false; u.hiAt = t + 60; me.emote = { k: 'wave', t0: t }; send({ t: 'emote', k: 'wave' }); emoteFx(me, 'wave'); }
   }
 }
 const UP = new THREE.Vector3(0, 1, 0), _m4 = new THREE.Matrix4(), _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3();
@@ -1164,7 +1166,7 @@ function animChar(c, p, t) {
   if ((p === me || p === them) && p.lookY !== undefined && !slide && !lying && !p.ko) { hy = p.lookY; hp = p.lookP || 0; }
   h.rotation.y += (hy - h.rotation.y) * Math.min(1, dt * 8); h.rotation.x = (walk ? -.05 * s - .08 * rk : crouch ? .1 : pose === 'belly' ? -.6 : 0) + (u.hp = (u.hp || 0) + (hp - (u.hp || 0)) * Math.min(1, dt * 8)); h.rotation.z = Math.sin(t * .6 + u.seed) * .04;
   // idle stretch now and then
-  if (!walk && !sit && !air && !floor && !crouch && !slide) u.idle = (u.idle || 0) + dt; else u.idle = 0;
+  if (!walk && !sit && !air && !pose && !p.emote && !p.share && !p.atk && !p.ko) u.idle = (u.idle || 0) + dt; else u.idle = 0;
   const stretch = u.idle > 9 && u.idle < 10.3; if (u.idle > 15 + (u.seed % 5)) u.idle = 0;
   // jump stretch, landing squash, crouch squat
   if (u.wasAir && !air) u.land = 1; u.wasAir = air; u.land = Math.max(0, (u.land || 0) - dt * 4);
@@ -1380,6 +1382,7 @@ function step(dt) {
   if (joy.on) { f = -joy.y; r = joy.x; }
   if (isFrozen()) { f = r = 0; me.tx = me.x; me.tz = me.z; me.want = -1; }
   if (me.ko || me.slide) { f = r = 0; me.tx = me.tz = NaN; me.want = -1; }
+  me.input = Math.hypot(f, r) > .15;
   if (me.floor && Math.hypot(f, r) > .15) me.floor = false;
   if (hand && hand.leader !== myRole()) { if (Math.hypot(f, r) > .15) breakHands(); else { const g = followTarget(); if (g && Math.hypot(g[0] - me.x, g[1] - me.z) > .05) { me.tx = g[0]; me.tz = g[1]; me.want = -1; } } }
   if (me.floor && (me.seat >= 0 || me.want >= 0 || Math.hypot(me.tx - me.x, me.tz - me.z) > .06)) me.floor = false; // being walked anywhere gets you up
@@ -1731,8 +1734,10 @@ addEventListener('keydown', e => {
 // emotes + hugs
 const EMOTES = [['wave', '👋', 'Wave'], ['dance', '💃', 'Dance'], ['kiss', '😘', 'Blow a kiss'], ['hug', '🤗', 'Hug'], ['laugh', '😂', 'Laugh'], ['sleep', '😴', 'Sleepy'], ['cheer', '🙌', 'Yay!'], ['spin', '🌀', 'Spin'], ['shy', '🙈', 'Shy'],
   ['clap', '👏', 'Clap'], ['peace', '✌️', 'Peace'], ['hearts', '🫶', 'Heart hands'], ['cry', '😭', 'Cry'], ['flex', '💪', 'Flex'], ['bow', '🙇', 'Bow'], ['jacks', '🤸', 'Jumping jacks'], ['yawn', '🥱', 'Yawn'], ['shrug', '🤷', 'Shrug'], ['massage', '💆', 'Massage them'], ['lieback', '🛌', 'Lie on back'], ['liebelly', '🫠', 'Lie on stomach']];
+const EPAIR = { hug: 'hug-back', 'hug-back': 'hug', smooch: 'smooch', slowdance: 'slowdance', massage: 'massaged', massaged: 'massage' }; // paired emote on the other one
 function doEmote(k) {
   if (k === 'lieback' || k === 'liebelly') { layDown(k === 'lieback' ? 'back' : 'belly'); closePanel(); return; }
+  if (me.ko) return;
   if (k === 'massage') {
     if (!them || Math.hypot(me.x - them.x, me.z - them.z) > 2.5) { toast('Walk closer to give a massage 💆'); return; }
     const down = them.pose === 'back' || them.pose === 'belly', fx = Math.sin(them.ry), fz = Math.cos(them.ry);
@@ -1744,7 +1749,8 @@ function doEmote(k) {
     leaveSeat(); const d = Math.hypot(them.x - me.x, them.z - me.z) || 1; me.want = -1;
     me.tx = them.x - (them.x - me.x) / d * .5; me.tz = them.z - (them.z - me.z) / d * .5;
   }
-  me.emote = { k, t0: clock.elapsedTime }; send({ t: 'emote', k }); emoteFx(me, k); closePanel(); loveFor(k);
+  me.floor = false; me.emote = { k, t0: clock.elapsedTime }; send({ t: 'emote', k }); emoteFx(me, k); closePanel(); loveFor(k);
+  if (them && ['hug', 'smooch', 'slowdance', 'massage'].includes(k)) { them.emote = { k: EPAIR[k], t0: clock.elapsedTime }; if (k === 'massage') emoteFx(them, 'massaged'); } // they react the same way on their side
 }
 function emoteFx(p, k) {
   if (k === 'smooch') sfx('kiss');
@@ -1767,12 +1773,14 @@ function emoteFx(p, k) {
 function animEmote(p, mesh, t) {
   const u = mesh.userData, e = p.emote; if (!e) return;
   const el = t - e.t0, hug = ['hug', 'hug-back', 'massage', 'massaged', 'smooch', 'slowdance'].includes(e.k), dur = e.k === 'slowdance' ? 10 : e.k === 'smooch' ? 2.6 : e.k === 'massage' || e.k === 'massaged' ? 5.5 : e.k === 'sleep' ? 4.5 : hug ? 3.2 : e.k === 'spin' ? 1.4 : 2.6;
-  if (el > dur || (p === me && !hug && (me.walking || me.jy > 0))) { p.emote = null; return; }
+  if (el > dur) { p.emote = null; return; }
+  if (p === me && (hug ? me.input || me.vy !== 0 || (them && e.k !== 'massage' && e.k !== 'massaged' && el > 1.2 && Math.hypot(them.x - me.x, them.z - me.z) > 1.6) : me.vy !== 0 || (me.walking && e.k !== 'wave'))) { me.emote = null; send({ t: 'emote', k: null }); return; }
   const b = u.body, h = u.head, A = u.arms;
   if (e.k === 'massaged') { // melting: eyes shut, a slow happy sway, stays lying if lying
     if (p.pose !== 'back' && p.pose !== 'belly') { b.rotation.z = Math.sin(t * 2) * .06; h.rotation.x = .15; A.forEach((a, i) => a.rotation.z *= .3); }
     return;
   }
+  if (p.ko || ['floor', 'slide', 'back', 'belly', 'ko'].includes(p.pose)) return; // don't snap a lying/knocked body upright
   b.rotation.set(0, 0, 0); A.forEach(a => a.rotation.set(0, 0, 0));
   const arm = (i, x, y, z, rz = 0) => { A[i].position.set(x, y, z); A[i].rotation.set(0, 0, rz); };
   switch (e.k) {
@@ -1979,7 +1987,8 @@ function onFun2(m) {
   switch (m.t) {
     case 'hello': send({ t: 'hat', h: me.hat }); return false;
     case 'hat': if (them) them.hat = m.h; else pendingHat = m.h; return true;
-    case 'emote': if (them) { them.emote = { k: m.k, t0: clock.elapsedTime }; emoteFx(them, m.k); if (m.k === 'hug') me.emote = { k: 'hug-back', t0: clock.elapsedTime }; if (m.k === 'smooch' || m.k === 'slowdance') { me.emote = { k: m.k, t0: clock.elapsedTime }; if (m.k === 'slowdance') toast(`💃 ${them.name} pulled you into a slow dance`); } if (m.k === 'massage') { me.emote = { k: 'massaged', t0: clock.elapsedTime }; emoteFx(me, 'massaged'); } } return true;
+    case 'emote': if (them && m.k == null) { const pk = them.emote && them.emote.k; them.emote = null; if (me.emote && pk && EPAIR[pk] === me.emote.k) me.emote = null; return true; } // they stopped early
+      if (them) { them.emote = { k: m.k, t0: clock.elapsedTime }; emoteFx(them, m.k); if (m.k === 'hug') { me.floor = false; me.emote = { k: 'hug-back', t0: clock.elapsedTime }; } if (m.k === 'smooch' || m.k === 'slowdance') { me.floor = false; me.emote = { k: m.k, t0: clock.elapsedTime }; if (m.k === 'slowdance') toast(`💃 ${them.name} pulled you into a slow dance`); } if (m.k === 'massage') { me.emote = { k: 'massaged', t0: clock.elapsedTime }; emoteFx(me, 'massaged'); } } return true;
     case 'snap': flash(); toast(`📸 ${them ? them.name : 'They'} took a photo of you two`); return true;
   }
   return false;
@@ -2802,7 +2811,7 @@ pv.r.domElement.addEventListener('pointerup', () => { pvDrag = null; pv.v = .4; 
 function pvLoop(now) {
   requestAnimationFrame(pvLoop);
   if (!pv.box || !pv.box.isConnected || !pv.box.offsetParent) return;
-  const t = now / 1000; pv.spin += pv.v * .016; if (pv.mesh) { pv.mesh.rotation.y = pv.spin; animChar(pv.mesh, pv.p, t); }
+  const t = now / 1000; pv.spin += pv.v * .016; if (pv.mesh) { pv.mesh.rotation.y = pv.spin; animChar(pv.mesh, pv.p, t); solveLegs(pv.mesh, pv.p); }
   pv.r.render(pv.s, pv.c);
 }
 requestAnimationFrame(pvLoop);
@@ -2871,7 +2880,7 @@ function attack(kind) {
 }
 function knocked(dx, dz, kind) { sfx('bonk');
   const power = kind === 'smack' ? 6.5 : 5;
-  leaveSeat(); me.want = -1; me.floor = false; me.slide = null; me.emote = null; if (hand) breakHands();
+  leaveSeat(); me.want = -1; me.floor = false; me.slide = null; if (me.emote) send({ t: 'emote', k: null }); me.emote = null; if (hand) breakHands();
   me.ko = { t0: clock.elapsedTime, dx, dz, kind }; me.vx = dx * power; me.vz = dz * power; me.vy = kind === 'smack' ? 3.4 : 2.4; me.jy += .001;
   me.spinV = kind === 'smack' ? 16 : 0; me.tx = me.tz = NaN;
   if (kind === 'smack') smackSound(); else boom(.18);
@@ -2911,7 +2920,7 @@ function onFun9(m) {
   switch (m.t) {
     case 'swing': if (them) them.atk = { k: m.k, t0: clock.elapsedTime }; return true;
     case 'push': case 'smack': if (!me.ko) knocked(m.dx, m.dz, m.t); return true;
-    case 'ko': if (them) them.ko = { t0: clock.elapsedTime, dx: m.dx, dz: m.dz, kind: m.kind }; return true;
+    case 'ko': if (them) { them.ko = { t0: clock.elapsedTime, dx: m.dx, dz: m.dz, kind: m.kind }; them.emote = null; } return true;
   }
   return false;
 }
@@ -2999,6 +3008,7 @@ function loop() {
   if (them) { if (!themMesh || themMesh.userData.look !== them.look || themMesh.userData.name !== them.name) { if (themMesh) scene.remove(themMesh); themMesh = makeChar(them.look, them.name); scene.add(themMesh); } placeChar(themMesh, them); animChar(themMesh, them, t); }
   else if (themMesh) { scene.remove(themMesh); themMesh = null; }
   hemi.intensity = hemiBase; place.tick(t, dt); if (key.castShadow) { hemi.intensity *= .5; for (const l of placeSuns) l.intensity *= .45; } fitScreen(place.scr); funTick(dt, t);
+  solveLegs(meMesh, me); if (them && themMesh) solveLegs(themMesh, them);
   const close = them && me.seat >= 0 && them.seat >= 0 && Math.abs(me.seat - them.seat) === 1;
   cuddle.visible = !!close; if (close) { cuddle.position.copy(headOf(me)).lerp(headOf(them), .5).add(new THREE.Vector3(0, .45 + Math.sin(t * 2) * .05, 0)); }
   for (let i = hearts.length - 1; i >= 0; i--) { const h = hearts[i], a = (t - h.t0) / 2.2; if (a > 1) { scene.remove(h.s); hearts.splice(i, 1); continue; } h.s.position.y += dt * .5; h.s.position.x += Math.sin(a * 9 + h.p) * .004; h.s.material.opacity = 1 - a; }
