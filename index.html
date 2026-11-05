@@ -286,11 +286,19 @@ addEventListener('resize', resize);
 const memo = {};
 const M = (c, o = {}) => memo[c + JSON.stringify(o)] ||= new THREE.MeshStandardMaterial({ color: c, roughness: .85, envMapIntensity: .35, bumpMap: grainTex, bumpScale: .5, ...o });
 const GLOW = (c, k = 4) => memo['g' + c + k] ||= new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(k) });
-const SPH = new THREE.SphereGeometry(1, 28, 18);
+// rebuilt rooms/characters reuse cached geometry; anything marked shared is skipped by disposeTree
+const GEO = {}, shared = g => (g.userData.shared = true, g);
+const SPH = shared(new THREE.SphereGeometry(1, 28, 18));
 function put(m, x = 0, y = 0, z = 0, parent) { m.position.set(x, y, z); if (parent) parent.add(m); return m; }
-function rbox(w, h, d, c, r = .06, o) { return new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 3, Math.min(r, w / 2 - .001, h / 2 - .001, d / 2 - .001)), typeof c === 'string' ? M(c, o) : c); }
+function rbox(w, h, d, c, r = .06, o) { r = Math.min(r, w / 2 - .001, h / 2 - .001, d / 2 - .001); return new THREE.Mesh(GEO['r' + [w, h, d, r]] ||= shared(new RoundedBoxGeometry(w, h, d, 3, r)), typeof c === 'string' ? M(c, o) : c); }
 function ell(sx, sy, sz, c, o) { const m = new THREE.Mesh(SPH, typeof c === 'string' ? M(c, o) : c); m.scale.set(sx, sy, sz); return m; }
-function cyl(rt, rb, h, c, seg = 24, open = false) { return new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg, 1, open), typeof c === 'string' ? M(c) : c); }
+function cyl(rt, rb, h, c, seg = 24, open = false) { return new THREE.Mesh(GEO['c' + [rt, rb, h, seg, open]] ||= shared(new THREE.CylinderGeometry(rt, rb, h, seg, 1, open)), typeof c === 'string' ? M(c) : c); }
+// frees a replaced tree's own GPU data; memo'd/shared materials and cached geometry stay (webcam faces are detached, they get re-parented)
+function disposeTree(o) {
+  if (!o) return; o.removeFromParent(); const ks = []; o.traverse(n => n.userData.keep && ks.push(n)); ks.forEach(n => n.removeFromParent());
+  const keep = new Set([...Object.values(memo), ...Object.values(blockMats), blobMat, screenMat]);
+  o.traverse(n => { if (n.geometry && !n.geometry.userData.shared) n.geometry.dispose(); [].concat(n.material || []).forEach(m => { if (keep.has(m)) return; if (m.map && m.map.userData.own) m.map.dispose(); m.dispose(); }); });
+}
 function plight(c, i, x, y, z, parent, dist = 0) { const l = new THREE.PointLight(c, i, dist, 2); return put(l, x, y, z, parent); }
 function mix(a, b, t) { return '#' + new THREE.Color(a).lerp(new THREE.Color(b), t).getHexString(); }
 let seed = 7; const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -312,7 +320,7 @@ const woodTex = canvasTex(1024, 1024, (x, w, h) => {
 const grainTex = canvasTex(256, 256, (x, w, h) => { const d = x.createImageData(w, h); for (let i = 0; i < d.data.length; i += 4) { const v = 118 + rand() * 20; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; } x.putImageData(d, 0, 0); });
 grainTex.colorSpace = THREE.NoColorSpace; grainTex.wrapS = grainTex.wrapT = THREE.RepeatWrapping; grainTex.repeat.set(3, 3);
 woodTex.wrapS = woodTex.wrapT = THREE.RepeatWrapping;
-function woodMat(c = '#ffffff', rep = 3) { const t = woodTex.clone(); t.needsUpdate = true; t.repeat.set(rep / 2, rep / 2); return new THREE.MeshStandardMaterial({ map: t, bumpMap: t, bumpScale: 1.2, color: c, roughness: .62, envMapIntensity: .4 }); }
+function woodMat(c = '#ffffff', rep = 3) { const t = woodTex.clone(); t.needsUpdate = true; t.userData.own = true; t.repeat.set(rep / 2, rep / 2); return new THREE.MeshStandardMaterial({ map: t, bumpMap: t, bumpScale: 1.2, color: c, roughness: .62, envMapIntensity: .4 }); }
 const blobTex = canvasTex(64, 64, (x) => { const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, '#000000aa'); g.addColorStop(1, '#00000000'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); });
 const blobMat = new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false });
 
@@ -923,12 +931,12 @@ function normLook(l) {
   return { ...CHAR_DEF, ...(l || {}) };
 }
 const heartShape = new THREE.Shape(); heartShape.moveTo(0, .15); heartShape.bezierCurveTo(0, .25, -.3, .3, -.3, .05); heartShape.bezierCurveTo(-.3, -.15, 0, -.25, 0, -.35); heartShape.bezierCurveTo(0, -.25, .3, -.15, .3, .05); heartShape.bezierCurveTo(.3, .3, 0, .25, 0, .15);
-const heartGeo = new THREE.ExtrudeGeometry(heartShape, { depth: .08, bevelEnabled: false });
+const heartGeo = shared(new THREE.ExtrudeGeometry(heartShape, { depth: .08, bevelEnabled: false }));
 const BODIES = [['plush', '🧸 Plush'], ['bean', '🫘 Bean'], ['doll', '🎎 Doll']];
 const HAIRS = [['none', 'None'], ['bangs', 'Bangs'], ['buns', 'Buns'], ['long', 'Long'], ['bob', 'Bob'], ['pony', 'Ponytail'], ['spiky', 'Spiky']];
 const HAIRCOLS = ['#5a2e1e', '#2a1a14', '#e8c070', '#ff9ab8', '#a77bff', '#7ad8ff', '#ff7a59', '#fff4ec'];
-const LEGGEO = new THREE.CylinderGeometry(1, 1, 1, 14), CAPGEO = new THREE.SphereGeometry(1, 32, 16, 0, PI * 2, 0, PI * .5);
-const HALFDOWN = new THREE.SphereGeometry(.31, 32, 16, 0, PI * 2, PI / 2, PI / 2), HALFUP = new THREE.SphereGeometry(.31, 32, 16, 0, PI * 2, 0, PI / 2);
+const LEGGEO = shared(new THREE.CylinderGeometry(1, 1, 1, 14)), CAPGEO = shared(new THREE.SphereGeometry(1, 32, 16, 0, PI * 2, 0, PI * .5));
+const HALFDOWN = shared(new THREE.SphereGeometry(.31, 32, 16, 0, PI * 2, PI / 2, PI / 2)), HALFUP = shared(new THREE.SphereGeometry(.31, 32, 16, 0, PI * 2, 0, PI / 2));
 // soft plush fabric: a little sheen on the edges so they look fuzzy, not plastic
 const furMat = c => memo['fur' + c] ||= new THREE.MeshPhysicalMaterial({ color: c, roughness: .62, sheen: 1, sheenColor: new THREE.Color(mix(c, '#ffffff', .55)), sheenRoughness: .45, envMapIntensity: .55 });
 function makeHair(L, head) {
@@ -1027,7 +1035,7 @@ function makeChar(look, name) {
   put(rbox(.24, .07, .12, '#2b2233', .03), 0, 0, 0, ctrl);
   put(new THREE.Mesh(SPH, GLOW('#b6ff3b', 3)), -.06, .04, 0, ctrl).scale.setScalar(.018); put(new THREE.Mesh(SPH, GLOW('#a77bff', 3)), .06, .04, 0, ctrl).scale.setScalar(.018);
   const blob = put(new THREE.Mesh(new THREE.PlaneGeometry(.75, .75), blobMat), 0, .012, 0, g); blob.rotation.x = -PI / 2;
-  const tag = put(new THREE.Sprite(new THREE.SpriteMaterial({ map: tagTexture(name || '…'), depthTest: false, transparent: true })), 0, 1.5 + lift * .8, 0, g); tag.scale.set(1, .25, 1); tag.renderOrder = 10;
+  const tag = put(new THREE.Sprite(new THREE.SpriteMaterial({ map: Object.assign(tagTexture(name || '…'), { userData: { own: true } }), depthTest: false, transparent: true })), 0, 1.5 + lift * .8, 0, g); tag.scale.set(1, .25, 1); tag.renderOrder = 10;
   root.userData = { body, head, g, arms, feet, ctrl, tag, blob, eyes, look, name, hip, chest, lift, legs, ears, tail, mouthG, talkM, hy0: head.position.y, eyeG, brows, happyE, frown, grin, tear };
   return root;
 }
@@ -1236,6 +1244,7 @@ function setPlace(id, broadcast = true) {
   Object.assign(me, { x: mine[0], z: mine[1], tx: mine[0], tz: mine[1], seat: -1, want: -1, ry: PI });
   if (them) Object.assign(them, { x: theirs[0], z: theirs[1], rx: theirs[0], rz: theirs[1], seat: -1, away: true, rt: 0 }); // hidden until they arrive here too
   cam.yaw = 0; cam.pitch = .22; cam.fp = 0; snapCam = true; me.jy = 0; me.vy = 0;
+  if (me.roast) { me.roast = null; send({ t: 'roast', on: 0 }); } if (them) them.roast = null; // the campfire stays behind
   onPlaceChanged();
   if (broadcast) send({ t: 'place', id: place.id });
 }
@@ -1514,8 +1523,8 @@ let lastStart = 0, lastStartMsg = null; // starting a game/quiz/couple game: if 
 function startSend(m) { lastStart = performance.now(); lastStartMsg = m; send(m); }
 function startClash() { if (!isHost || performance.now() - lastStart > 1500 || !(game || quiz || cg)) return false; if (lastStartMsg) send(lastStartMsg); return true; }
 const hud = $('hud'), blind = $('blind');
-const itRing = new THREE.Mesh(new THREE.TorusGeometry(.17, .03, 8, 32), GLOW('#ff5a3d', 3)); itRing.rotation.x = PI / 2;
-const starGeo = new THREE.OctahedronGeometry(1, 0);
+const itRing = new THREE.Mesh(shared(new THREE.TorusGeometry(.17, .03, 8, 32)), GLOW('#ff5a3d', 3)); itRing.rotation.x = PI / 2;
+const starGeo = shared(new THREE.OctahedronGeometry(1, 0));
 function speedMul() { return hand && hand.leader !== myRole() ? 1.35 : game && game.mode === 'tag' && game.it === myRole() ? 1.18 : 1; }
 function isFrozen() { return !!(game && game.mode === 'hide' && game.seeker === myRole() && clock.elapsedTime - game.t0 < game.count); }
 function newGame(mode) {
@@ -1664,13 +1673,16 @@ function solidTop(x, z) {
 }
 const seatOut = q => [q.ax ?? q.x, q.az ?? q.z + .8];
 function leaveSeat() { const q = place.seats[me.seat]; me.seat = -1; if (!q) return; [me.x, me.z] = seatOut(q); me.tx = me.x; me.tz = me.z; }
-function rebuildDeco(id) {
+function rebuildDeco(id, blocksOnly) {
   const pl = built[id]; if (!pl) return; const st = decoOf(id);
   const here = pl === place, oldQ = here && pl.seats[me.seat], oldW = here && pl.seats[me.want]; // seats are indices, so re-find yours after the list changes
-  if (pl.deco) pl.g.remove(pl.deco);
-  pl.deco = new THREE.Group(); pl.g.add(pl.deco);
-  rebuildBlocks(pl, st);
-  st.items.forEach((it, i) => { const f = DECO_BUILD[it.k]; if (!f) return; const m = f(); m.position.set(it.x, colTopAt(pl, it.x, it.z), it.z); m.rotation.y = it.r || 0; m.userData.decoIndex = i; pl.deco.add(m); });
+  if (blocksOnly && pl.deco) { rebuildBlocks(pl, st); pl.deco.children.forEach(m => { const it = st.items[m.userData.decoIndex]; if (it) m.position.y = colTopAt(pl, it.x, it.z); }); } // items unchanged: just re-sit them on the new blocks
+  else {
+    disposeTree(pl.deco);
+    pl.deco = new THREE.Group(); pl.g.add(pl.deco);
+    rebuildBlocks(pl, st);
+    st.items.forEach((it, i) => { const f = DECO_BUILD[it.k]; if (!f) return; const m = f(); m.position.set(it.x, colTopAt(pl, it.x, it.z), it.z); m.rotation.y = it.r || 0; m.userData.decoIndex = i; pl.deco.add(m); });
+  }
   decoPhysics(pl, st.items);
   const find = q => pl.seats.findIndex(s => Math.abs(s.x - q.x) < 1e-3 && Math.abs(s.z - q.z) < 1e-3 && Math.abs(s.y - q.y) < 1e-3 && Math.abs(s.ry - q.ry) < 1e-3);
   if (oldQ) { me.seat = find(oldQ); if (me.seat < 0) { [me.x, me.z] = seatOut(oldQ); me.tx = me.x; me.tz = me.z; } }
@@ -1679,7 +1691,8 @@ function rebuildDeco(id) {
 }
 function applyMood() { const st = decoOf(place.id); moodLight.intensity = st.mood ? 10 : 0; if (st.mood) moodLight.color.set(st.mood); }
 // edits go out as small ops, not whole snapshots, so two people decorating at once don't wipe each other's changes
-function decoChanged(op, id = place.id) { saveDeco(); send({ t: 'decoOp', id, op }); rebuildDeco(id); applyMood(); }
+const BLOCK_OPS = ['bAdd', 'bDel', 'clearB'];
+function decoChanged(op, id = place.id) { saveDeco(); send({ t: 'decoOp', id, op }); rebuildDeco(id, BLOCK_OPS.includes(op.op)); applyMood(); }
 const decoUid = it => it.u ||= it.k + '@' + it.x + ',' + it.z; // older saved items have no uid: derive the same one on both sides
 function applyDecoOp(id, o) {
   const st = decoOf(id), cell = b => b.slice(0, 3).join(); st.blocks ||= [];
@@ -1696,7 +1709,7 @@ function closePanel() { panel.style.display = 'none'; panel.dataset.k = ''; pane
 function claimPanel() { if (decorating) toggleDecorate(); if (doodling) toggleDoodle(); if (building) toggleBuild(); } // another panel takes over: end the mode that owned it
 const MENU_PANELS = ['games', 'couple', 'places'];
 function panelFree() { return panel.style.display !== 'block' || !panel.dataset.k || panel.dataset.k === 'quiz' || MENU_PANELS.includes(panel.dataset.k); }
-function dropHeld() { if (held) { scene.remove(held.mesh); held = null; } }
+function dropHeld() { if (held) { disposeTree(held.mesh); held = null; } }
 function pickCatalog(k) { dropHeld(); held = { k, r: 0, mesh: DECO_BUILD[k]() }; scene.add(held.mesh); }
 function toggleDecorate() {
   decorating = !decorating; $('decor').classList.toggle('on', decorating);
@@ -1912,7 +1925,7 @@ function hatMesh(k) {
 function syncHat(p, mesh) {
   const u = mesh.userData, k = p.hat || '';
   if (u.hatK === k) return;
-  if (u.hatObj) u.hatObj.removeFromParent();
+  disposeTree(u.hatObj);
   u.hatObj = k ? hatMesh(k) : null; if (u.hatObj) { u.hatObj.position.y = -.63; u.head.add(u.hatObj); } u.hatK = k; // hats ride on the head so they turn with it
 }
 function openHats() {
@@ -2126,7 +2139,7 @@ function petMesh(k) {
   g.userData = { body, head, tail, ears, legs, eyes, hop: k === 'bunny' || fr }; return g;
 }
 const PET_ACTS = ['wag', 'sniff', 'spin', 'roll', 'scratch', 'sit', 'hop', 'wag', 'sit'];
-const ballGeo = new THREE.SphereGeometry(.05, 16, 12), ballMat = M('#d8f04a', { roughness: .6 });
+const ballGeo = shared(new THREE.SphereGeometry(.05, 16, 12)), ballMat = M('#d8f04a', { roughness: .6 });
 function dropBall(o) { if (o.ball) { o.ball.m.removeFromParent(); o.ball = null; } }
 function throwBall(p, x, z) {
   const o = p && p.petObj; if (!o) return; dropBall(o);
@@ -2260,13 +2273,14 @@ function boom(v = .3) {
     src.buffer = buf; f.type = 'lowpass'; f.frequency.value = 650; g.gain.value = v; src.connect(f).connect(g).connect(actx.destination); src.start();
   } catch {}
 }
+let fwGen = 0; // bumped on place change so launches still queued from the old place never fire
 function launchFireworks(seed) {
   if (!place.outdoor) { toast('Fireworks need the sky ✨ try Rooftop, Beach, Stars or Drive-in'); return false; }
   let sd = seed || 1; const rr = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-  const c = place.scr.center, cols = ['#ffcf6b', '#ff7a9a', '#a77bff', '#b6ff3b', '#ff8a3d', '#7ad8ff'];
+  const c = place.scr.center, gen = fwGen, cols = ['#ffcf6b', '#ff7a9a', '#a77bff', '#b6ff3b', '#ff8a3d', '#7ad8ff'];
   for (let i = 0; i < 8; i++) {
     const r = { x: c.x + (rr() - .5) * 16, z: c.z - 3 - rr() * 7, h: c.y + 4 + rr() * 6, vy: 13 + rr() * 2, y: 0, col: cols[Math.floor(rr() * cols.length)] };
-    setTimeout(() => rockets.push(r), i * 520 + rr() * 250);
+    setTimeout(() => { if (gen === fwGen) rockets.push(r); }, i * 520 + rr() * 250);
   }
   return true;
 }
@@ -2291,7 +2305,7 @@ function tickFireworks(dt) {
     const b = bursts[i], a = b.pts.geometry.attributes.position; b.age += dt;
     b.vel.forEach((v, k) => { v.y -= 2.5 * dt; v.multiplyScalar(1 - dt * 1.2); a.setXYZ(k, a.getX(k) + v.x * dt, a.getY(k) + v.y * dt, a.getZ(k) + v.z * dt); });
     a.needsUpdate = true; b.pts.material.opacity = Math.max(0, 1 - b.age / 2.6);
-    if (b.age > 2.6) { scene.remove(b.pts); b.pts.geometry.dispose(); bursts.splice(i, 1); }
+    if (b.age > 2.6) { scene.remove(b.pts); b.pts.geometry.dispose(); b.pts.material.dispose(); bursts.splice(i, 1); }
   }
 }
 $('fw').onclick = () => { const sd = 1 + Math.floor(Math.random() * 1e6); if (launchFireworks(sd)) send({ t: 'fw', seed: sd }); };
@@ -2394,7 +2408,8 @@ function placeChanged3() {
   placeKey(); shadowize();
   hand = null;
   for (const p of [me, them]) if (p && p.petObj) { dropBall(p.petObj); p.petObj.x = p.x + .5; p.petObj.z = p.z + .5; }
-  rockets.forEach(r => r.m && scene.remove(r.m)); rockets.length = 0;
+  fwGen++; rockets.forEach(r => r.m && scene.remove(r.m)); rockets.length = 0;
+  bursts.forEach(b => { scene.remove(b.pts); b.pts.geometry.dispose(); b.pts.material.dispose(); }); bursts.length = 0;
 }
 function funTick3(dt, t) {
   tickPet(me, dt, t); tickPet(them, dt, t); tickFireworks(dt);
@@ -2440,7 +2455,7 @@ function faceFor(p, stream, mirror) {
   const g = new THREE.Group();
   const disc = new THREE.Mesh(new THREE.CircleGeometry(.3, 40), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false })); if (mirror) disc.scale.x = -1; g.add(disc);
   put(new THREE.Mesh(new THREE.TorusGeometry(.31, .025, 8, 48), GLOW('#ffcf6b', .9)), 0, 0, -.001, g);
-  g.position.set(0, 2, 0); g.renderOrder = 9;
+  g.position.set(0, 2, 0); g.renderOrder = 9; g.userData.keep = true;
   p.face = { video: v, tex, mesh: g };
 }
 function callCam() { if (webcam && conn && peer) { if (camCall) camCall.close(); camCall = peer.call(conn.peer, webcam, { metadata: { kind: 'cam' } }); } }
@@ -2580,7 +2595,7 @@ function montreal(g) {
 
 // creative blocks: stack them like a little Minecraft, jump on them
 const BS = .5;
-const blockGeo = new RoundedBoxGeometry(BS, BS, BS, 2, .035);
+const blockGeo = shared(new RoundedBoxGeometry(BS, BS, BS, 2, .035));
 const brickTex = canvasTex(64, 64, (x, w, h) => { x.fillStyle = '#b5523a'; x.fillRect(0, 0, w, h); x.fillStyle = '#e8d8c8'; for (let r = 0; r < 4; r++) { x.fillRect(0, r * 16, w, 2); for (let c = -1; c < 3; c++) x.fillRect(c * 32 + (r % 2 ? 16 : 0), r * 16, 2, 16); } });
 const BLOCKS = [
   ['oak', '🪵', 'Oak', () => woodMat('#ffffff', 1)], ['plank', '🟫', 'Light wood', () => woodMat('#ffe0b0', 1)], ['brick', '🧱', 'Brick', () => new THREE.MeshStandardMaterial({ map: brickTex, roughness: .9 })],
@@ -2842,7 +2857,7 @@ const pv = { r: new THREE.WebGLRenderer({ antialias: true, alpha: true }), s: ne
 pv.r.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); pv.r.toneMapping = THREE.ACESFilmicToneMapping;
 pv.s.add(new THREE.HemisphereLight('#fff4e8', '#3a2a3a', 2.2)); { const dl = new THREE.DirectionalLight('#ffe0c0', 2.2); dl.position.set(2, 3, 4); pv.s.add(dl); }
 pv.c.position.set(0, .72, 2.9); pv.c.lookAt(0, .52, 0);
-function pvSet(look) { if (pv.mesh) pv.s.remove(pv.mesh); pv.mesh = makeChar(look, ''); pv.mesh.userData.tag.visible = false; syncHat({ hat: me.hat }, pv.mesh); pv.s.add(pv.mesh); }
+function pvSet(look) { disposeTree(pv.mesh); pv.mesh = makeChar(look, ''); pv.mesh.userData.tag.visible = false; syncHat({ hat: me.hat }, pv.mesh); pv.s.add(pv.mesh); }
 function pvAttach(box) { pv.box = box; box.appendChild(pv.r.domElement); const w = box.clientWidth || 180, h = box.clientHeight || 180; pv.r.setSize(w, h, false); pv.c.aspect = w / h; pv.c.updateProjectionMatrix(); }
 function pvFit() { const b = pv.box; if (!b || !b.clientWidth || !b.clientHeight) return; const w = b.clientWidth, h = b.clientHeight; pv.r.setSize(w, h, false); pv.c.aspect = w / h; pv.c.updateProjectionMatrix(); } // skips hidden boxes
 addEventListener('resize', pvFit); if ($('pvStart')) new ResizeObserver(pvFit).observe($('pvStart'));
@@ -2878,7 +2893,7 @@ $('customize').onclick = openCreator;
 $('crCancel').onclick = closeCreator;
 $('crSave').onclick = () => {
   myLook = { ...draft }; setTimeout(renderQuick); try { localStorage.setItem('ols-char', JSON.stringify(myLook)); } catch {}
-  if (meMesh) { me.look = myLook; scene.remove(meMesh); meMesh = makeChar(me.look, me.name); scene.add(meMesh); send({ t: 'char', look: me.look }); toast('Looking cute ♥'); }
+  if (meMesh) { me.look = myLook; disposeTree(meMesh); meMesh = makeChar(me.look, me.name); scene.add(meMesh); send({ t: 'char', look: me.look }); toast('Looking cute ♥'); }
   closeCreator();
 };
 $('charb').onclick = openCreator;
@@ -3002,7 +3017,7 @@ function onFun(m) {
     case 'pic': if (!(picsState.places[m.id] ||= []).some(x => x.id === m.q.id)) { picsState.places[m.id].push(m.q); picsChanged(m.id); toast(`📌 ${them ? them.name : 'They'} stuck a photo up`); } return true;
     case 'picDel': dropPic(m.id, m.pid); return true;
     case 'decoAll': decoState = m.all || {}; saveDeco(); for (const id in built) rebuildDeco(id); applyMood(); if (decorating) renderDecoPanel(); return true;
-    case 'decoOp': if (!m.id || !m.op) return true; applyDecoOp(m.id, m.op); saveDeco(); rebuildDeco(m.id); applyMood(); if (decorating && m.id === place.id) renderDecoPanel(); return true;
+    case 'decoOp': if (!m.id || !m.op) return true; applyDecoOp(m.id, m.op); saveDeco(); rebuildDeco(m.id, BLOCK_OPS.includes(m.op.op)); applyMood(); if (decorating && m.id === place.id) renderDecoPanel(); return true;
     case 'deco': decoState[m.id] = m.d; saveDeco(); rebuildDeco(m.id); applyMood(); if (decorating && m.id === place.id) renderDecoPanel(); return true;
     case 'pop': spawnPop(new THREE.Vector3(...m.p), new THREE.Vector3(...m.v), 'theirs'); return true;
     case 'booped': boops++; if (them) { floatText(them, boops > 1 ? `boop! ×${boops}` : 'boop!', '#ff7a59'); them.squish = 1; } return true;
@@ -3048,8 +3063,8 @@ function loop() {
   const raw = clock.getDelta(), dt = Math.min(.05, raw), t = clock.elapsedTime; watchFps();
   step(dt);
   placeChar(meMesh, me); animChar(meMesh, me, t);
-  if (them) { if (!themMesh || themMesh.userData.look !== them.look || themMesh.userData.name !== them.name) { if (themMesh) scene.remove(themMesh); themMesh = makeChar(them.look, them.name); scene.add(themMesh); } placeChar(themMesh, them); animChar(themMesh, them, t); themMesh.visible = !them.away; }
-  else if (themMesh) { scene.remove(themMesh); themMesh = null; }
+  if (them) { if (!themMesh || themMesh.userData.look !== them.look || themMesh.userData.name !== them.name) { disposeTree(themMesh); themMesh = makeChar(them.look, them.name); scene.add(themMesh); } placeChar(themMesh, them); animChar(themMesh, them, t); themMesh.visible = !them.away; }
+  else if (themMesh) { disposeTree(themMesh); themMesh = null; }
   hemi.intensity = hemiBase; place.tick(t, dt); if (key.castShadow) { hemi.intensity *= .5; for (const l of placeSuns) l.intensity *= .45; } fitScreen(place.scr); funTick(dt, t);
   solveLegs(meMesh, me); if (them && themMesh) solveLegs(themMesh, them);
   const close = them && !them.away && me.seat >= 0 && them.seat >= 0 && Math.abs(me.seat - them.seat) === 1;
@@ -3357,7 +3372,7 @@ function smoreFx(p, res) {
 function tickRoast(p, mesh, t) {
   if (!p || !mesh) return; const u = mesh.userData;
   if (!p.roast) { if (u.stick) u.stick.visible = false; return; }
-  if (p === me && (me.walking || me.vy !== 0)) { me.roast = null; send({ t: 'roast', on: 0 }); return; }
+  if (p === me && (me.walking || me.vy !== 0 || !me.roast.fire || Math.hypot(me.roast.fire.x - me.x, me.roast.fire.z - me.z) > 3)) { me.roast = null; send({ t: 'roast', on: 0 }); return; }
   if (!u.stick) {
     const g = new THREE.Group(); put(cyl(.008, .011, .75, '#8a5a3a', 6), 0, .37, 0, g);
     u.mm = put(new THREE.Mesh(new THREE.CylinderGeometry(.035, .035, .06, 14), new THREE.MeshStandardMaterial({ color: '#fff8f0', roughness: .8 })), 0, .76, 0, g);
@@ -3553,7 +3568,8 @@ function cgClose() { cg = null; renderCG(); }
 // staring contest: you face each other, and the first one to touch anything loses
 function stareStart() {
   if (them) { leaveSeat(); me.ry = Math.atan2(them.x - me.x, them.z - me.z); cam.yaw = me.ry + PI; }
-  cg.done = false; const steps = ['3…', '2…', '1…', "👀 Don't. Move."]; steps.forEach((m, i) => setTimeout(() => { if (!cg || cg.k !== 'stare') return; cg.stareMsg = m; if (i === 3) cg.live = clock.elapsedTime; renderCG(); }, i * 900));
+  cg.done = false; const g = cg, steps = ['3…', '2…', '1…', "👀 Don't. Move."]; // timers belong to this contest only, not a newer one
+  steps.forEach((m, i) => setTimeout(() => { if (cg !== g || g.done) return; g.stareMsg = m; if (i === 3) g.live = g.liveAt = clock.elapsedTime; renderCG(); }, i * 900));
 }
 function stareLose() { if (!cg || cg.k !== 'stare' || !cg.live || cg.done) return; send({ t: 'stare' }); stareEnd(false); }
 function stareEnd(won) {
