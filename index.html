@@ -3139,6 +3139,7 @@ function rejoin() { // guest: keep knocking for a while (the host may be reloadi
 }
 function wire(c) {
   conn = c;
+  if (!isHost) setTimeout(() => { if (conn === c && !c.open) { conn = null; try { c.close(); } catch {} rejoin(); } }, 7000); // a knock that never opens: try again
   c.on('open', () => send({ t: 'hello', name: me.name, look: me.look }));
   c.on('data', m => { c.rx = performance.now(); if (m && m.t === 'hello') { joined = true; rejoinTries = 0; } onData(m); });
   c.on('close', () => { if (conn !== c) return; partnerGone(); setStatus(isHost ? '💌 waiting… send the invite link' : 'reconnecting…'); rejoin(); }); // a replaced connection closing late must not end the live one
