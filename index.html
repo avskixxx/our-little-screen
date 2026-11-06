@@ -2059,7 +2059,18 @@ let pendingHat = '';
 // ---------- batch 3: voice, chat bubbles, pets, holding hands, fireworks, doodles, quiz ----------
 // voice chat: your mic goes straight to them (one-way call each, so either of you can mute)
 let mic = null, voiceCall = null;
-const voiceAudio = new Audio(); voiceAudio.autoplay = true;
+// iPad/iPhone: call audio only plays from an element that's in the page, and tapping a remote stream with Web Audio
+// (for the talking mouth) silences that element, so there we play the voice through Web Audio itself
+const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const voiceAudio = new Audio(); voiceAudio.autoplay = true; voiceAudio.playsInline = true; voiceAudio.setAttribute('playsinline', ''); voiceAudio.style.display = 'none'; document.body.appendChild(voiceAudio);
+function hearVoice(st) {
+  voiceAudio.srcObject = st;
+  if (IOS) {
+    try { actx ||= new AudioContext(); const src = actx.createMediaStreamSource(st), an = actx.createAnalyser(); an.fftSize = 512; src.connect(an); src.connect(actx.destination); talkers.set('them', { an, buf: new Uint8Array(512) }); voiceAudio.muted = true; if (actx.state !== 'running') { actx.resume().catch(() => {}); toast('Tap anywhere to hear them 🔊'); } }
+    catch { voiceAudio.muted = false; }
+  } else listenTalk('them', st);
+  voiceAudio.play().catch(() => toast('Tap anywhere to hear them 🔊'));
+}
 function callVoice() { if (mic && conn && peer) { if (voiceCall) voiceCall.close(); voiceCall = peer.call(conn.peer, mic, { metadata: { kind: 'voice' } }); } }
 async function toggleMic() {
   if (mic) { mic.getTracks().forEach(tr => tr.stop()); mic = null; talkers.delete('me'); if (voiceCall) { voiceCall.close(); voiceCall = null; } $('mic').classList.remove('on'); $('mic').textContent = '🎙'; send({ t: 'mic', on: false }); return; }
@@ -3163,7 +3174,7 @@ async function connect() {
   p.on('connection', c => { if (conn && conn.open && performance.now() - (conn.rx || 0) < 4000) { c.close(); return; } if (conn) { const old = conn; partnerGone(); old.close(); } wire(c); });
   p.on('call', c => {
     if (c.metadata && c.metadata.kind === 'cam') { c.answer(); c.on('stream', st => { if (them) faceFor(them, st, false); }); return; }
-    if (c.metadata && c.metadata.kind === 'voice') { c.answer(); c.on('stream', st => { voiceAudio.srcObject = st; listenTalk('them', st); voiceAudio.play().catch(() => toast('Click anywhere to hear them')); }); return; }
+    if (c.metadata && c.metadata.kind === 'voice') { c.answer(); c.on('stream', st => hearVoice(st)); return; }
     call = c; c.answer(); c.on('stream', s => { if (!myStream) showStream(s); }); });
   p.on('error', e => {
     if (p.gone) return;
@@ -3191,7 +3202,7 @@ function showStream(s, mine = false) {
   if (s && !mine && !s.getAudioTracks().length) setTimeout(() => screenLive && vid.srcObject === s && !s.getAudioTracks().length && toast(`🔇 ${them ? them.name : 'They'} shared without sound: they need to share a Chrome tab with "share tab audio" on`), 2500);
   $('watch').style.display = s ? '' : 'none'; if (!s) setWatch('world'); else if (!mine) toast('📺 Press T for theater mode: the video big, you two in the corner');
 }
-addEventListener('pointerdown', () => { if (screenLive && vid.paused) vid.play(); if (voiceAudio.srcObject && voiceAudio.paused) voiceAudio.play().catch(() => {}); });
+addEventListener('pointerdown', () => { if (screenLive && vid.paused) vid.play(); if (voiceAudio.srcObject && voiceAudio.paused) voiceAudio.play().catch(() => {}); if (actx && actx.state !== 'running') actx.resume().catch(() => {}); });
 function startCall() { if (conn && myStream) { if (call) call.close(); call = peer.call(conn.peer, myStream); } }
 async function share() {
   if (myStream) return stopShare();
