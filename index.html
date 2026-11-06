@@ -3188,6 +3188,7 @@ function showStream(s, mine = false) {
   vid.srcObject = s || null; vid.muted = !!mine; screenLive = !!s;
   screenMat.map = s ? videoTex : placeholderTex; screenMat.needsUpdate = true;
   if (s) vid.play().catch(() => toast('Click anywhere to turn the sound on'));
+  if (s && !mine && !s.getAudioTracks().length) setTimeout(() => screenLive && vid.srcObject === s && !s.getAudioTracks().length && toast(`🔇 ${them ? them.name : 'They'} shared without sound: they need to share a Chrome tab with "share tab audio" on`), 2500);
   $('watch').style.display = s ? '' : 'none'; if (!s) setWatch('world'); else if (!mine) toast('📺 Press T for theater mode: the video big, you two in the corner');
 }
 addEventListener('pointerdown', () => { if (screenLive && vid.paused) vid.play(); if (voiceAudio.srcObject && voiceAudio.paused) voiceAudio.play().catch(() => {}); });
@@ -3200,7 +3201,8 @@ async function share() {
   myStream.getVideoTracks()[0].onended = () => stopShare();
   me.share = true; $('share').classList.add('on'); $('share').textContent = '🎮 Stop sharing';
   showStream(myStream, true); startCall(); send({ t: 'share', on: true });
-  toast('Tip: pick a Chrome tab and turn on "share tab audio"');
+  if (!myStream.getAudioTracks().length) { toast('🔇 No sound in this share! Stop, share again, pick a Chrome TAB and turn on "Also share tab audio"'); setTimeout(() => myStream && !myStream.getAudioTracks().length && toast('🔇 Still no sound: only a Chrome tab with "share tab audio" sends sound'), 6000); }
+  else toast('🔊 Sharing with sound ♥');
 }
 function stopShare(tell = true) {
   if (myStream) myStream.getTracks().forEach(tr => tr.stop());
