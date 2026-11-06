@@ -3144,9 +3144,17 @@ function wire(c) {
   c.on('data', m => { c.rx = performance.now(); if (m && m.t === 'hello') { joined = true; rejoinTries = 0; } onData(m); });
   c.on('close', () => { if (conn !== c) return; partnerGone(); setStatus(isHost ? '💌 waiting… send the invite link' : 'reconnecting…'); rejoin(); }); // a replaced connection closing late must not end the live one
 }
-function connect() {
+// relay passwords from our tiny Cloudflare Worker, so the two of you connect on any network (falls back to direct-only if it can't be reached)
+let ICE = null, iceAt = 0;
+async function iceServers() {
+  if (ICE && performance.now() - iceAt < 6 * 3600e3) return ICE;
+  try { const c = new AbortController(); setTimeout(() => c.abort(), 3500); const j = await (await fetch('https://ols-turn.alexacostalit.workers.dev', { signal: c.signal })).json(); if (j.iceServers) { ICE = j.iceServers; iceAt = performance.now(); } } catch {}
+  return ICE;
+}
+async function connect() {
+  const ice = await iceServers();
   const id = isHost ? (reclaim ? ROOM : 'ols-' + Math.random().toString(36).slice(2, 8)) : undefined;
-  const p = peer = new Peer(id, { debug: 1 });
+  const p = peer = new Peer(id, ice ? { debug: 1, config: { iceServers: ice, iceTransportPolicy: params.has('relay') ? 'relay' : 'all' } } : { debug: 1 });
   p.on('open', pid => {
     if (isHost) { myRoom = pid; hostTries = 0; try { sessionStorage.setItem('ols-own-room', pid); } catch {} history.replaceState(null, '', '?room=' + pid + (HOUR_OVERRIDE !== null ? '&hour=' + HOUR_OVERRIDE : '')); setStatus('💌 waiting… send the invite link'); }
     else { myRoom = ROOM; setStatus('connecting…'); wire(p.connect(ROOM, { reliable: true })); }
@@ -3667,6 +3675,6 @@ $('go').onclick = () => {
   }, 980);
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { setGfx, get qMode() { return qMode }, get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: v => hanging = v, doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { iceServers, get peer() { return peer }, setGfx, get qMode() { return qMode }, get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: v => hanging = v, doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
