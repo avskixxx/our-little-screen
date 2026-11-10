@@ -129,6 +129,7 @@
   #scopeLbl.under{transform:translate(-50%,0)}
   #scopeLbl small{display:block;font-size:13px;opacity:.75;margin-top:3px}
   #scopeHint{left:16%;right:16%;bottom:14%;font-size:16px;color:#ffcf6b;opacity:.8}
+  #scope #wishb{top:auto;bottom:max(14px,3vh)}
   #hands{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
   @keyframes pop{0%{transform:scale(.6) rotate(-8deg);opacity:0}100%{transform:scale(1) rotate(-1.5deg);opacity:1}}
   .keys{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px;align-items:center}
@@ -1605,7 +1606,7 @@ function newGame(mode) {
   startSend({ t: 'game', g }); beginGame(g);
 }
 function beginGame(g, remote) {
-  endGame(true); stopQuiz(true); claimPanel();
+  if (scopeOn) closeScope(); endGame(true); stopQuiz(true); claimPanel();
   game = { ...g, t0: clock.elapsedTime, score: { host: 0, guest: 0 }, cool: 0 };
   if (!remote || panelFree()) closePanel();
   if (g.mode === 'potato') toast(g.it === myRole() ? '🥔 You have the hot potato! Touch them to pass it' : `🥔 ${nameOf(g.it)} has the hot potato… run!`);
@@ -2177,7 +2178,7 @@ function say(mesh, text) {
   u.bubble = sp; u.bubbleEnd = clock.elapsedTime + 5 + text.length * .06; u.talkEnd = clock.elapsedTime + Math.min(3.5, .5 + text.length * .07);
 }
 const chat = $('chat');
-function openChat() { if (!started) return; for (const k in keys) keys[k] = false; if (locked()) unlockMouse(); if (chat.style.display !== 'block') { chat.style.display = 'block'; chat.value = ''; } chat.focus(); } // already open (just blurred): keep the half-typed text
+function openChat() { if (!started) return; if (scopeOn) closeScope(); for (const k in keys) keys[k] = false; if (locked()) unlockMouse(); if (chat.style.display !== 'block') { chat.style.display = 'block'; chat.value = ''; } chat.focus(); } // already open (just blurred): keep the half-typed text
 chat.addEventListener('blur', () => { if (!chat.value.trim()) chat.style.display = 'none'; });
 function closeChat() { chat.style.display = 'none'; chat.blur(); }
 chat.addEventListener('keydown', e => {
@@ -2360,10 +2361,11 @@ function sideOf(lead, p) { const rx = -Math.cos(lead.ry), rz = Math.sin(lead.ry)
 function followTarget() { if (!hand || hand.leader === myRole() || !them) return null; const r = them.ry; return [them.x - Math.cos(r) * .6 * hand.side, them.z + Math.sin(r) * .6 * hand.side]; }
 function holdArm(p, mesh, other) { const sd = sideOf(p, other), a = mesh.userData.arms[sd > 0 ? 0 : 1]; a.position.set(sd > 0 ? -.36 : .36, .36, .04); }
 const handHeart = new THREE.Sprite(new THREE.SpriteMaterial({ map: heartTexs.mine, transparent: true, depthWrite: false })); handHeart.scale.setScalar(.18); handHeart.visible = false; scene.add(handHeart);
-function useE() { if (me.car < 0 && lanPending && Math.hypot(lanPending.x - me.x, lanPending.z - me.z) < 1.6) return; // at a lantern E is a hold (read every frame in tickLan), never a kart, a s'more, a pet or hands
+const atLan = () => !!lanPending && !me.roast && me.car < 0 && Math.hypot(lanPending.x - me.x, lanPending.z - me.z) < 1.6; // a marshmallow already on the stick comes first: E still eats it
+function useE() { if (atLan()) return; // at a lantern E is a hold (read every frame in tickLan), never a kart, a new s'more, a pet or hands
   if (carE()) return; if (me.roast) { eatSmore(); return; } if (nearTea()) { drinkTea(me); send({ t: 'tea' }); return; } if (nearBong()) { const cough = Math.random() < .35; bongHit(me, cough); send({ t: 'bong', cough }); return; } if (nearTel()) { openScope(); return; } const o = petNearest(); if (nearFire() && !(o && Math.hypot(o.x - me.x, o.z - me.z) < .5) && roastE()) return; // a heeling pet sits ~.8 away: the fire wins unless you're right on the pet
   if (o) { petIt(o); send({ t: 'petpet', whose: o === me.petObj ? 'mine' : 'theirs' }); return; } toggleHands(); }
-$('hands').onclick = useE;
+$('hands').onclick = e => { const was = touchLan; touchLan = false; if (was && e.detail) return; useE(); }; // a press that began as a lantern hold ends there: lifting off after the release (or a cancel) is not a second E. detail 0 is the keyboard, which never held
 
 // fireworks (outdoor places), same show on both screens
 const rockets = [], bursts = [];
@@ -2475,7 +2477,7 @@ function startQuiz() {
   const idx = QUIZ.map((_, i) => i).sort(() => Math.random() - .5).slice(0, 7);
   startSend({ t: 'quiz', qs: idx }); beginQuiz(idx);
 }
-function beginQuiz(qs, remote) { endGame(true); quiz = { qs, i: 0, ans: [], score: 0 }; if (remote && !panelFree()) toast(`💘 ${them ? them.name : 'They'} started a quiz · open 🎲 Games to play`); else renderQuiz(true); }
+function beginQuiz(qs, remote) { if (scopeOn) closeScope(); endGame(true); quiz = { qs, i: 0, ans: [], score: 0 }; if (remote && !panelFree()) toast(`💘 ${them ? them.name : 'They'} started a quiz · open 🎲 Games to play`); else renderQuiz(true); }
 function stopQuiz(remote) { if (!quiz) return; quiz = null; if (panel.dataset.k === 'quiz') closePanel(); if (!remote) send({ t: 'quizEnd' }); }
 function renderQuiz(force) {
   if (!quiz) return; const q = quiz;
@@ -3525,6 +3527,7 @@ function starTick(t) {
 }
 let wishDraft = '', noteDraft = ''; // kept outside the panel so a forced close can't lose them
 $('wishb').onclick = () => {
+  if (scopeOn) closeScope(); // wished from the telescope: the panel lives under it
   wishUntil = 0; $('wishb').style.display = 'none'; claimPanel(); panel.dataset.k = 'wish'; panel.classList.remove('side');
   panel.innerHTML = `<h3>🌠 Make a wish</h3><div class="row" style="margin-top:0"><input id="wishIn" maxlength="120" placeholder="it stays secret…" value="${esc(wishDraft)}" style="flex:1;border:0;border-radius:999px;padding:10px 16px;background:#ffffff14;color:var(--ink);font:inherit"><button class="pill on" id="wishGo">✨ Wish</button><button class="pill" id="wishNo">Not now</button></div>`;
   panel.style.display = 'block'; $('wishIn').focus();
@@ -3868,7 +3871,7 @@ function startCG(k) {
   const n = cgDeck(k).length, order = [...Array(Math.max(n, 30)).keys()].map(i => i % n).sort(() => Math.random() - .5);
   startSend({ t: 'cg', k, order, first: myRole() }); beginCG(k, order, myRole());
 }
-function beginCG(k, order, first, remote) { endGame(true); stopQuiz(true); claimPanel(); cg = { k, order, i: 0, picks: {}, score: { me: 0, them: 0 }, first }; if (!remote || panelFree()) closePanel(); renderCG(); if (k === 'stare') stareStart(); }
+function beginCG(k, order, first, remote) { if (scopeOn) closeScope(); endGame(true); stopQuiz(true); claimPanel(); cg = { k, order, i: 0, picks: {}, score: { me: 0, them: 0 }, first }; if (!remote || panelFree()) closePanel(); renderCG(); if (k === 'stare') stareStart(); }
 function cgTurn() { const other = cg.first === 'host' ? 'guest' : 'host'; return cg.i % 2 ? other : cg.first; }
 function renderCG() {
   const el = $('cg'); if (!cg) { el.style.display = 'none'; return; }
@@ -4087,6 +4090,7 @@ const stripSeed = v => Math.abs(Math.floor(+v || 0)) % 2147483646 || 1;
 function stripHud(p, n, s) { $('stripP').textContent = p; $('stripN').textContent = n; $('stripS').textContent = s; $('stripHud').style.display = 'block'; } // only called when the step changes, never per frame
 function startStrip(seed, mine) {
   if (!started || !place || !meMesh) return false;
+  if (scopeOn) closeScope(); // the count and the poses happen on the stage
   seed = stripSeed(seed);
   let sd = seed; const rr = () => (sd = (sd * 16807) % 2147483647) / 2147483647; rr(); // the LCG launchFireworks uses, so both screens pick the same four (a small seed's first draw is always tiny: skip it)
   const idx = STRIP_PROMPTS.map((_, i) => i);
@@ -4194,7 +4198,7 @@ try { if (!localStorage.getItem('ols-new2')) $('strip').classList.add('new'); } 
 // The host decides the release (where in the sky it ends up and when), so both keep the very same record. No lights: the glow is an over-bright basic material and bloom.
 const LAN_COL = { rooftop: '#ff8a3d', beach: '#ffcf6b', camping: '#a77bff', drivein: '#b6ff3b' }; // the outdoor places, and their dot colour in the telescope
 const LAN_BODY = new THREE.Color('#ff9a4a'), LAN_FLAME = new THREE.Color('#ffd27a'), LAN_DOT = [new THREE.Color('#ff8a3d'), new THREE.Color('#a77bff')], LAN_HUM = [262, 294, 330, 392, 440, 523, 587, 659];
-let lanterns = [], lanPending = null, lanForce = null, lanCool = 0, lanSkyMat = null, touchE = false, touchEId = -1;
+let lanterns = [], lanPending = null, lanForce = null, lanCool = 0, lanSkyMat = null, touchE = false, touchEId = -1, touchLan = false;
 const lanFx = []; // lanterns that left lanPending: rising after a release (.go) or going out after a cancel (.out)
 function lanClean(o) { // one record, from storage or from them: anything malformed is dropped
   if (!o || typeof o.id !== 'string' || !o.id || o.id.length > 16 || typeof o.pl !== 'string' || !Object.hasOwn(LAN_COL, o.pl) || !Number.isFinite(o.at) || !Number.isFinite(o.sx) || !Number.isFinite(o.sy)) return null;
@@ -4348,9 +4352,13 @@ function tickLan(dt, t) {
     }
   }
 }
-$('hands').addEventListener('pointerdown', e => { touchE = true; touchEId = e.pointerId; }); // 🤝 is E on touch: a press still runs useE (its click), and holding it holds the lantern
-for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, e => { if (e.pointerId === touchEId) touchE = false; }, true); // only the finger that pressed it lets go (the joystick thumb does not)
+$('hands').addEventListener('pointerdown', e => { touchE = true; touchEId = e.pointerId; touchLan = atLan(); }); // 🤝 is E on touch: a press still runs useE (its click), and holding it holds the lantern (that press's click is then swallowed)
+for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, e => { if (e.pointerId === touchEId) { touchE = false; if (ev === 'pointercancel') touchLan = false; } }, true); // only the finger that pressed it lets go (the joystick thumb does not)
 addEventListener('blur', () => { touchE = false; });
+document.addEventListener('visibilitychange', () => { // a hidden tab stops ticking, so tickLan can't let go for me: do it here, or they could finish the charge alone
+  if (!document.hidden) return; touchE = false;
+  const L = lanPending; if (L && L.mine) { L.mine = false; send({ t: 'lan', a: 'hold', id: L.id, on: false }); }
+});
 function onLan(m) {
   const L = lanPending && lanPending.id === m.id ? lanPending : null;
   switch (m.a) {
@@ -4406,9 +4414,9 @@ function openScope() {
   scopePts = lanterns.map(l => ({ l, x: (.5 + (l.sx / (2 * PI) - .5) * .62) * W, y: (.5 + (.5 - Math.min(1, Math.max(0, (l.sy - .15) / .63))) * .56) * W })); scopeSel = -1;
   $('scopeLbl').style.display = 'none';
   $('scopeHint').textContent = lanterns.length ? `${lanterns.length} lantern${lanterns.length === 1 ? '' : 's'} · ${isTouch ? 'tap' : 'hover'} one to read it` : 'no lanterns yet · light one together from 💞 Us';
-  drawScope(); $('scope').style.display = 'flex'; send({ t: 'tel', on: true });
+  drawScope(); $('scope').appendChild($('wishb')); $('scope').style.display = 'flex'; send({ t: 'tel', on: true }); // the overlay covers the whole stage: a shooting star's wish button rides on it while it is up
 }
-function closeScope() { if (!scopeOn) return; scopeOn = false; $('scope').style.display = 'none'; send({ t: 'tel', on: false }); }
+function closeScope() { if (!scopeOn) return; scopeOn = false; $('scope').style.display = 'none'; $('stage').appendChild($('wishb')); send({ t: 'tel', on: false }); } // also called by whatever needs the screen back: chat, a photo strip, a game they started
 $('scope').onclick = e => { if (e.target === $('scope')) closeScope(); }; // outside the circle
 $('scopeEye').onpointermove = $('scopeEye').onpointerdown = scopePick;
 addEventListener('keydown', e => { if (e.key === 'Escape' && scopeOn) closeScope(); });
