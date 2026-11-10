@@ -1135,7 +1135,7 @@ function lifeAnim(c, p, t, dt, walk, sit) {
   moodFace(c, p, t, dt);
 }
 // moods: sad after getting knocked over, happy during the happy stuff
-const HAPPY_E = new Set(['cuddle', 'smooch', 'slowdance', 'massage', 'massaged', 'wave', 'dance', 'kiss', 'hug', 'hug-back', 'laugh', 'cheer', 'spin', 'clap', 'peace', 'hearts', 'jacks', 'flex']);
+const HAPPY_E = new Set(['cuddle', 'smooch', 'slowdance', 'massage', 'massaged', 'wave', 'dance', 'kiss', 'hug', 'hug-back', 'laugh', 'cheer', 'spin', 'clap', 'peace', 'hearts', 'jacks', 'flex', 'five', 'catch', 'caught']);
 function moodOf(p, t) {
   if (p.ko) p.sadUntil = Math.max(p.sadUntil || 0, t + 4.5);
   if (p.emote && p.emote.k === 'cry') return 'sad';
@@ -1446,10 +1446,12 @@ if (isTouch) {
 
 function angLerp(a, b, k) { let d = ((b - a + PI) % (2 * PI) + 2 * PI) % (2 * PI) - PI; return a + d * k; }
 function layDown(v) {
-  if (me.car >= 0 || me.seat >= 0 || me.vy !== 0 || me.ko) return; me.floor = v;
+  if (me.car >= 0 || me.seat >= 0 || me.vy !== 0 || me.ko || riding() || leaning()) return; me.floor = v;
   if (v) { me.vx = me.vz = 0; me.tx = me.tz = NaN; me.want = -1; toast({ true: 'Sitting · X again to lie on your back', back: 'On your back · X again for your stomach', belly: 'On your stomach · X again to get up' }[v]); }
 }
 function jump() {
+  if (riding()) { pigOff(true, true); return; } // Space hops off their back
+  if (leaning() && sNow() - stunt.t0 < 1.2) stuntCancel(true); else if (stuntRooted()) return;
   if (me.car >= 0) { honk(me); send({ t: 'honk' }); return; }
   if (me.vy !== 0 || me.ko) return; me.floor = false; me.slide = null;
   const run = Math.hypot(me.vx || 0, me.vz || 0) > 3.6;
@@ -1462,8 +1464,10 @@ function step(dt) {
   if (joy.on) { f = -joy.y; r = joy.x; }
   if (isFrozen()) { f = r = 0; me.tx = me.x; me.tz = me.z; me.want = -1; }
   if (me.ko || me.slide) { f = r = 0; me.tx = me.tz = NaN; me.want = -1; }
+  if (stuntRooted()) { f = r = 0; me.tx = me.tz = NaN; me.want = -1; } // a trust fall past the wobble: no way back
   me.input = Math.hypot(f, r) > .15;
   if (me.car >= 0) { driveStep(dt, f, r); themLerp(dt); return; }
+  if (riding()) { themLerp(dt); rideStep(); return; } // piggyback: their back carries me (their position first, so I sit on this frame's back)
   if (me.floor && Math.hypot(f, r) > .15) me.floor = false;
   if (hand && hand.leader !== myRole()) { if (Math.hypot(f, r) > .15) breakHands(); else { const g = followTarget(); if (g && Math.hypot(g[0] - me.x, g[1] - me.z) > .05) { me.tx = g[0]; me.tz = g[1]; me.want = -1; } } }
   if (me.floor && (me.seat >= 0 || me.want >= 0 || Math.hypot(me.tx - me.x, me.tz - me.z) > .06)) me.floor = false; // being walked anywhere gets you up
@@ -1488,7 +1492,7 @@ function step(dt) {
   if (me.seat >= place.seats.length) me.seat = -1; // that seat got moved away
   if (me.seat >= 0) { const s = place.seats[me.seat]; me.walking = false; me.x = s.x; me.z = s.z; me.ry = angLerp(me.ry, s.ry, Math.min(1, dt * 10)); }
   else {
-    if (faceCam && !me.ko) me.ry = angLerp(me.ry, cam.yaw + PI, Math.min(1, dt * 20));
+    if (faceCam && !me.ko && !leaning()) me.ry = angLerp(me.ry, cam.yaw + PI, Math.min(1, dt * 20)); // (a trust fall keeps the back it started with)
     if (place.rects) { if (!inRects(me.x, me.z)) { if (inRects(me.x, pz)) { me.z = pz; me.vz = 0; } else if (inRects(px, me.z)) { me.x = px; me.vx = 0; } else { [me.x, me.z] = inRects(px, pz) ? [px, pz] : nearRect(me.x, me.z); me.vx = me.vz = 0; } me.tx = me.tz = NaN; me.want = -1; } }
     else if (me.want < 0) { const cx = Math.max(b[0], Math.min(b[1], me.x)), cz = Math.max(b[2], Math.min(b[3], me.z)); if (cx !== me.x) me.vx = 0; if (cz !== me.z) me.vz = 0; me.x = cx; me.z = cz; }
   }
@@ -1509,7 +1513,7 @@ function step(dt) {
 function themLerp(dt) {
   if (them) { const k = Math.min(1, dt * 12), ahead = them.seat >= 0 ? 0 : Math.min(.1, clock.elapsedTime - (them.rt || 0)); them.x += (them.rx + (them.rvx || 0) * ahead - them.x) * k; them.z += (them.rz + (them.rvz || 0) * ahead - them.z) * k; them.ry = angLerp(them.ry, them.rry, k); them.jy += ((them.rjy || 0) - (them.jy || 0)) * Math.min(1, dt * 20); }
 }
-function placeChar(mesh, p) { const y = p.car >= 0 ? KART_Y : (p.seat >= 0 && place.seats[p.seat] ? place.seats[p.seat].y - .05 : 0) + (p.jy || 0); mesh.position.set(p.x, y, p.z); mesh.rotation.y = p.ry; }
+function placeChar(mesh, p) { if (pig && ridePlace(mesh, p)) return; const y = p.car >= 0 ? KART_Y : (p.seat >= 0 && place.seats[p.seat] ? place.seats[p.seat].y - .05 : 0) + (p.jy || 0); mesh.position.set(p.x, y, p.z); mesh.rotation.y = p.ry; }
 
 // ---------- hearts ----------
 const heartTex = c => canvasTex(64, 64, (x) => { x.fillStyle = c; x.font = '52px system-ui'; x.textAlign = 'center'; x.fillText('♥', 32, 50); });
@@ -1866,6 +1870,8 @@ const EMOTES = [['wave', '👋', 'Wave'], ['dance', '💃', 'Dance'], ['kiss', '
 const EPAIR = { cuddle: 'cuddle', hug: 'hug-back', 'hug-back': 'hug', smooch: 'smooch', slowdance: 'slowdance', massage: 'massaged', massaged: 'massage' }; // paired emote on the other one
 function doEmote(k) {
   if (me.car >= 0) { toast('Hop out of the car first 🚗'); return; }
+  if (pig && ['cuddle', 'hug', 'smooch', 'slowdance', 'massage'].includes(k)) { toast(riding() ? 'Hop off first (Space) 🐒' : 'Put them down first (Q) 🐒'); return; }
+  if (leaning()) return; // mid trust fall
   if (k === 'cuddle' && !startCuddle()) return;
   if (k === 'lieback' || k === 'liebelly') { layDown(k === 'lieback' ? 'back' : 'belly'); closePanel(); return; }
   if (me.ko) return;
@@ -1904,9 +1910,9 @@ function emoteFx(p, k) {
 }
 function animEmote(p, mesh, t) {
   const u = mesh.userData, e = p.emote; if (!e) return;
-  const el = t - e.t0, hug = ['cuddle', 'hug', 'hug-back', 'massage', 'massaged', 'smooch', 'slowdance'].includes(e.k), dur = e.k === 'cuddle' ? 900 : e.k === 'slowdance' ? 10 : e.k === 'smooch' ? 2.6 : e.k === 'massage' || e.k === 'massaged' ? 5.5 : e.k === 'sleep' ? 4.5 : hug ? 3.2 : e.k === 'spin' ? 1.4 : 2.6;
+  const el = t - e.t0, hug = ['cuddle', 'hug', 'hug-back', 'massage', 'massaged', 'smooch', 'slowdance'].includes(e.k), dur = e.k === 'cuddle' ? 900 : e.k === 'slowdance' ? 10 : e.k === 'smooch' ? 2.6 : e.k === 'massage' || e.k === 'massaged' ? 5.5 : e.k === 'sleep' ? 4.5 : hug ? 3.2 : e.k === 'spin' ? 1.4 : e.k === 'hanging' ? 2 : e.k === 'lean' ? 3 : e.k === 'catch' ? 2.5 : e.k === 'caught' ? 2.2 : 2.6;
   if (el > dur) { p.emote = null; return; }
-  if (p === me && (hug ? me.input || me.vy !== 0 || (them && e.k !== 'massage' && e.k !== 'massaged' && e.k !== 'cuddle' && el > 1.2 && Math.hypot(them.x - me.x, them.z - me.z) > 1.6) : me.vy !== 0 || (me.walking && e.k !== 'wave'))) { if (them && them.emote && EPAIR[me.emote.k] === them.emote.k) them.emote = null; me.emote = null; send({ t: 'emote', k: null }); return; }
+  if (p === me && !STUNT_E.has(e.k) && (hug ? me.input || me.vy !== 0 || (them && e.k !== 'massage' && e.k !== 'massaged' && e.k !== 'cuddle' && el > 1.2 && Math.hypot(them.x - me.x, them.z - me.z) > 1.6) : me.vy !== 0 || (me.walking && e.k !== 'wave'))) { if (them && them.emote && EPAIR[me.emote.k] === them.emote.k) them.emote = null; me.emote = null; send({ t: 'emote', k: null }); return; }
   const b = u.body, h = u.head, A = u.arms;
   if (e.k === 'massaged') { // melting: eyes shut, a slow happy sway, stays lying if lying
     if (p.pose !== 'back' && p.pose !== 'belly') { b.rotation.z = Math.sin(t * 2) * .06; h.rotation.x = .15; A.forEach((a, i) => a.rotation.z *= .3); }
@@ -1948,6 +1954,11 @@ function animEmote(p, mesh, t) {
       if (down) { b.rotation.x = .5; b.position.y = -.1; u.feet.forEach(f => f.position.set(f.position.x, .05, -.2)); } // kneeling over them
       b.rotation.z = Math.sin(t * 4.5) * .05; h.rotation.x = .25; break;
     }
+    case 'five': { const hit = e.hit ? Math.sin(Math.min(1, (t - e.hit) / .22) * PI) : 0; arm(1, .26, .86 - hit * .04, .05 + hit * .2, 2.9); b.rotation.z = -.06; h.rotation.x = -.12; break; } // right arm straight up (turned over, so the hand is on top), a little swing on the slap
+    case 'hanging': { const k2 = Math.min(1, el / .6); arm(1, .28, .86 - .46 * k2, .05, 2.9 * (1 - k2)); h.rotation.x = .38 * k2; b.rotation.x = .1 * k2; break; } // the arm droops, the head goes down
+    case 'lean': if (el < 1.2) A.forEach((a, i) => { a.position.set((i ? 1 : -1) * .3, .42, 0); a.rotation.z = (i ? 1 : -1) * (.9 + Math.sin(el * 9 + i * PI) * .3); }); else { arm(0, -.09, .44, .26); arm(1, .09, .44, .26); u.eyes.forEach(x => x.scale.y = .008); } h.rotation.x = -.1; break; // arms out for balance, then crossed and eyes shut (the tip itself is in stuntPose, after the ragdoll pass)
+    case 'caught': arm(0, -.09, .44, .26); arm(1, .09, .44, .26); u.eyes.forEach(x => x.scale.y = .008); h.rotation.x = -.15; break;
+    case 'catch': A.forEach((a, i) => { a.position.set((i ? 1 : -1) * .18, .42, .3); a.rotation.set(-1.3, 0, 0); }); b.position.y = -.06; b.rotation.x = .14; break; // arms out in front, a small squat
     case 'flex': arm(0, -.34, .5, 0, -1.2); arm(1, .34, .5, 0, 1.2); b.position.y = .02; h.rotation.x = -.1; break;
     case 'hug': case 'hug-back': A.forEach((a, i) => { a.position.set(i ? .2 : -.2, .42, .26); a.rotation.z = i ? .9 : -.9; }); if (p === me && them) me.ry = Math.atan2(them.x - me.x, them.z - me.z); break;
   }
@@ -2354,6 +2365,7 @@ let hand = null;
 function breakHands() { if (hand) { hand = null; send({ t: 'hand', on: false }); } }
 function toggleHands() {
   if (hand) return breakHands();
+  if (pig) { toast(riding() ? 'Hop off first (Space) 🐒' : 'Put them down first (Q) 🐒'); return; }
   if (!them || Math.hypot(me.x - them.x, me.z - them.z) > 1.6) { toast('Stand next to them to hold hands 🤝'); return; }
   if (me.seat >= 0 || them.seat >= 0) { toast('Stand up first to hold hands'); return; }
   hand = { leader: myRole() }; send({ t: 'hand', on: true }); floatText(me, '🤝', '#ffcf6b');
@@ -2363,7 +2375,8 @@ function followTarget() { if (!hand || hand.leader === myRole() || !them) return
 function holdArm(p, mesh, other) { const sd = sideOf(p, other), a = mesh.userData.arms[sd > 0 ? 0 : 1]; a.position.set(sd > 0 ? -.36 : .36, .36, .04); }
 const handHeart = new THREE.Sprite(new THREE.SpriteMaterial({ map: heartTexs.mine, transparent: true, depthWrite: false })); handHeart.scale.setScalar(.18); handHeart.visible = false; scene.add(handHeart);
 const atLan = () => !!lanPending && !me.roast && me.car < 0 && Math.hypot(lanPending.x - me.x, lanPending.z - me.z) < 1.6; // a marshmallow already on the stick comes first: E still eats it
-function useE() { if (atLan()) return; // at a lantern E is a hold (read every frame in tickLan), never a kart, a new s'more, a pet or hands
+function useE() { if (me.car < 0 && stuntAnswer()) return; // a stunt waiting for my answer comes first: answering never also enters a kart, pets, roasts or takes a hand
+  if (atLan()) return; // at a lantern E is a hold (read every frame in tickLan), never a kart, a new s'more, a pet or hands
   if (carE()) return; if (me.roast) { eatSmore(); return; } if (nearTea()) { drinkTea(me); send({ t: 'tea' }); return; } if (nearBong()) { const cough = Math.random() < .35; bongHit(me, cough); send({ t: 'bong', cough }); return; } if (nearTel()) { openScope(); return; } const o = petNearest(); if (nearFire() && !(o && Math.hypot(o.x - me.x, o.z - me.z) < .5) && roastE()) return; // a heeling pet sits ~.8 away: the fire wins unless you're right on the pet
   if (o) { petIt(o); send({ t: 'petpet', whose: o === me.petObj ? 'mine' : 'theirs' }); return; } toggleHands(); }
 $('hands').onclick = e => { const was = touchLan; touchLan = false; if (was && e.detail) return; useE(); }; // a press that began as a lantern hold ends there: lifting off after the release (or a cancel) is not a second E. detail 0 is the keyboard, which never held
@@ -3012,7 +3025,7 @@ pvAttach($('pvStart')); pvSet(myLook); setTimeout(renderQuick);
 function onFun8(m) { if (m.t === 'char') { if (them) them.look = m.look; return true; } return false; }
 
 // ---------- moves: run, crouch, slide, sit on the floor, running flip; push + smack with a wobbly fall ----------
-function moveMul() { return (1 - .15 * weedLvl(me, clock.elapsedTime)) * (me.pose === 'crouch' ? .5 : keys.shift ? 1.75 : 1); }
+function moveMul() { return (1 - .15 * weedLvl(me, clock.elapsedTime)) * (me.pose === 'crouch' ? .5 : keys.shift ? 1.75 : 1) * (carrying() ? .8 : 1); } // (someone on your back slows you down a little)
 function startSlide() {
   const v = Math.hypot(me.vx || 0, me.vz || 0);
   if (v < 3 || me.vy !== 0 || me.seat >= 0 || me.ko || me.car >= 0) return false;
@@ -3025,7 +3038,7 @@ function stepMoves(dt) {
   if (me.slide) { const k = (t - me.slide.t0) / .75; if (k >= 1 || me.seat >= 0) me.slide = null; else { me.vx = me.slide.vx * (1 - k * k); me.vz = me.slide.vz * (1 - k * k); } }
   if (me.ko && me.spinV) { me.ry += me.spinV * dt; me.spinV *= Math.pow(.05, dt); }
   if (me.vy === 0) me.flipT = 0;
-  me.pose = me.ko ? 'ko' : me.slide ? 'slide' : me.floor === true ? 'floor' : me.floor ? me.floor : keys.c && me.seat < 0 && me.vy === 0 ? 'crouch' : '';
+  me.pose = riding() ? 'pig' : me.ko ? 'ko' : me.slide ? 'slide' : me.floor === true ? 'floor' : me.floor ? me.floor : keys.c && me.seat < 0 && me.vy === 0 ? 'crouch' : '';
 }
 function smackSound() {
   try {
@@ -3037,6 +3050,8 @@ function smackSound() {
   } catch {}
 }
 function attack(kind) {
+  if (carrying()) { if (kind === 'push') { send({ t: 'stunt', k: 'pig', a: 'toss', dx: +Math.sin(me.ry).toFixed(3), dz: +Math.cos(me.ry).toFixed(3) }); pig = null; sfx('jump'); floatText(me, 'yeet!', '#ffcf6b'); } return; } // Q tosses the rider (no push swing), G does nothing with someone on your back
+  if (leaning()) return;
   if (me.ko || me.seat >= 0 || me.car >= 0) return;
   let dx = them ? them.x - me.x : 0, dz = them ? them.z - me.z : 0; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
   if (them && d < 1.7) me.ry = Math.atan2(dx, dz); // turn to face them
@@ -3046,13 +3061,13 @@ function attack(kind) {
     setTimeout(() => { if (kind === 'smack') { smackSound(); floatText(them, 'SMACK!', '#ff7a59'); } else { boom(.18); floatText(them, 'oof!', '#ffcf6b'); } }, 130);
   } else floatText(me, kind === 'smack' ? 'whiff~' : 'hm?', '#fff4e2');
 }
-function knocked(dx, dz, kind) { sfx('bonk');
+function knocked(dx, dz, kind, say) { sfx('bonk'); stuntKo();
   const power = kind === 'smack' ? 6.5 : 5;
   leaveSeat(); me.want = -1; me.floor = false; me.slide = null; if (me.emote) { send({ t: 'emote', k: null }); if (them && them.emote && EPAIR[me.emote.k] === them.emote.k) them.emote = null; } me.emote = null; if (hand) breakHands();
   me.ko = { t0: clock.elapsedTime, dx, dz, kind }; me.vx = dx * power; me.vz = dz * power; me.vy = kind === 'smack' ? 3.4 : 2.4; me.jy += .001;
   me.spinV = kind === 'smack' ? 16 : 0; me.tx = me.tz = NaN;
   if (kind === 'smack') smackSound(); else boom(.18);
-  floatText(me, kind === 'smack' ? 'ow!! 😵' : 'woah!', '#ff9ab8');
+  floatText(me, say || (kind === 'smack' ? 'ow!! 😵' : 'woah!'), '#ff9ab8');
   send({ t: 'ko', dx, dz, kind });
 }
 const starRing = () => { const g = new THREE.Group(); for (let i = 0; i < 3; i++) { const st = put(new THREE.Mesh(starGeo, GLOW('#ffe27a', 2)), Math.cos(i * 2.1) * .28, 0, Math.sin(i * 2.1) * .28, g); st.scale.setScalar(.05); } g.position.y = .9; return g; };
@@ -3105,7 +3120,7 @@ $('pushb').onclick = () => attack('push');
 $('smackb').onclick = () => attack('smack');
 
 function onPlaceChanged() {
-  endGame(true); dropHeld();
+  endGame(true); dropHeld(); stuntCancel(true); pigOff(true, false, true); // no stunt and no rider comes along to the next place
   rebuildDeco(place.id); rebuildPics(place.id); applyMood(); buildHiddenStars(); lanPlaceChanged(); placeChanged3();
   if (decorating) renderDecoPanel(); else if (panel.dataset.k === 'games') closePanel();
 }
@@ -3117,7 +3132,7 @@ function funTick(dt, t) {
     const q = p.squish || 0; if (q > 0) p.squish = Math.max(0, q - dt * 2.5);
     mesh.userData.body.scale.set(1 + .25 * q, 1 - .3 * q, 1 + .25 * q);
   }
-  funTick2(dt, t); funTick3(dt, t); funTick4(dt, t); funTick5(); funTick6(dt, t); funTick9(dt, t);
+  funTick2(dt, t); funTick3(dt, t); funTick4(dt, t); funTick5(); funTick6(dt, t); funTick9(dt, t); funTick13(dt, t);
   if (themMesh) themMesh.userData.tag.visible = !(game && game.mode === 'hide' && game.seeker === myRole());
 }
 function onFun(m) {
@@ -3224,6 +3239,7 @@ function partnerGone() {
   if (cg) cgClose();
   if (quiz) { quiz = null; if (panel.dataset.k === 'quiz') closePanel(); }
   lanCancel(false); // a lantern needs both of you
+  stuntCancel(false); pigOff(false); // and so does a stunt (a rider left alone lands on their feet)
   hand = null; pendingHat = ''; pendingPet = ''; pendingPetName = '';
   if (them) tapeAlone();
   them = null; conn = null; if (!myStream) showStream(null);
@@ -3436,7 +3452,7 @@ $('radiob').onclick = openRadio;
 // ---------- our love level: do sweet things together, level up, unlock achievements ----------
 const LV = [[0, 'just met'], [30, 'crushing'], [90, 'talking stage'], [180, 'dating'], [320, 'official'], [520, 'in love'], [800, 'soulmates'], [1200, 'forever'], [1800, 'legendary ♾']];
 const ACH = { cuddle: '🫂 Cuddle puddle', race: '🏁 Won a car race', hug: '🤗 First hug', kiss: '💋 First kiss', dance: '💃 First slow dance', beachdance: '🌅 Slow dance on the beach', massage: '💆 Spa day', letter: '✉️ Love letter', watch30: '🍿 30 min watching together',
-  days7: '📅 7 days together', match5: '💞 Matched 5 times', rpswin: '✊ Played RPS to 3', stare: '👀 Had a staring contest', wish: '🌠 Made a wish', smore: "🔥 Perfect s'more", places: '🗺 Been everywhere', pets: '🐾 Pet playdate', wall: '📌 Photo on the wall', fetch: '🎾 Good pet', rally10: '🎈 10 in a row', rally25: '🎈 25 in a row', strip: '🎞 First photo strip', strip4: '🌟 Nailed all four poses', lantern: '🏮 First lantern', lantern10: '🏮 Ten lanterns in the sky', umbrella: '☂️ Shared an umbrella', storm: '⛈ Watched a storm together' };
+  days7: '📅 7 days together', match5: '💞 Matched 5 times', rpswin: '✊ Played RPS to 3', stare: '👀 Had a staring contest', wish: '🌠 Made a wish', smore: "🔥 Perfect s'more", places: '🗺 Been everywhere', pets: '🐾 Pet playdate', wall: '📌 Photo on the wall', fetch: '🎾 Good pet', rally10: '🎈 10 in a row', rally25: '🎈 25 in a row', strip: '🎞 First photo strip', strip4: '🌟 Nailed all four poses', lantern: '🏮 First lantern', lantern10: '🏮 Ten lanterns in the sky', umbrella: '☂️ Shared an umbrella', storm: '⛈ Watched a storm together', five: '✋ Perfect high five', trust: '🫣 Caught you', pig: '🐒 Piggyback ride' };
 let love = { xp: 0, ach: {}, days: [], places: [], matches: 0, watchMin: 0, lastLv: 1 };
 try { love = { ...love, ...JSON.parse(localStorage.getItem('ols-love') || '{}') }; } catch {}
 let wishes = []; try { wishes = JSON.parse(localStorage.getItem('ols-wishes') || '[]'); } catch {}
@@ -3582,7 +3598,7 @@ function carE() {
   enterCar(best); toast('🚗 W gas · S brake · A/D steer · Space honk · E hop out'); return true;
 }
 function enterCar(i) {
-  const k = place.karts[i]; leaveSeat(); if (hand) breakHands(); if (pov === 1) setPov(3);
+  const k = place.karts[i]; leaveSeat(); if (hand) breakHands(); pigOff(true, false, true); if (pov === 1) setPov(3); // (nobody rides piggyback into a kart)
   Object.assign(me, { car: i, x: k.x, z: k.z, ry: k.ry, cv: 0, want: -1, floor: false, slide: null, emote: null, roast: null, vx: 0, vz: 0, vy: 0, jy: 0, pose: '', walking: false, tx: NaN, tz: NaN });
   me.carDist = cam.dist; cam.dist = Math.max(cam.dist, 5.2); engine(true);
 }
@@ -3851,8 +3867,8 @@ function openHelp() {
   claimPanel();
   panel.dataset.k = 'help'; panel.classList.remove('side');
   const K = [['WASD', 'move'], ['Space', 'jump (run + jump = flip)'], ['Shift', 'run'], ['drag / 2-finger drag', 'turn the camera'], ['scroll', 'zoom · all the way in = 1st person'], ['C', 'crouch · slide while running'], ['X', 'sit → lie on back → lie on stomach'],
-    ['E', 'hold hands · pet · bong · tea · hold E together to light a lantern · telescope'], ['B', 'throw the ball for your pet'], ['F', 'throw popcorn'], ['Q / G', 'push / smack'], ['H', 'hearts'], ['1-9', 'emotes'], ['Enter', 'chat'], ['T', 'watch mode (theater / split)'], ['L', 'camera lock'], ['V', '1st / 3rd person']];
-  const NEW = ['🎈 Games → Keep it up: walk or jump under the balloon', '🎞 next to 📸: four prompts, three seconds each, one film strip', '🏮 Us → Light a lantern (outdoors, both hold E)', '🔭 Stars: press E at the telescope', '📼 Leave the screen idle for a minute', '🌧 If it rains, go outside and stand close'];
+    ['E', 'hold hands · pet · bong · tea · hold E together to light a lantern · telescope · answer a high five · catch'], ['Space (riding)', 'hop off'], ['Q (carrying)', 'toss your rider'], ['B', 'throw the ball for your pet'], ['F', 'throw popcorn'], ['Q / G', 'push / smack'], ['H', 'hearts'], ['1-9', 'emotes'], ['Enter', 'chat'], ['T', 'watch mode (theater / split)'], ['L', 'camera lock'], ['V', '1st / 3rd person']];
+  const NEW = ['🎈 Games → Keep it up: walk or jump under the balloon', '🎞 next to 📸: four prompts, three seconds each, one film strip', '🏮 Us → Light a lantern (outdoors, both hold E)', '🔭 Stars: press E at the telescope', '📼 Leave the screen idle for a minute', '🌧 If it rains, go outside and stand close', '🙌 Us → High five, Trust fall, Piggyback: they only work if the other one answers with E in time'];
   panel.innerHTML = `<h3>⌨️ Controls</h3><div class="keys">${K.map(([k, d]) => `<kbd>${k}</kbd><span>${d}</span>`).join('')}</div>
     <h3 style="margin-top:14px">✨ New things to try</h3>${NEW.map(s => `<div class="row hintrow" style="margin-top:4px">${s}</div>`).join('')}`;
   panel.style.display = 'block';
@@ -3871,7 +3887,7 @@ const DEEP = ["What's a moment with me you replay in your head?", 'When did you 
 const TRUTH = ["What's the most embarrassing thing you've done in front of me?", "What's your guilty pleasure show?", 'Who was your first crush?', "What's the cheesiest thing you've thought about me?", "What's your weirdest habit?",
   "What's something you've never told me?", 'What do you think about right before you fall asleep?', 'Rate my cooking out of 10. Honestly.', "What's my most annoying habit?", "What's your secret talent?"];
 const DARE = ['Blow them a kiss (emote 😘)', 'Do a little dance (press 2)', 'Do 3 jumping jacks', 'Say something sweet in chat', 'Give them a hug 🤗', 'Smack them very gently 🖐', 'Sing one line of a song out loud',
-  'Throw popcorn at them (F)', 'Do your best runway walk across the room', 'Give them a massage 💆', 'Spin around 3 times', 'Tell them your favorite thing about them'];
+  'Throw popcorn at them (F)', 'Do your best runway walk across the room', 'Give them a massage 💆', 'Spin around 3 times', 'Tell them your favorite thing about them', 'Do a trust fall (💞 Us)', 'Give them a piggyback ride'];
 const CG_NAME = { wyr: '🤔 Would you rather', deep: '🕯 Deep talk', tod: '😈 Truth or dare', rps: '✊ Rock paper scissors', stare: '👀 Staring contest' };
 let cg = null;
 const cgDeck = k => ({ wyr: WYR, deep: DEEP, tod: TRUTH, rps: [0], stare: [0] }[k]);
@@ -3955,12 +3971,13 @@ function openCouple() {
   panel.dataset.k = 'couple'; panel.classList.remove('side');
   const G = [['wyr', 'Both pick, see if you match'], ['deep', 'Cards to talk about real stuff'], ['tod', 'Take turns, cute dares'], ['rps', 'First to 3 wins'], ['stare', 'Face each other, first to move loses']];
   panel.innerHTML = `<h3>💞 Just us</h3><div class="grid">${G.map(([k, d]) => `<button class="tile" data-cg="${k}"><b>${CG_NAME[k]}</b><span>${d}</span></button>`).join('')}</div>
-    <h3 style="margin-top:14px">💗 Couple moves</h3><div class="grid"><button class="tile" data-mv="cuddle"><b>🫂 Cuddle</b><span>on the nearest couch, or next to them if they're lying down</span></button><button class="tile" data-mv="smooch"><b>💋 Kiss</b><span>walk up close first</span></button><button class="tile" data-mv="slowdance"><b>💃 Slow dance</b><span>pull them in for a sway</span></button><button class="tile" data-mv="hug"><b>🤗 Hug</b><span>a big squeeze</span></button><button class="tile" data-mv="massage"><b>💆 Massage</b><span>shoulders or back rub</span></button><button class="tile" id="lanTile"><b>🏮 Light a lantern</b><span>outside · write a few words · you both hold E to send it up</span></button></div>
+    <h3 style="margin-top:14px">💗 Couple moves</h3><div class="grid"><button class="tile" data-mv="cuddle"><b>🫂 Cuddle</b><span>on the nearest couch, or next to them if they're lying down</span></button><button class="tile" data-mv="smooch"><b>💋 Kiss</b><span>walk up close first</span></button><button class="tile" data-mv="slowdance"><b>💃 Slow dance</b><span>pull them in for a sway</span></button><button class="tile" data-mv="hug"><b>🤗 Hug</b><span>a big squeeze</span></button><button class="tile" data-mv="massage"><b>💆 Massage</b><span>shoulders or back rub</span></button><button class="tile" data-st="five"><b>🙌 High five</b><span>they have 2 seconds to slap it (E)</span></button><button class="tile" data-st="fall"><b>🫣 Trust fall</b><span>fall backwards… they catch you with E</span></button><button class="tile" data-st="pig"><b>🐒 Piggyback</b><span>hop on their back · Space hops off</span></button><button class="tile" id="lanTile"><b>🏮 Light a lantern</b><span>outside · write a few words · you both hold E to send it up</span></button></div>
     <h3 style="margin-top:14px">✉️ Love letter</h3><div class="row" style="margin-top:0"><input id="noteIn" maxlength="220" placeholder="write them something sweet…" value="${esc(noteDraft)}" style="flex:1;border:0;border-radius:999px;padding:10px 16px;background:#ffffff14;color:var(--ink);font:inherit"><button class="pill on" id="noteSend">Send ✉️</button></div>
     ${notes.length ? `<div class="row hintrow">📬 letters you got: ${notes.slice(-6).reverse().map((n, i) => `<button class="pill" data-note="${notes.length - 1 - i}">${esc(n.from)} · ${new Date(n.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</button>`).join('')}</div>` : ''}`;
   panel.style.display = 'block';
   panel.querySelectorAll('[data-cg]').forEach(b => b.onclick = () => startCG(b.dataset.cg));
   panel.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => doEmote(b.dataset.mv));
+  panel.querySelectorAll('[data-st]').forEach(b => b.onclick = () => stuntStart(b.dataset.st));
   $('lanTile').onclick = openLantern;
   panel.querySelectorAll('[data-note]').forEach(b => b.onclick = () => showLetter(notes[+b.dataset.note]));
   $('noteIn').oninput = e => noteDraft = e.target.value;
@@ -4836,7 +4853,187 @@ function tickWeather(dt, t) {
   wxSound(dt, w);
 }
 
-function tick13(dt, t) { if (strip) tickStrip(); tickLan(dt, t); tickTape(); tickWeather(dt, t); } // per-frame hook for the newest features (the rally balloon ticks inside tickGame, next to the other little games)
+// ---------- stunts: moves that need an answer (high five, trust fall, piggyback) ----------
+// the asker sends 'ask', the other one answers with E in time ('ok'). The poses ride on the usual 'emote' message; 'stunt' only carries ask / ok / miss / off / toss.
+// Timing is wall-clock (like the photo strip), so a tab that is not being drawn still judges a slap or a catch right.
+let stunt = null, pig = null, stuntRing = null; // stunt: { k: 'five' | 'fall' | 'pig', role: 'ask' | 'ans', t0 } · pig: { rider: role, t0, n } while one of you rides the other
+const STUNT_E = new Set(['five', 'hanging', 'lean', 'catch', 'caught']); // these poses belong to a stunt: walking does not drop them, the stunt does
+const sNow = () => performance.now() / 1000;
+const riding = () => !!pig && pig.rider === myRole(), carrying = () => !!pig && pig.rider !== myRole();
+const leaning = () => !!stunt && stunt.k === 'fall' && stunt.role === 'ask';
+const stuntRooted = () => (leaning() && sNow() - stunt.t0 >= 1.2) || (!!me.emote && me.emote.k === 'caught' && clock.elapsedTime - me.emote.t0 < .5); // past the wobble there is no way back
+const spotFree = (x, z, y) => { const b = place.bounds; return x > b[0] && x < b[1] && z > b[2] && z < b[3] && (!place.rects || inRects(x, z)) && !blockedAt(x, z, y); };
+function stuntUp() { leaveSeat(); me.want = -1; me.floor = false; me.slide = null; breakHands(); }
+function stuntStart(k) { // the three tiles (and dbg.stunt): true when it really started
+  if (k !== 'five' && k !== 'fall' && k !== 'pig') return false;
+  if (!them || them.away) { toast('Invite them first ♥ this one needs two'); return false; }
+  const d = Math.hypot(me.x - them.x, me.z - them.z), t = clock.elapsedTime;
+  if (d > 2.5) { toast('Walk closer first ♥'); return false; }
+  if (me.car >= 0) { toast('Hop out of the car first 🚗'); return false; }
+  if (me.ko) { toast('Get back up first 😵'); return false; }
+  if (game || quiz) { toast('Finish the game first 🎲'); return false; }
+  if (stunt || pig) { toast(pig ? (riding() ? 'Hop off first (Space) 🐒' : 'Put them down first (Q) 🐒') : 'One stunt at a time ✋'); return false; }
+  if (k === 'pig') {
+    if (d > 1.6) { toast('Stand right next to them for a piggyback 🐒'); return false; }
+    if (them.seat >= 0 || them.car >= 0 || them.ko || ['floor', 'back', 'belly', 'slide'].includes(them.pose)) { toast('They need to be on their feet for that 🐒'); return false; }
+  }
+  stuntUp(); if (panel.dataset.k === 'couple') closePanel(); // (its own panel only: dbg.stunt never shuts a decorating or doodle panel)
+  if (k === 'five') { if (d > .2) me.ry = Math.atan2(them.x - me.x, them.z - me.z); me.emote = { k: 'five', t0: t }; send({ t: 'emote', k: 'five' }); floatText(me, '✋ up high!', '#ffcf6b'); setTimeout(tickStunt, 2650); }
+  if (k === 'fall') { me.tx = me.tz = NaN; me.vx = me.vz = 0; me.emote = { k: 'lean', t0: t }; send({ t: 'emote', k: 'lean' }); floatText(me, 'catch me!', '#ff9ab8'); setTimeout(tickStunt, 2350); }
+  if (k === 'pig') floatText(me, '🐒 piggyback?', '#ffcf6b');
+  stunt = { k, role: 'ask', t0: sNow(), ok: false }; send({ t: 'stunt', k, a: 'ask' });
+  return true;
+}
+function stuntCancel(tell) { // let go of a stunt without a result (mine: the pose goes too, and they hear about it)
+  const s = stunt; if (!s) return; stunt = null;
+  if (s.role !== 'ask') return;
+  if (tell) send({ t: 'stunt', k: s.k, a: 'off' });
+  if (me.emote && (me.emote.k === 'lean' || me.emote.k === 'five')) { me.emote = null; send({ t: 'emote', k: null }); }
+}
+function stuntKo() { pigOff(true, false, true); stuntCancel(true); } // knocked over: nobody rides, nothing is waiting
+function stuntAnswer() { // E while a stunt waits for my answer. True: the press was used up here (never also a kart, a pet or hands)
+  const s = stunt; if (!s || s.role !== 'ans' || !them || them.away || me.ko || me.car >= 0) return false;
+  const el = sNow() - s.t0, dx = me.x - them.x, dz = me.z - them.z, d = Math.hypot(dx, dz), t = clock.elapsedTime;
+  if (s.k === 'five') {
+    if (el > 2 || d > 2.5) return false;
+    const q = Math.abs(el - 1) < .25 ? 'perfect' : 'ok', n = d || 1;
+    stunt = null; stuntUp();
+    me.ry = Math.atan2(-dx, -dz); me.tx = them.x + dx / n * .55; me.tz = them.z + dz / n * .55; // step in, like a hug
+    me.emote = { k: 'five', t0: t }; send({ t: 'emote', k: 'five' }); send({ t: 'stunt', k: 'five', a: 'ok', q }); // the pose first, so their side can put the slap on it
+    fiveFx(q, them); loveAdd(q === 'perfect' ? 3 : 1); if (q === 'perfect') achieve('five');
+    return true;
+  }
+  if (s.k === 'fall') {
+    if (s.sent) return true; // already under them: a second press is not hands
+    if (el > 2.1) return false;
+    if (!(dx * -Math.sin(them.ry) + dz * -Math.cos(them.ry) > .3 && d < 1.4)) { floatText(me, 'get behind them!', '#ffcf6b'); return true; } // judged here, where my own position is exact (they are rooted)
+    s.sent = true; stuntUp(); me.ry = Math.atan2(-dx, -dz);
+    me.emote = { k: 'catch', t0: t }; send({ t: 'emote', k: 'catch' }); send({ t: 'stunt', k: 'fall', a: 'ok' });
+    return true;
+  }
+  if (el > 4 || d > 2.2 || me.seat >= 0 || me.floor || me.slide || game || quiz) return false; // piggyback: saying yes is the answer
+  stunt = null; send({ t: 'stunt', k: 'pig', a: 'ok' }); pigOn(otherRole());
+  return true;
+}
+function fiveFx(q, asker) { // the slap itself, the same on both screens
+  const t = clock.elapsedTime, o = asker === me ? them : me;
+  for (const p of [me, them]) if (p && p.emote && p.emote.k === 'five') { p.emote.t0 = t - 1.4; p.emote.hit = t; } // a little swing, then the arms come down
+  if (q === 'perfect') {
+    const dx = o ? o.x - asker.x : 0, dz = o ? o.z - asker.z : 0, n = Math.hypot(dx, dz) || 1, k = Math.min(.3, n / 2), x = asker.x + dx / n * k, z = asker.z + dz / n * k, y = headY(asker);
+    for (let i = 0; i < 8; i++) { const m = new THREE.Mesh(SPH, GLOW('#ffcf6b', 3)); m.position.set(x + (Math.random() - .5) * .3, y - .05 + Math.random() * .3, z + (Math.random() - .5) * .3); m.scale.setScalar(.022); scene.add(m); lsparks.push({ m, t0: t }); } // (shared ball, shared glow: the sparkle list puts them away)
+    sfx('match'); floatText(asker, 'PERFECT ✋✨', '#ffcf6b');
+  } else { smackSound(); floatText(asker, 'slap!', '#fff4e2'); }
+  for (const p of [me, them]) if (p) p.happyUntil = t + 2.5;
+}
+function fallEnd(ok) { // the one falling decides at 2.3 s: caught, or timber
+  stunt = null;
+  if (ok && them && !them.away) {
+    me.emote = { k: 'caught', t0: clock.elapsedTime }; send({ t: 'emote', k: 'caught' }); send({ t: 'stunt', k: 'fall', a: 'ok' }); // (their 'ok' told me, mine tells them it counted)
+    fallFx(them); loveAdd(4); achieve('trust');
+  } else { send({ t: 'stunt', k: 'fall', a: 'miss' }); knocked(-Math.sin(me.ry), -Math.cos(me.ry), 'push', 'timber!!'); } // the whole ragdoll path, and its 'ko' message
+}
+function fallFx(catcher) { for (let i = 0; i < 5; i++) setTimeout(() => { addHeart(me, 'mine', i > 0); if (them) addHeart(them, 'theirs', true); }, i * 120); floatText(catcher, 'gotcha ♥', '#ff9ab8'); }
+function pigOn(rider) { // both sides, at the 'ok': the rider hops up from where they stood
+  if (rider === myRole()) leaveSeat();
+  const r = rider === myRole() ? me : them, now = sNow(); breakHands(); me.want = -1; me.floor = false; me.slide = null;
+  if (me.emote && EPAIR[me.emote.k]) { me.emote = null; send({ t: 'emote', k: null }); } // a hug or a slow dance ends here
+  pig = { rider, t0: now, n: 0, seen: now + 1.5, fx: r.x, fz: r.z, fy: r.jy || 0 };
+  sfx('jump'); floatText(r, '🐒', '#ffcf6b'); toast(r === me ? '🐒 Up you go · Space hops off' : '🐒 You are carrying them · Q tosses them off');
+}
+function pigOff(tell, hop, quiet) { // quiet: something else already decided where I am (a ragdoll, a new place)
+  if (!pig) return; const mine = riding(); pig = null;
+  if (tell) send({ t: 'stunt', k: 'pig', a: 'off' });
+  if (mine && !quiet) rideDrop(hop);
+}
+function rideStep() { // riding: I am wherever their back is (this skips gravity, and keeps my 20 Hz packets and the camera sane; the view from up there is better anyway)
+  if (!them) return;
+  me.x = them.x - Math.sin(them.ry) * .2; me.z = them.z - Math.cos(them.ry) * .2; me.ry = them.ry; me.jy = (them.jy || 0) + .42;
+  me.vx = me.vz = me.vy = 0; me.walking = false; me.tx = me.tz = NaN; me.want = -1; me.floor = false; me.slide = null; me.flipT = 0; me.pose = 'pig';
+}
+function rideDrop(hop) { // back on my own feet, a little behind them when there is room
+  const d = hop ? .5 : .25, x = me.x - Math.sin(me.ry) * d, z = me.z - Math.cos(me.ry) * d;
+  if (spotFree(x, z, me.jy)) { me.x = x; me.z = z; }
+  me.vx = me.vz = 0; me.vy = hop ? 3.2 : -.01; me.tx = me.tz = NaN; me.want = -1; me.pose = ''; if (hop) sfx('jump');
+}
+function ridePlace(mesh, p) { // the rider is drawn from the carrier on BOTH screens, so it never trails behind (the carrier's own mesh is placed from the very same numbers)
+  const mine = pig.rider === myRole(); if (p !== (mine ? me : them)) return false;
+  const c = mine ? them : me; if (!c) return false;
+  let x = c.x - Math.sin(c.ry) * .2, y = (c.jy || 0) + .42, z = c.z - Math.cos(c.ry) * .2; const k = (sNow() - pig.t0) / .3;
+  if (k < 1) { x = pig.fx + (x - pig.fx) * k; z = pig.fz + (z - pig.fz) * k; y = pig.fy + (y - pig.fy) * k + Math.sin(k * PI) * .25; } // the hop on
+  mesh.position.set(x, y, z); mesh.rotation.y = c.ry; return true;
+}
+function stuntPose(p, mesh, t, dt) { // after the emotes and the ragdoll pass (which zeroes the whole-body tilt every frame), before the legs are solved
+  const u = mesh.userData, e = p.emote; let v = null;
+  if (e && !p.ko) {
+    const el = t - e.t0;
+    if (e.k === 'lean') { const k = Math.max(0, Math.min(1, (el - 1.2) / .9)); v = Math.sin(el * 9) * .08 * (1 - k) - .9 * k * k; } // a wobble, then over backwards
+    else if (e.k === 'caught') { const k = Math.max(0, Math.min(1, (el - 1.5) / .6)); v = -.9 * (1 - k) * (1 - k); } // held, then stood back up
+  }
+  if (v !== null) u.lean = v; else if (u.lean) { u.lean *= Math.max(0, 1 - dt * 6); if (Math.abs(u.lean) < .004) u.lean = 0; }
+  if (u.lean) u.g.rotation.x = p.ko ? Math.min(u.g.rotation.x, u.lean) : u.lean; // (timber: the ragdoll takes over from where the lean was)
+  if (!pig || p.ko) return;
+  const rider = pig.rider === myRole() ? me : them, A = u.arms;
+  if (p === rider) { // arms over their shoulders, feet tucked in at their sides, a little bob when they walk
+    const c = p === me ? them : me, bob = c && c.walking ? Math.abs(Math.sin(t * 9)) * .03 : 0;
+    u.body.position.y = -.04 + bob; u.body.rotation.set(.22, 0, 0);
+    u.feet.forEach((f, i) => f.position.set((i ? 1 : -1) * .26, .18 + bob, .2));
+    if (!e) A.forEach((a, i) => { a.position.set((i ? 1 : -1) * .2, .2 + bob, .3); a.rotation.set(-.8, 0, 0); });
+    u.blob.visible = false;
+  } else if (!e && !p.atk) A.forEach((a, i) => { a.position.set((i ? 1 : -1) * .24, .3, -.1); a.rotation.set(.9, 0, (i ? 1 : -1) * .2); }); // the carrier: arms back, holding on
+}
+function funTick13(dt, t) { if (meMesh) stuntPose(me, meMesh, t, dt); if (them && themMesh) stuntPose(them, themMesh, t, dt); }
+function tickStunt() { // every frame, and once by timer at the moment a stunt of mine is decided (a tab in the background still lets them down on time)
+  const now = sNow(), t = clock.elapsedTime, s = stunt;
+  if (s) {
+    const el = now - s.t0;
+    if (!them || them.away) stuntCancel(false);
+    else if (s.role !== 'ask') { if (el > (s.k === 'five' ? 3.2 : s.k === 'fall' ? 3.5 : 4)) stunt = null; } // (a high five can only be answered for 2 s; it stays a moment longer to hear how it ended)
+    else if (s.k === 'five') { if (el > 2.6) { stunt = null; send({ t: 'stunt', k: 'five', a: 'miss' }); me.emote = { k: 'hanging', t0: t }; send({ t: 'emote', k: 'hanging' }); floatText(me, 'left hanging… 😐', '#7ad8ff'); } } // 2 s to slap it, and .4 s of grace for the trip here
+    else if (s.k === 'fall') { if (el < 1.2 && (me.input || me.seat >= 0 || me.car >= 0)) stuntCancel(true); else if (el >= 2.3) fallEnd(s.ok); }
+    else if (el > 4.4) stunt = null;
+  }
+  if (me.emote && (me.emote.k === 'caught' || me.emote.k === 'catch') && me.input && t - me.emote.t0 > .5) { me.emote = null; send({ t: 'emote', k: null }); } // walking off ends the hold
+  if (pig) {
+    if (!them || them.away || game) pigOff(true);
+    else if (riding()) { if (me.car >= 0 || me.seat >= 0) pigOff(true, false, true); else if (them.seat >= 0 || them.car >= 0 || them.ko) pigOff(true); }
+    else if (me.seat >= 0 || me.car >= 0 || me.floor || me.slide || me.ko) pigOff(true); // the carrier sat down, got in a kart, lay down, slid or fell
+    else if (them.pose === 'pig' || t - (them.rt || 0) > .5) pig.seen = Math.max(pig.seen, now); else if (now - pig.seen > 1) pigOff(true); // their own packets say they are not up there any more (a lost message): heal by itself. No packets at all (their tab is in the background) proves nothing
+    if (pig && isHost && pig.n < 6 && now - pig.t0 > 20 * (pig.n + 1)) { pig.n++; loveAdd(1); }
+  }
+  // the timing ring at the raised hand: 2 → 1 in exactly one second (that is the moment), then on down to .5
+  const five = stunt && stunt.k === 'five' ? stunt : null, mesh = five && (five.role === 'ask' ? meMesh : themMesh), el = five ? now - five.t0 : 9;
+  if (mesh && el < 2) {
+    const r = stuntRing ||= new THREE.Mesh(GEO.five ||= shared(new THREE.TorusGeometry(.085, .011, 6, 24)), GLOW('#ffcf6b', 3));
+    mesh.userData.arms[1].getWorldPosition(r.position); r.position.y += .05; r.quaternion.copy(camera.quaternion); r.scale.setScalar(el < 1 ? 2 - el : 1.5 - .5 * el);
+    if (!r.parent) scene.add(r);
+  } else if (stuntRing && stuntRing.parent) scene.remove(stuntRing);
+}
+function onStunt(m) { // safe with nobody here and with nothing going on: whatever does not fit is dropped
+  const k = m.k, a = m.a, s = stunt;
+  if (k !== 'five' && k !== 'fall' && k !== 'pig') return;
+  if (a === 'ask') {
+    if (!them || them.away || pig) return;
+    if (s && s.role === 'ask') { if (isHost) return; stuntCancel(false); } // both asked at once: the host's ask stands, the guest answers it
+    stunt = { k, role: 'ans', t0: sNow() }; // my clock starts when it gets here, so the ring I see is the one I am judged on
+    floatText(them, k === 'five' ? '✋ (E)' : k === 'fall' ? 'catch me! (E)' : '🐒 piggyback? (E)', '#ffcf6b');
+  } else if (a === 'ok') {
+    if (k === 'five') { if (s && s.k === 'five' && s.role === 'ask') { stunt = null; fiveFx(m.q === 'perfect' ? 'perfect' : 'ok', me); } } // (one that comes after I called it a miss is too late)
+    else if (k === 'fall') { if (s && s.k === 'fall') { if (s.role === 'ask') s.ok = true; else if (s.sent) { stunt = null; fallFx(me); } } }
+    else if (s && s.k === 'pig' && s.role === 'ask' && them && !them.away && !pig && !me.ko && me.car < 0) { stunt = null; pigOn(myRole()); achieve('pig'); }
+    else if (!pig) send({ t: 'stunt', k: 'pig', a: 'off' }); // their yes came too late for me: they should not think they carry anyone
+  } else if (a === 'miss') {
+    if (k !== 'pig' && s && s.k === k && s.role === 'ans') { stunt = null; if (them) floatText(them, k === 'five' ? '😐' : '😬', '#7ad8ff'); }
+  } else if (a === 'off') {
+    if (k === 'pig' && pig) pigOff(false); else if (s && s.k === k && (s.role === 'ans' || k === 'pig')) stunt = null;
+  } else if (a === 'toss') {
+    if (k !== 'pig' || !riding()) return;
+    let dx = +m.dx, dz = +m.dz; const n = Math.hypot(dx, dz);
+    if (n > .01 && Number.isFinite(n)) { dx /= n; dz /= n; } else { dx = Math.sin(me.ry); dz = Math.cos(me.ry); }
+    pig = null; knocked(dx, dz, 'push', 'wheee!'); me.vy = 5.5; me.vx *= 1.3; me.vz *= 1.3;
+  }
+}
+
+function tick13(dt, t) { if (strip) tickStrip(); tickLan(dt, t); tickTape(); tickWeather(dt, t); tickStunt(); } // per-frame hook for the newest features (the rally balloon ticks inside tickGame, next to the other little games)
 function onFun13(m) {
   switch (m.t) {
     case 'hello': send({ t: 'lanAll', all: lanterns }); send({ t: 'memAll', all: mem }); // both sides send theirs: the two skies (and the two memory logs) become the union
@@ -4845,6 +5042,7 @@ function onFun13(m) {
       if (isHost) send(weather ? { t: 'wx', k: weather.k, dur: weather.dur, seed: weather.seed, el: +(wxNow() - weather.t0).toFixed(2), after: +wxAfter.toFixed(2) } : { t: 'wx', k: null, after: +wxAfter.toFixed(2) }); // a shower already under way: they join it where it is (and a rain I no longer have stops for them)
       return false;
     case 'wx': onWx(m); return true;
+    case 'stunt': onStunt(m); return true;
     case 'mem': memAdd(m.e); return true;
     case 'memAll': if (Array.isArray(m.all)) { let n = 0; for (const e of m.all.slice(-80)) if (memAdd(e, true)) n++; if (n) saveMem(); } return true;
     case 'tape': onTape(m); return true;
@@ -4902,6 +5100,6 @@ $('go').onclick = () => {
   }, 980);
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { get weather() { return weather }, wxStart: wxBegin, wxStop: wxEnd, get wxW() { return wxW }, get wxAfter() { return wxAfter }, get wxMerged() { return wxMerged }, get wxRain() { return wxRain }, get wxGlass() { return rainGlassMat }, get wxFlashK() { return wxFlashK }, hemi, tape: { get on() { return tapeOn }, start: tapePlay, stop: tapeHalt, get i() { return tapeI }, get seed() { return tapeSeed }, get draws() { return tapeDraws }, get deck() { return tapeDeck.map(c => c.k === 'pic' ? { k: c.k, picId: c.picId } : { k: c.k, text: c.text }) } }, logMem, get mem() { return mem }, dayKey, lan: { get pending() { return lanPending }, get all() { return lanterns }, place: lanPlace, hold(on) { lanForce = on ? true : null; }, go: lanRelease }, get lanSky() { return (place && place.lanSky) || null }, openScope, closeScope, nearTel, startStrip, shootFrame, get stripRun() { return strip && { seed: strip.seed, i: strip.i, prompts: strip.prompts } }, get lastStrip() { return lastStrip }, get rally() { return game && game.mode === 'rally' ? game : null }, rallyHit, rallyDrop, GATES, carE, exitCar, driveStep, get karts() { return place.karts }, newGame, kartBlocked, eatSnack, setLights, lightV, startCuddle, seatPair, iceServers, get peer() { return peer }, setGfx, get qMode() { return qMode }, get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: (v, ar) => (hangAr = ar, hanging = v), doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { stunt: stuntStart, stuntAnswer, get stuntState() { return { stunt, pig } }, get weather() { return weather }, wxStart: wxBegin, wxStop: wxEnd, get wxW() { return wxW }, get wxAfter() { return wxAfter }, get wxMerged() { return wxMerged }, get wxRain() { return wxRain }, get wxGlass() { return rainGlassMat }, get wxFlashK() { return wxFlashK }, hemi, tape: { get on() { return tapeOn }, start: tapePlay, stop: tapeHalt, get i() { return tapeI }, get seed() { return tapeSeed }, get draws() { return tapeDraws }, get deck() { return tapeDeck.map(c => c.k === 'pic' ? { k: c.k, picId: c.picId } : { k: c.k, text: c.text }) } }, logMem, get mem() { return mem }, dayKey, lan: { get pending() { return lanPending }, get all() { return lanterns }, place: lanPlace, hold(on) { lanForce = on ? true : null; }, go: lanRelease }, get lanSky() { return (place && place.lanSky) || null }, openScope, closeScope, nearTel, startStrip, shootFrame, get stripRun() { return strip && { seed: strip.seed, i: strip.i, prompts: strip.prompts } }, get lastStrip() { return lastStrip }, get rally() { return game && game.mode === 'rally' ? game : null }, rallyHit, rallyDrop, GATES, carE, exitCar, driveStep, get karts() { return place.karts }, newGame, kartBlocked, eatSnack, setLights, lightV, startCuddle, seatPair, iceServers, get peer() { return peer }, setGfx, get qMode() { return qMode }, get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: (v, ar) => (hangAr = ar, hanging = v), doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
