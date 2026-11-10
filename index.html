@@ -64,8 +64,8 @@
   #photoImg{width:auto;max-width:100%;max-height:74vh;border-radius:10px;transform:rotate(-2deg);box-shadow:0 20px 60px #000a, 0 0 40px #ff8a3d33}
   #strip{position:relative}
   #strip.new::after{content:"";position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:#b6ff3b;box-shadow:0 0 8px #b6ff3b}
-  #stripHud{position:absolute;left:50%;top:max(15%,104px);transform:translateX(-50%);z-index:4;pointer-events:none;display:none;text-align:center;white-space:nowrap}
-  #stripHud b{display:block;font:italic 700 clamp(24px,5vh,38px) "Bradley Hand","Segoe Print","Comic Sans MS",cursive;color:#fff6e6;text-shadow:0 2px 16px #000d,0 0 26px #ff8a3d99}
+  #stripHud{position:absolute;left:50%;top:max(15%,104px);transform:translateX(-50%);z-index:7;pointer-events:none;display:none;text-align:center;white-space:nowrap}
+  #stripHud b{display:block;font:italic 700 clamp(20px,min(5vh,7vw),38px) "Bradley Hand","Segoe Print","Comic Sans MS",cursive;color:#fff6e6;text-shadow:0 2px 16px #000d,0 0 26px #ff8a3d99}
   #stripHud i{display:block;height:1.05em;font:800 clamp(64px,15vh,120px)/1.05 ui-rounded,"SF Pro Rounded",system-ui,sans-serif;color:#ffcf6b;text-shadow:0 4px 28px #000b,0 0 34px #ff8a3d88}
   @media (max-width:430px){#actions .grp .pill{padding:6px}}
   #stripHud span{display:block;font-size:12px;font-weight:700;letter-spacing:.24em;color:#ffcf6b;opacity:.8;text-shadow:0 1px 8px #000}
@@ -4077,8 +4077,8 @@ function startStrip(seed, mine) {
   const idx = STRIP_PROMPTS.map((_, i) => i);
   for (let i = 0; i < 4; i++) { const j = i + Math.floor(rr() * (idx.length - i)), v = idx[i]; idx[i] = idx[j]; idx[j] = v; }
   idx.length = 4;
-  if (strip) for (const c of strip.frames) c.width = c.height = 0; // restarting (their seed won): drop what was shot so far
-  strip = { seed, mine: !!mine, t0: clock.elapsedTime, i: 0, c: -1, idx, prompts: idx.map(i => STRIP_PROMPTS[i]), frames: [], stars: [], leak: Math.floor(rr() * 4), edge: Math.floor(rr() * 4) };
+  if (strip) for (const c of strip.frames) if (c) c.width = c.height = 0; // restarting (their seed won): drop what was shot so far
+  strip = { seed, mine: !!mine, w0: performance.now(), i: 0, c: -1, idx, prompts: idx.map(i => STRIP_PROMPTS[i]), frames: [], stars: [], leak: Math.floor(rr() * 4), edge: Math.floor(rr() * 4) };
   stripShot = false; hanging = null; hangAr = undefined; viewPic = null; $('photo').style.display = 'none';
   $('strip').classList.add('on'); stripHud('get ready…', '', 'PHOTO STRIP');
   return true;
@@ -4097,9 +4097,10 @@ function stripPose(pi) { // did we do what the prompt said? Judged here, at the 
   }
   return true; // the rest are yours to interpret
 }
-function tickStrip(t) { // runs off clock.elapsedTime: at most one step per frame, so a tab that slept catches up one shutter at a time
-  const s = strip, el = t - s.t0;
+function tickStrip() { // runs off the wall clock: clock.elapsedTime stands still while the tab is hidden, so a strip that arrived then would start late
+  const s = strip, el = (performance.now() - s.w0) / 1000;
   if (stripShot) return;
+  while (s.i < 4 && el - STRIP_READY - s.i * STRIP_STEP >= STRIP_STEP + STRIP_COUNT) { s.frames.push(null); s.stars.push(false); s.i++; s.c = -1; } // slept through (the next shutter is due too): that frame stays dark, never a burst of the same shot
   if (s.i >= 4) { if (el >= STRIP_READY + 4 * STRIP_STEP) finishStrip(); return; }
   const fe = el - STRIP_READY - s.i * STRIP_STEP; // seconds into this frame's countdown (below 0: 'get ready', or the breath after a shutter)
   if (fe < 0) return;
@@ -4154,12 +4155,14 @@ function composeStrip(s) { // once, at the end: dark film, sprocket holes, four 
 }
 function finishStrip() {
   const s = strip; strip = null; stripShot = false; $('stripHud').style.display = 'none'; $('strip').classList.remove('on');
+  if (!s.frames.some(Boolean)) return; // the tab slept through all four: nothing to show, nothing to award
+  unlockMouse(); // 1st person / shift lock: hand the cursor back for Close, Save and Stick on a wall
   const stars = s.stars.filter(Boolean).length, out = composeStrip(s), url = out.toDataURL('image/png');
   const sm = document.createElement('canvas'); sm.width = 200; sm.height = Math.round(200 * out.height / out.width);
   const sx = sm.getContext('2d'); sx.fillStyle = '#0d0906'; sx.fillRect(0, 0, sm.width, sm.height); sx.drawImage(out, 0, 0, sm.width, sm.height); // the small one that goes on a wall (and to them)
   lastSnap = sm.toDataURL('image/jpeg', .8); lastAr = +(sm.height / sm.width).toFixed(3); viewPic = null;
   lastStrip = { w: out.width, h: out.height, stars };
-  for (const c of s.frames) c.width = c.height = 0; out.width = out.height = 0; sm.width = sm.height = 0; // hand the canvas memory back
+  for (const c of s.frames) if (c) c.width = c.height = 0; out.width = out.height = 0; sm.width = sm.height = 0; // hand the canvas memory back
   $('photoImg').src = url; $('photoSave').href = url; $('photoSave').download = 'our-strip.png'; $('photo').style.display = 'flex'; $('photoHang').style.display = ''; $('photoDown').style.display = 'none';
   toast(stars ? `🎞 ${stars} of 4 poses nailed` : '🎞 Your strip is ready'); sfx('win');
   if (s.mine) loveAdd(4); // only the one who started it: it reaches them as 'lovexp'
@@ -4172,12 +4175,12 @@ $('strip').onclick = () => {
 };
 try { if (!localStorage.getItem('ols-new2')) $('strip').classList.add('new'); } catch {} // a little acid-green dot until it has been tried once
 
-function tick13(dt, t) { if (strip) tickStrip(t); } // per-frame hook for the newest features (the rally balloon ticks inside tickGame, next to the other little games)
+function tick13(dt, t) { if (strip) tickStrip(); } // per-frame hook for the newest features (the rally balloon ticks inside tickGame, next to the other little games)
 function onFun13(m) {
   switch (m.t) {
     case 'hello': return false;
     case 'strip': // their photo strip: the same seed gives the same four prompts. Both pressed at once: the host keeps its own, the guest restarts with the host's
-      if (strip && isHost) return true;
+      if (strip && isHost && performance.now() - strip.w0 < (STRIP_READY + 4 * STRIP_STEP) * 1000) return true; // (a strip that ran out while this tab was hidden does not count)
       if (startStrip(m.seed, false)) toast(`🎞 ${them ? them.name : 'They'} started a photo strip · pose!`);
       return true;
     case 'bal': { // their hit: the count, where it happened and where it is going (g: this rally only · a hit that crossed my own fallback call still wins)
