@@ -3598,7 +3598,7 @@ function carE() {
   enterCar(best); toast('🚗 W gas · S brake · A/D steer · Space honk · E hop out'); return true;
 }
 function enterCar(i) {
-  const k = place.karts[i]; leaveSeat(); if (hand) breakHands(); pigOff(true, false, true); if (pov === 1) setPov(3); // (nobody rides piggyback into a kart)
+  const k = place.karts[i]; leaveSeat(); if (hand) breakHands(); pigOff(true, false, true); if (stunt && stunt.role === 'ask') stuntCancel(true); if (pov === 1) setPov(3); // (nobody rides piggyback into a kart, and a stunt I asked for ends here: no timber or hanging hand in the seat)
   Object.assign(me, { car: i, x: k.x, z: k.z, ry: k.ry, cv: 0, want: -1, floor: false, slide: null, emote: null, roast: null, vx: 0, vz: 0, vy: 0, jy: 0, pose: '', walking: false, tx: NaN, tz: NaN });
   me.carDist = cam.dist; cam.dist = Math.max(cam.dist, 5.2); engine(true);
 }
@@ -3893,7 +3893,7 @@ let cg = null;
 const cgDeck = k => ({ wyr: WYR, deep: DEEP, tod: TRUTH, rps: [0], stare: [0] }[k]);
 function startCG(k) {
   if (!them) { toast('Invite them first ♥ this one needs two'); return; }
-  const n = cgDeck(k).length, order = [...Array(Math.max(n, 30)).keys()].map(i => i % n).sort(() => Math.random() - .5);
+  const n = k === 'tod' ? Math.max(TRUTH.length, DARE.length) : cgDeck(k).length, order = [...Array(Math.max(n, 30)).keys()].map(i => i % n).sort(() => Math.random() - .5); // (truth or dare: as long as the longer deck, so every dare can come up; both lookups wrap)
   startSend({ t: 'cg', k, order, first: myRole() }); beginCG(k, order, myRole());
 }
 function beginCG(k, order, first, remote) { if (scopeOn) closeScope(); endGame(true); stopQuiz(true); claimPanel(); cg = { k, order, i: 0, picks: {}, score: { me: 0, them: 0 }, first }; if (!remote || panelFree()) closePanel(); renderCG(); if (k === 'stare') stareStart(); }
@@ -4861,6 +4861,7 @@ const STUNT_E = new Set(['five', 'hanging', 'lean', 'catch', 'caught']); // thes
 const sNow = () => performance.now() / 1000;
 const riding = () => !!pig && pig.rider === myRole(), carrying = () => !!pig && pig.rider !== myRole();
 const leaning = () => !!stunt && stunt.k === 'fall' && stunt.role === 'ask';
+const quizOn = () => !!quiz && quiz.i < quiz.qs.length; // a quiz still being played (its results card leaves `quiz` set until Close, and Close is local)
 const stuntRooted = () => (leaning() && sNow() - stunt.t0 >= 1.2) || (!!me.emote && me.emote.k === 'caught' && clock.elapsedTime - me.emote.t0 < .5); // past the wobble there is no way back
 const spotFree = (x, z, y) => { const b = place.bounds; return x > b[0] && x < b[1] && z > b[2] && z < b[3] && (!place.rects || inRects(x, z)) && !blockedAt(x, z, y); };
 function stuntUp() { leaveSeat(); me.want = -1; me.floor = false; me.slide = null; breakHands(); }
@@ -4871,7 +4872,7 @@ function stuntStart(k) { // the three tiles (and dbg.stunt): true when it really
   if (d > 2.5) { toast('Walk closer first ♥'); return false; }
   if (me.car >= 0) { toast('Hop out of the car first 🚗'); return false; }
   if (me.ko) { toast('Get back up first 😵'); return false; }
-  if (game || quiz) { toast('Finish the game first 🎲'); return false; }
+  if (game || quizOn()) { toast('Finish the game first 🎲'); return false; }
   if (stunt || pig) { toast(pig ? (riding() ? 'Hop off first (Space) 🐒' : 'Put them down first (Q) 🐒') : 'One stunt at a time ✋'); return false; }
   if (k === 'pig') {
     if (d > 1.6) { toast('Stand right next to them for a piggyback 🐒'); return false; }
@@ -4911,7 +4912,7 @@ function stuntAnswer() { // E while a stunt waits for my answer. True: the press
     me.emote = { k: 'catch', t0: t }; send({ t: 'emote', k: 'catch' }); send({ t: 'stunt', k: 'fall', a: 'ok' });
     return true;
   }
-  if (el > 4 || d > 2.2 || me.seat >= 0 || me.floor || me.slide || game || quiz) return false; // piggyback: saying yes is the answer
+  if (el > 4 || d > 2.2 || me.seat >= 0 || me.floor || me.slide || game || quizOn()) return false; // piggyback: saying yes is the answer
   stunt = null; send({ t: 'stunt', k: 'pig', a: 'ok' }); pigOn(otherRole());
   return true;
 }
@@ -4989,7 +4990,7 @@ function tickStunt() { // every frame, and once by timer at the moment a stunt o
     if (!them || them.away) stuntCancel(false);
     else if (s.role !== 'ask') { if (el > (s.k === 'five' ? 3.2 : s.k === 'fall' ? 3.5 : 4)) stunt = null; } // (a high five can only be answered for 2 s; it stays a moment longer to hear how it ended)
     else if (s.k === 'five') { if (el > 2.6) { stunt = null; send({ t: 'stunt', k: 'five', a: 'miss' }); me.emote = { k: 'hanging', t0: t }; send({ t: 'emote', k: 'hanging' }); floatText(me, 'left hanging… 😐', '#7ad8ff'); } } // 2 s to slap it, and .4 s of grace for the trip here
-    else if (s.k === 'fall') { if (el < 1.2 && (me.input || me.seat >= 0 || me.car >= 0)) stuntCancel(true); else if (el >= 2.3) fallEnd(s.ok); }
+    else if (s.k === 'fall') { if (el < 1.2 && (me.input || me.want >= 0 || Math.hypot(me.tx - me.x, me.tz - me.z) > .06 || me.seat >= 0 || me.car >= 0)) stuntCancel(true); else if (el >= 2.3) fallEnd(s.ok); } // (a click to walk counts as moving too: the fall cleared the old target, so a real one is new. No target is NaN, which is never > .06)
     else if (el > 4.4) stunt = null;
   }
   if (me.emote && (me.emote.k === 'caught' || me.emote.k === 'catch') && me.input && t - me.emote.t0 > .5) { me.emote = null; send({ t: 'emote', k: null }); } // walking off ends the hold
