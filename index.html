@@ -950,13 +950,23 @@ function makeHair(L, head) {
   if (H === 'bob') { for (const k of [-1, 1]) put(ell(.1, .16, .14, hm), k * .29, .17, -.01, head); put(ell(.32, .19, .16, hm), 0, .19, -.17, head); }
   if (H === 'pony') { const p = put(ell(.085, .2, .085, hm), 0, .3, -.38, head); p.rotation.x = .7; p.userData.pony = true; put(ell(.04, .04, .04, M(L.fitCol)), 0, .4, -.31, head); }
 }
+// the souvenir shirt print: I ♥ over MTL, curved onto the shirt
+let mtlTex = null;
+function mtlPrint() {
+  mtlTex ||= canvasTex(384, 256, x => {
+    x.fillStyle = '#141214'; x.textAlign = 'center'; x.font = '700 118px "American Typewriter", Rockwell, Georgia, serif'; x.fillText('I', 112, 112);
+    x.font = '700 126px "American Typewriter", Rockwell, Georgia, serif'; x.fillText('MTL', 192, 238);
+    const cx = 252, y = 18, s = 104; x.fillStyle = '#d9202a'; x.beginPath(); x.moveTo(cx, y + .3 * s); x.bezierCurveTo(cx, y, cx - .5 * s, y, cx - .5 * s, y + .3 * s); x.bezierCurveTo(cx - .5 * s, y + .6 * s, cx, y + .8 * s, cx, y + s); x.bezierCurveTo(cx, y + .8 * s, cx + .5 * s, y + .6 * s, cx + .5 * s, y + .3 * s); x.bezierCurveTo(cx + .5 * s, y, cx, y, cx, y + .3 * s); x.fill();
+  });
+  return new THREE.MeshStandardMaterial({ map: mtlTex, transparent: true, roughness: .85, envMapIntensity: .3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+}
 function makeChar(look, name) {
   // chibi on a little rig: hip (lifts for legs) → body → chest (breathes) + head (turns). Plush, Bean or Doll build.
   const L = normLook(look), bt = L.body, root = new THREE.Group(), g = new THREE.Group(), hip = new THREE.Group(), body = new THREE.Group(), chest = new THREE.Group(), head = new THREE.Group();
   root.add(g); g.scale.setScalar(.7); g.add(hip); hip.add(body); body.add(chest);
   const lift = bt === 'doll' ? .13 : bt === 'bean' ? 0 : .06;
   head.position.y = bt === 'doll' ? .6 : .55; body.add(head); if (bt === 'doll') head.scale.setScalar(.82);
-  const mb = furMat(L.col), ms = M(mix(L.col, '#2a1408', .18), { roughness: .6 }), ink = M('#2a1408', { roughness: .25 }), fc = M(L.fitCol, { roughness: .85 }), fcd = M(mix(L.fitCol, '#000000', .2), { roughness: .85 }), white = M('#fff8ee', { roughness: .7 });
+  const mb = furMat(L.col), ms = M(mix(L.col, '#2a1408', .18), { roughness: .6 }), ink = M('#2a1408', { roughness: .25 }), shirtCol = L.fit === 'mtl' ? '#fbf7ef' : L.fitCol, fc = M(shirtCol, { roughness: .85 }), fcd = M(mix(shirtCol, '#000000', .2), { roughness: .85 }), white = M('#fff8ee', { roughness: .7 });
   const fh = bt === 'bean' ? put(new THREE.Group(), 0, -.02, .035, head) : head; // face sits a touch forward on the bean
   if (bt === 'bean') {
     put(cyl(.31, .31, .25, mb, 32, true), 0, .425, 0, chest); put(new THREE.Mesh(HALFDOWN, mb), 0, .3, 0, chest);
@@ -1015,18 +1025,20 @@ function makeChar(look, name) {
   if (bt === 'bean') { // the bean gets tube-shaped clothes that actually wrap it
     const band = (y0, y1, r = .325, m = fc) => put(cyl(r, r, y1 - y0, m, 32, true), 0, (y0 + y1) / 2, 0, chest);
     if (L.fit === 'hoodie') { band(.14, .56); put(new THREE.Mesh(new THREE.TorusGeometry(.25, .07, 10, 28), fc), 0, .6, -.06, chest).rotation.x = PI / 2 - .3; put(rbox(.22, .09, .04, fcd, .02), 0, .24, .32, chest); for (const k of [-1, 1]) put(cyl(.007, .007, .12, '#fff8ee', 5), k * .05, .48, .33, chest); }
-    if (L.fit === 'tee') { band(.3, .56); put(new THREE.Mesh(new THREE.TorusGeometry(.2, .018, 6, 24), fcd), 0, .57, .03, chest).rotation.x = PI / 2; }
+    if (L.fit === 'tee' || L.fit === 'mtl') { band(.3, .56); put(new THREE.Mesh(new THREE.TorusGeometry(.2, .018, 6, 24), fcd), 0, .57, .03, chest).rotation.x = PI / 2; }
+    if (L.fit === 'mtl') put(new THREE.Mesh(new THREE.CylinderGeometry(.329, .329, .17, 20, 1, true, -.4, .8), mtlPrint()), 0, .445, 0, chest);
     if (L.fit === 'overalls') { band(.12, .36); put(new THREE.Mesh(HALFDOWN, fc), 0, .3, 0, chest).scale.setScalar(1.04); put(rbox(.24, .18, .04, fc, .02), 0, .42, .31, chest); for (const k of [-1, 1]) { put(rbox(.04, .3, .03, fc, .01), k * .1, .5, .25, chest).rotation.x = -.5; put(new THREE.Mesh(SPH, M('#ffcf6b', { metalness: .7, roughness: .3 })), k * .09, .48, .33, chest).scale.setScalar(.022); } }
     if (L.fit === 'scarf') { put(new THREE.Mesh(new THREE.TorusGeometry(.31, .055, 8, 28), fc), 0, .56, 0, chest).rotation.x = PI / 2; put(rbox(.09, .22, .04, fc, .015), .1, .44, .33, chest).rotation.z = .2; }
     if (L.fit === 'dress') { put(cyl(.33, .42, .36, fc, 32, true), 0, .2, 0, chest); band(.38, .56); put(new THREE.Mesh(SPH, M('#fff8ee')), 0, .48, .33, chest).scale.setScalar(.035); }
   } else {
   if (L.fit === 'hoodie') { put(ell(.268, .24, .248, fc), 0, .33, 0, fit); put(new THREE.Mesh(new THREE.TorusGeometry(.2, .065, 10, 28), fc), 0, .56, -.03, fit).rotation.x = PI / 2 - .35; put(rbox(.18, .07, .03, fcd, .015), 0, .22, .238, fit); for (const k of [-1, 1]) put(cyl(.006, .006, .1, '#fff8ee', 5), k * .04, .47, .235, fit); }
-  if (L.fit === 'tee') { put(ell(.26, .17, .24, fc), 0, .37, 0, fit); put(new THREE.Mesh(new THREE.TorusGeometry(.12, .015, 6, 24), fcd), 0, .53, .02, fit).rotation.x = PI / 2; }
+  if (L.fit === 'tee' || L.fit === 'mtl') { put(ell(.26, .17, .24, fc), 0, .37, 0, fit); put(new THREE.Mesh(new THREE.TorusGeometry(.12, .015, 6, 24), fcd), 0, .53, .02, fit).rotation.x = PI / 2; }
+  if (L.fit === 'mtl' && bt !== 'bean') { const pr = put(new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14, PI / 2 - .43, .86, PI / 2 - .86, .95), mtlPrint()), 0, .37, 0, fit); pr.scale.set(.263, .173, .243); }
   if (L.fit === 'overalls') { put(ell(.26, .14, .24, fc), 0, .2, 0, fit); put(rbox(.2, .15, .04, fc, .02), 0, .34, .205, fit); for (const k of [-1, 1]) { put(rbox(.035, .22, .03, fc, .01), k * .08, .44, .17, fit).rotation.x = -.45; put(new THREE.Mesh(SPH, M('#ffcf6b', { metalness: .7, roughness: .3 })), k * .07, .4, .23, fit).scale.setScalar(.02); } }
   if (L.fit === 'scarf') { put(new THREE.Mesh(new THREE.TorusGeometry(.17, .05, 8, 24), fc), 0, .53, 0, fit).rotation.x = PI / 2; put(rbox(.08, .2, .035, fc, .015), .08, .42, .2, fit).rotation.z = .2; }
   if (L.fit === 'dress') { put(cyl(.2, .32, .3, fc, 24), 0, .2, 0, fit); put(ell(.255, .12, .235, fc), 0, .38, 0, fit); put(new THREE.Mesh(SPH, M('#fff8ee')), 0, .42, .22, fit).scale.setScalar(.03); }
   }
-  const sleeve = L.fit === 'hoodie' || (bt === 'doll' && (L.fit === 'tee' || L.fit === 'dress')) ? fc : ms;
+  const sleeve = L.fit === 'hoodie' || (bt === 'doll' && (L.fit === 'tee' || L.fit === 'mtl' || L.fit === 'dress')) ? fc : ms;
   const arms = [-1, 1].map(k => { const a = put(new THREE.Group(), k * .25 * (bt === 'bean' ? 1.2 : bt === 'doll' ? .88 : 1), .34, .03, body); put(ell(.07, .1, .07, sleeve), 0, 0, 0, a); if (sleeve !== ms) put(ell(.055, .055, .055, mb), 0, -.09, 0, a); return a; });
   const feet = [-1, 1].map(k => put(ell(.085, .05, .11, bt === 'doll' ? M('#fff4ec', { roughness: .5 }) : ms), k * .1, .05, .04, g));
   const legMat = L.fit === 'overalls' ? fc : bt === 'doll' && L.fit !== 'dress' ? M('#5a6ad0', { roughness: .85 }) : mb;
@@ -2878,7 +2890,7 @@ const SPECIES = [['bear', '🐻'], ['bunny', '🐰'], ['cat', '🐱'], ['puppy',
 const BODYCOLS = ['#ffe0cc', '#f0c09a', '#c88a5a', '#7a4a2e', '#ffb347', '#ffd9e2', '#cdb8ff', '#c8f08a', '#fff4ec', '#a8d8ff', '#ff9ab8', '#e8c08a', '#ff7a59', '#b6e8d0', '#8a7a6a', '#3a3440'];
 const EYES = [['sparkle', '✨ Sparkly'], ['dot', '• Dots'], ['happy', '^ ^ Happy'], ['sleepy', '😌 Sleepy'], ['heart', '💗 Hearts']];
 const MOUTHS = [['smile', '◡ Smile'], ['open', 'o Open'], ['cat', 'ω Cat'], ['tongue', '😛 Tongue']];
-const FITS = [['none', 'None'], ['hoodie', 'Hoodie'], ['tee', 'T-shirt'], ['overalls', 'Overalls'], ['scarf', 'Scarf'], ['dress', 'Dress']];
+const FITS = [['none', 'None'], ['hoodie', 'Hoodie'], ['tee', 'T-shirt'], ['mtl', 'I ♥ MTL'], ['overalls', 'Overalls'], ['scarf', 'Scarf'], ['dress', 'Dress']];
 const FITCOLS = ['#ff7a9a', '#a77bff', '#7cc0a0', '#5a8ad0', '#ffcf6b', '#2a2430', '#fff4ec', '#ff8a3d'];
 const pv = { r: new THREE.WebGLRenderer({ antialias: true, alpha: true }), s: new THREE.Scene(), c: new THREE.PerspectiveCamera(30, 1, .1, 20), mesh: null, spin: .5, v: .4, box: null, p: { preview: true, seat: -1, ry: 0, x: 0, z: 0 } };
 pv.r.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); pv.r.toneMapping = THREE.ACESFilmicToneMapping;
@@ -2911,7 +2923,7 @@ function crRender() {
     row('Eyes', EYES.map(([k, n]) => `<button class="pill${L.eyes === k ? ' on' : ''}" data-eyes="${k}">${n}</button>`).join('')) +
     row('Mouth', MOUTHS.map(([k, n]) => `<button class="pill${L.mouth === k ? ' on' : ''}" data-mouth="${k}">${n}</button>`).join('')) +
     row('Outfit', FITS.map(([k, n]) => `<button class="pill${L.fit === k ? ' on' : ''}" data-fit="${k}">${n}</button>`).join('')) +
-    (L.fit !== 'none' ? row('Outfit color', FITCOLS.map(c => `<button class="sw${L.fitCol === c ? ' on' : ''}" data-fitcol="${c}" style="background:${c}"></button>`).join('')) : '');
+    (L.fit !== 'none' && L.fit !== 'mtl' ? row('Outfit color', FITCOLS.map(c => `<button class="sw${L.fitCol === c ? ' on' : ''}" data-fitcol="${c}" style="background:${c}"></button>`).join('')) : '');
   for (const key of ['body', 'sp', 'col', 'eyes', 'mouth', 'fit', 'fitcol', 'hair', 'haircol']) $('crOpts').querySelectorAll(`[data-${key}]`).forEach(b => b.onclick = () => { draft[{ fitcol: 'fitCol', haircol: 'hairCol' }[key] || key] = b.dataset[key]; if (key === 'body' && draft.body === 'doll' && draft.hair === 'none') draft.hair = 'buns'; pvSet(draft); crRender(); });
 }
 function openCreator() { draft = { ...normLook(myLook) }; $('creator').style.display = 'flex'; pvAttach($('pvModal')); pvSet(draft); crRender(); }
