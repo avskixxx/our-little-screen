@@ -445,6 +445,7 @@ const vid = $('vid');
 const videoTex = new THREE.VideoTexture(vid); videoTex.colorSpace = THREE.SRGBColorSpace;
 const screenMat = new THREE.MeshBasicMaterial({ map: placeholderTex, toneMapped: false });
 let screenLive = false;
+let tapeOn = false, lastInkAt = -1e9, inkDirty = false, lastShareEnd = -1e9; // 📼 our tape (further down): is it playing · wall-clock seconds of the last doodle stroke and the last shared tab · is there a doodle to cover
 function makeScreen(parent, x, y, z, w, h, frame = '#141016') {
   const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g);
   if (frame) put(rbox(w + .16, h + .16, .08, frame, .06), 0, 0, -.06, g);
@@ -2423,7 +2424,7 @@ function paintPlaceholder() {
   g.addColorStop(0, '#fff4e2'); g.addColorStop(1, '#f2d8b8'); dctx.globalAlpha = 1; dctx.fillStyle = g; dctx.fillRect(0, 0, w, h);
   dctx.fillStyle = '#7a5a4a'; dctx.textAlign = 'center'; dctx.font = '600 46px ui-rounded, system-ui'; dctx.fillText('🎮 pull out the controller', w / 2, h / 2 - 10);
   dctx.font = '32px ui-rounded, system-ui'; dctx.globalAlpha = .7; dctx.fillText('to share a tab · or ✏️ doodle here together', w / 2, h / 2 + 46); dctx.globalAlpha = 1;
-  placeholderTex.needsUpdate = true;
+  placeholderTex.needsUpdate = true; inkDirty = false;
 }
 paintPlaceholder();
 const INKS = ['#ff7a59', '#ff9ab8', '#a77bff', '#5fa04a', '#3a6ad0', '#1a0d06', '#fff8ee'];
@@ -2433,6 +2434,7 @@ function inkLine(pts, c, w) {
   dctx.strokeStyle = c; dctx.lineWidth = w; dctx.lineCap = dctx.lineJoin = 'round'; dctx.beginPath();
   pts.forEach(([u, v], i) => { const x = u * dcv.width, y = (1 - v) * dcv.height; i ? dctx.lineTo(x, y) : dctx.moveTo(x, y); });
   dctx.stroke(); placeholderTex.needsUpdate = true;
+  lastInkAt = performance.now() / 1000; inkDirty = true; if (tapeOn) tapeYield(); // a stroke, mine or theirs: the tape gets out of the way and leaves the doodle alone for a good while
 }
 function screenUV(e) {
   const r = cv.getBoundingClientRect(); ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
@@ -2450,7 +2452,7 @@ cv.addEventListener('pointermove', e => {
 }, { capture: true });
 cv.addEventListener('pointerup', e => { if (!stroke) return; e.stopImmediatePropagation(); flushInk(); stroke = null; inkBuf = []; }, { capture: true });
 function toggleDoodle() {
-  doodling = !doodling; $('doodle').classList.toggle('on', doodling);
+  doodling = !doodling; $('doodle').classList.toggle('on', doodling); tapeYield(); // on: the tape stops for both · off: the idle wait starts over
   if (!doodling) { if (panel.dataset.k === 'doodle') closePanel(); return; }
   if (decorating) toggleDecorate(); if (building) toggleBuild();
   if (screenLive) toast('Stop sharing first to doodle on the screen');
@@ -3280,8 +3282,9 @@ $('invite').onclick = async () => {
 
 // ---------- the shared screen ----------
 function showStream(s, mine = false) {
-  vid.srcObject = s || null; vid.muted = !!mine; screenLive = !!s;
-  screenMat.map = s ? videoTex : placeholderTex; screenMat.needsUpdate = true;
+  if (screenLive && !s) lastShareEnd = performance.now() / 1000; // a show just ended: the tape waits a while before it dares
+  vid.srcObject = s || null; vid.muted = !!mine; screenLive = !!s; if (s) tapeYield();
+  screenMat.map = s ? videoTex : tapeOn ? tapeTex : placeholderTex; screenMat.needsUpdate = true;
   if (s) vid.play().catch(() => toast('Click anywhere to turn the sound on'));
   if (s && !mine && !s.getAudioTracks().length) setTimeout(() => screenLive && vid.srcObject === s && !s.getAudioTracks().length && toast(`🔇 ${them ? them.name : 'They'} shared without sound: they need to share a Chrome tab with "share tab audio" on`), 2500);
   $('watch').style.display = s ? '' : 'none'; if (!s) setWatch('world'); else if (!mine) toast('📺 Press T for theater mode: the video big, you two in the corner');
@@ -3419,8 +3422,10 @@ function openRadio() {
   const sl = (k, n) => `<div class="row" style="margin-top:6px"><span style="width:90px">${n}</span><input type="range" min="0" max="1" step=".05" value="${AU.vol[k]}" data-vol="${k}"></div>`;
   panel.innerHTML = `<h3>📻 Radio</h3><div class="grid">${Object.entries(STATIONS).map(([k, S]) => `<button class="tile${radio && radio.st === k ? ' sel' : ''}" data-st="${k}"><b>${S.name}</b><span>${radio && radio.st === k ? 'playing ♪' : 'tap to play (for both of you)'}</span></button>`).join('')}<button class="tile" data-st=""><b>🔇 Off</b><span>just the room sounds</span></button></div>
     <h3 style="margin-top:14px">🔊 Sound</h3>${sl('m', 'Music')}${sl('a', 'Room sounds')}${sl('s', 'Effects')}
-    <h3 style="margin-top:14px">✨ Graphics</h3><div class="row" style="margin-top:0">${[['auto', '🤖 Auto'], ['smooth', '🏎 Smooth'], ['balanced', '⚖️ Balanced'], ['pretty', '💎 Pretty']].map(([k, n]) => `<button class="pill${qMode === k ? ' on' : ''}" data-gfx="${k}">${n}</button>`).join('')}</div><div class="row hintrow">laggy? pick Smooth</div>`;
+    <h3 style="margin-top:14px">✨ Graphics</h3><div class="row" style="margin-top:0">${[['auto', '🤖 Auto'], ['smooth', '🏎 Smooth'], ['balanced', '⚖️ Balanced'], ['pretty', '💎 Pretty']].map(([k, n]) => `<button class="pill${qMode === k ? ' on' : ''}" data-gfx="${k}">${n}</button>`).join('')}</div><div class="row hintrow">laggy? pick Smooth</div>
+    <div class="row" style="margin-top:14px"><span>📼 Our tape on the idle screen</span>${[[1, 'On'], [0, 'Off']].map(([k, n]) => `<button class="pill${tapePref === !!k ? ' on' : ''}" data-tape="${k}">${n}</button>`).join('')}</div><div class="row hintrow" style="margin-top:4px">leave the big screen alone for a minute and it plays your photos${them && !isHost ? ` · together, ${esc(them.name)}'s setting counts` : ''}</div>`;
   panel.style.display = 'block';
+  panel.querySelectorAll('[data-tape]').forEach(b => b.onclick = () => { setTapePref(b.dataset.tape === '1'); panel.dataset.k = ''; openRadio(); });
   panel.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { if (b.dataset.st) radioOn(b.dataset.st); else radioOff(); panel.dataset.k = ''; openRadio(); });
   panel.querySelectorAll('[data-gfx]').forEach(b => b.onclick = () => { setGfx(b.dataset.gfx); panel.dataset.k = ''; openRadio(); });
   panel.querySelectorAll('[data-vol]').forEach(r => (r.onpointerup = r.onchange = () => r.blur(), r.oninput = () => { const k = r.dataset.vol; AU.vol[k] = +r.value; au(); if (AU[k]) AU[k].gain.value = AU.vol[k]; try { localStorage.setItem('ols-vol', JSON.stringify(AU.vol)); } catch {} }));
@@ -3449,7 +3454,7 @@ function loveAdd(n, fromThem) { love.xp += n; saveLove(); if (!fromThem) send({ 
 function achieve(id, fromThem) {
   if (!ACH[id] || love.ach[id]) return; love.ach[id] = Date.now(); saveLove();
   toast(`🏆 ${ACH[id]}`); sfx('match');
-  if (!fromThem) { send({ t: 'ach', id }); loveAdd(5); }
+  if (!fromThem) { send({ t: 'ach', id }); loveAdd(5); logMem(ACH[id]); }
 }
 function loveFor(k) {
   if (!them || Math.hypot(me.x - them.x, me.z - them.z) > 2.6) return;
@@ -3469,11 +3474,13 @@ function openLove() {
   const l = loveLv(), lo = LV[l - 1][0], hi = LV[l] ? LV[l][0] : lo + 1, pc = Math.min(100, (love.xp - lo) / (hi - lo) * 100);
   panel.innerHTML = `<h3>💗 Love level ${l} · ${LV[l - 1][1]}</h3><div class="lvbar"><i style="width:${pc}%"></i></div>
     <div class="row hintrow" style="margin-top:0">${love.xp} love${LV[l] ? ` · ${hi - love.xp} to “${LV[l][1]}”` : ' · maxed out ♾'} · 📅 ${love.days.length} day${love.days.length === 1 ? '' : 's'} together · 🍿 ${love.watchMin || 0} min watched</div>
+    <div class="row" style="margin-top:8px"><button class="pill" data-tp="${tapeOn ? 0 : 1}">${tapeOn ? '⏹ Stop the tape' : '▶ Play our tape'}</button><span class="hintrow">📼 your photos and little firsts, on the big screen</span></div>
     <h3 style="margin-top:12px">🏆 ${Object.keys(love.ach).length}/${Object.keys(ACH).length}</h3><div class="ach">${Object.entries(ACH).map(([k, n]) => `<span class="${love.ach[k] ? 'got' : ''}">${n}</span>`).join('')}</div>
     <div class="row hintrow">Love grows from hanging out, watching together, holding hands, hugs, kisses, slow dances, letters and games</div>
     ${wishes.length ? `<h3 style="margin-top:12px">🌠 Your wishes (only you see these)</h3><div class="hintrow" style="opacity:.8">${wishes.slice(-5).reverse().map(w => `“${w.text.replace(/[<>&]/g, '')}”`).join(' · ')}</div>` : ''}
     <h3 style="margin-top:12px">🏮 ${lanterns.length} lantern${lanterns.length === 1 ? '' : 's'} in the sky</h3><div class="hintrow" style="opacity:.8;line-height:1.5">${lanterns.length ? lanterns.slice(-5).reverse().map(l => `${esc(lanDate(l.at))} · ${esc(lanPlaceName(l.pl))} · “${esc(l.text)}”`).join('<br>') + '<br>🔭 read them all through the telescope at Stars' : 'Outdoors, open 💞 Us → Light a lantern, then both hold E. Each one stays in that sky.'}</div>`;
   panel.style.display = 'block';
+  panel.querySelector('[data-tp]').onclick = e => { const play = e.currentTarget.dataset.tp === '1'; closePanel(); if (play) tapePlay(); else tapeHalt(); }; // the panel closes so you can see the screen
 }
 $('loveb').onclick = openLove;
 
@@ -3489,7 +3496,7 @@ function roastE() {
 }
 function eatSmore() {
   const el = clock.elapsedTime - me.roast.t0, res = el < 4.5 ? 'raw' : el < 8.5 ? 'perfect' : el < 12 ? 'toasty' : 'burnt';
-  me.roast = null; send({ t: 'roast', on: 0, res }); smoreFx(me, res); if (res === 'perfect') { achieve('smore'); loveAdd(2); }
+  me.roast = null; send({ t: 'roast', on: 0, res }); smoreFx(me, res); if (res === 'perfect') { if (love.ach.smore) logMem('a perfect s’more'); achieve('smore'); loveAdd(2); } // (the very first one is remembered as the achievement)
 }
 function smoreFx(p, res) {
   floatText(p, { raw: 'still gooey 😅', perfect: "✨ perfect s'more!", toasty: 'mmm toasty 🤎', burnt: '🔥 burnt lol' }[res], res === 'perfect' ? '#ffcf6b' : '#fff4e2');
@@ -3639,7 +3646,7 @@ function tickRace(t) {
   }
   hud.style.display = 'block'; hud.textContent = txt;
 }
-function raceEnd(won) { if (!game || game.mode !== 'race') return; if (won) { achieve('race'); loveAdd(5); sfx('win'); } endGame(false, won ? '🏆 You won the race!' : `🏁 ${them ? them.name : 'They'} won the race`); }
+function raceEnd(won) { if (!game || game.mode !== 'race') return; if (won) { logMem(`${me.name} won the race`); achieve('race'); loveAdd(5); sfx('win'); } endGame(false, won ? '🏆 You won the race!' : `🏁 ${them ? them.name : 'They'} won the race`); }
 
 // ---------- snacks: pick one, eat it in three bites, or feed it to them ----------
 const SNACKS = [['poutine', '🍟', 'Poutine'], ['bagel', '🥯', 'Montréal bagel'], ['smoked', '🥪', 'Smoked meat'], ['maple', '🍁', 'Maple taffy'], ['pizza', '🍕', 'Pizza'], ['burger', '🍔', 'Burger'], ['fries', '🍟', 'Fries'], ['hotdog', '🌭', 'Hot dog'], ['taco', '🌮', 'Taco'], ['sushi', '🍣', 'Sushi'], ['ramen', '🍜', 'Ramen'], ['popcorn', '🍿', 'Popcorn'], ['donut', '🍩', 'Donut'], ['cookie', '🍪', 'Cookie'], ['icecream', '🍦', 'Ice cream'], ['strawberry', '🍓', 'Strawberry'], ['boba', '🧋', 'Boba'], ['soda', '🥤', 'Soda'], ['coffee', '☕', 'Coffee'], ['wine', '🍷', 'Wine']];
@@ -3843,7 +3850,7 @@ function openHelp() {
   panel.dataset.k = 'help'; panel.classList.remove('side');
   const K = [['WASD', 'move'], ['Space', 'jump (run + jump = flip)'], ['Shift', 'run'], ['drag / 2-finger drag', 'turn the camera'], ['scroll', 'zoom · all the way in = 1st person'], ['C', 'crouch · slide while running'], ['X', 'sit → lie on back → lie on stomach'],
     ['E', 'hold hands · pet · bong · tea · hold E together to light a lantern · telescope'], ['B', 'throw the ball for your pet'], ['F', 'throw popcorn'], ['Q / G', 'push / smack'], ['H', 'hearts'], ['1-9', 'emotes'], ['Enter', 'chat'], ['T', 'watch mode (theater / split)'], ['L', 'camera lock'], ['V', '1st / 3rd person']];
-  const NEW = ['🎈 Games → Keep it up: walk or jump under the balloon', '🎞 next to 📸: four prompts, three seconds each, one film strip', '🏮 Us → Light a lantern (outdoors, both hold E)', '🔭 Stars: press E at the telescope'];
+  const NEW = ['🎈 Games → Keep it up: walk or jump under the balloon', '🎞 next to 📸: four prompts, three seconds each, one film strip', '🏮 Us → Light a lantern (outdoors, both hold E)', '🔭 Stars: press E at the telescope', '📼 Leave the screen idle for a minute'];
   panel.innerHTML = `<h3>⌨️ Controls</h3><div class="keys">${K.map(([k, d]) => `<kbd>${k}</kbd><span>${d}</span>`).join('')}</div>
     <h3 style="margin-top:14px">✨ New things to try</h3>${NEW.map(s => `<div class="row hintrow" style="margin-top:4px">${s}</div>`).join('')}`;
   panel.style.display = 'block';
@@ -4074,7 +4081,7 @@ function rallyOver(n, mine, x, z) { // mine: I dropped it. The one who did NOT d
   if (!game || game.mode !== 'rally') return;
   const rec = n > (love.rally || 0);
   if (n || !game.idle) toast(`🎈 ${n} in a row${rec ? ' · new record!' : ''}`); // an untouched serve landing again says nothing (it would bury every other toast)
-  if (rec) { love.rally = n; saveLove(); burst(); sfx('win'); }
+  if (rec) { love.rally = n; saveLove(); burst(); sfx('win'); if (isHost || !them) logMem(`${n} in a row`); } // both get here: one of us writes it down, it reaches the other as 'mem'
   if (!Number.isFinite(x) || !Number.isFinite(z)) { const q = mine ? them || me : me; x = q.x + Math.sin(q.ry) * .8; z = q.z + Math.cos(q.ry) * .8; }
   [x, z] = rallySpot(x, z);
   game.n = 0; game.h++; game.idle++; game.turn = mine ? otherRole() : myRole(); game.down = false; game.over = false; game.easeT = 0; game.pz = z;
@@ -4184,7 +4191,7 @@ function finishStrip() {
   for (const c of s.frames) if (c) c.width = c.height = 0; out.width = out.height = 0; sm.width = sm.height = 0; // hand the canvas memory back
   $('photoImg').src = url; $('photoSave').href = url; $('photoSave').download = 'our-strip.png'; $('photo').style.display = 'flex'; $('photoHang').style.display = ''; $('photoDown').style.display = 'none';
   toast(stars ? `🎞 ${stars} of 4 poses nailed` : '🎞 Your strip is ready'); sfx('win');
-  if (s.mine) loveAdd(4); // only the one who started it: it reaches them as 'lovexp'
+  if (s.mine) { loveAdd(4); logMem('a photo strip'); } // only the one who started it: it reaches them as 'lovexp' and 'mem'
   achieve('strip'); if (stars === 4) achieve('strip4');
 }
 $('strip').onclick = () => {
@@ -4291,7 +4298,7 @@ function lanGo(sx, sy, at, by) {
   addHeart(me, 'mine', true); if (them && !them.away) addHeart(them, 'theirs', true);
   lanAdd({ id: L.id, pl: L.pl, at, text: L.text, by, sx, sy }); // saved now (a tab closed mid-rise keeps it); its dot joins the sky when the lantern gets there
   lanCool = t + 60; toast('🏮 It stays in this sky now');
-  if (isHost) loveAdd(8); // reaches them as 'lovexp'
+  if (isHost) { loveAdd(8); logMem(L.text ? `a lantern: “${L.text}”` : 'a lantern'); } // reaches them as 'lovexp' and 'mem'
   achieve('lantern'); if (lanterns.length >= 10) achieve('lantern10');
 }
 function lanCancel(tell) { // it fades where it sits
@@ -4421,10 +4428,222 @@ $('scope').onclick = e => { if (e.target === $('scope')) closeScope(); }; // out
 $('scopeEye').onpointermove = $('scopeEye').onpointerdown = scopePick;
 addEventListener('keydown', e => { if (e.key === 'Escape' && scopeOn) closeScope(); });
 
-function tick13(dt, t) { if (strip) tickStrip(); tickLan(dt, t); } // per-frame hook for the newest features (the rally balloon ticks inside tickGame, next to the other little games)
+// ---------- 📼 our tape: leave the big screen idle and it plays a worn home video of the two of you ----------
+// The host decides when it plays and which card is up ({t:'tape'}); the guest shows the same card of the same deck, built from what both already share
+// (pinned photos, lanterns, the love numbers, the little memory log). Alone, you are your own host. It is all 2D canvas on one small texture swapped
+// into the shared screenMat: no lights, no shader changes, and the doodle canvas is never drawn on. Timing is wall clock, so a tab that slept does not confuse it.
+const TAPE_W = 512, TAPE_H = 288, TAPE_CARD = 7, TAPE_P = 2147483647, TAPE_ACC = ['#ffcf6b', '#b6ff3b', '#a77bff'], TAPE_MONO = '700 17px ui-monospace, Menlo, Consolas, monospace';
+const TAPE_MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'], TAPE_GREY = Array.from({ length: 16 }, (_, i) => `rgb(${i * 16 + 8},${i * 16 + 8},${i * 16 + 8})`);
+const tapeHand = px => `italic 600 ${px}px "Bradley Hand", "Segoe Print", "Comic Sans MS", cursive`;
+const tapeCv = document.createElement('canvas'), cardCv = document.createElement('canvas'); tapeCv.width = cardCv.width = TAPE_W; tapeCv.height = cardCv.height = TAPE_H;
+const tapeX = tapeCv.getContext('2d'), cardX = cardCv.getContext('2d'); tapeX.fillStyle = '#0a0705'; tapeX.fillRect(0, 0, TAPE_W, TAPE_H);
+const tapeTex = new THREE.CanvasTexture(tapeCv); tapeTex.colorSpace = THREE.SRGBColorSpace;
+const tapeScan = (() => { const c = document.createElement('canvas'); c.width = c.height = 4; const x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 2, 4, 2); return tapeX.createPattern(c, 'repeat'); })(); // scanlines: a 4 px tile, made once
+const tapeNoise = (() => { // static: a 128 px grey noise tile, made once
+  const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), d = x.createImageData(128, 128);
+  for (let i = 0; i < d.data.length; i += 4) { d.data[i] = d.data[i + 1] = d.data[i + 2] = (Math.random() * 255) | 0; d.data[i + 3] = 255; }
+  x.putImageData(d, 0, 0); return tapeX.createPattern(c, 'repeat');
+})();
+let tapePref = true; try { tapePref = localStorage.getItem('ols-tape') !== '0'; } catch {}
+let tapeSeed = 1, tapeI = 0, tapeLt = 0, tapeN = 0, tapeDeck = [], tapeCardAt = 0, tapeRx = 0, tapeQuiet = -1, tapeBurst = 0, tapeDirty = false, tapeForce = false, tapeDraws = 0, tapeSec = -1, tapeCtr = '0:00:00';
+const tapeImg = {}, tapeV = new THREE.Vector3(); // decoded photos by id (only the ones in the deck, dropped when the tape stops) · scratch
+const tapeNow = () => performance.now() / 1000, tapeBoss = () => isHost || !them;
+const tapeNorm = s => Math.min(TAPE_P - 1, Math.max(1, Math.floor(Math.abs(+s)) || 1));
+const tapeRand = () => 1 + Math.floor(Math.random() * 1e6); // only ever picked by the one in charge, and it rides along in the message
+const tapeBy = (a, b) => a.key - b.key || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+// the memory log: a tiny shared diary of {id, d, x} (d: the evening it happened, x: a few words). The tape reads it for its "last time" card.
+let mem = [];
+function dayKey(ms = Date.now()) { const d = new Date(ms - 4 * 3600e3); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; } // the local date, and an evening lasts until 4am (not toISOString: UTC flips mid-evening in Montréal)
+function memClean(e) { // one entry, from storage or from them: anything malformed is dropped
+  if (!e || typeof e.id !== 'string' || !e.id || e.id.length > 16 || typeof e.d !== 'string' || !/^\d{4}-\d\d-\d\d$/.test(e.d)) return null;
+  const x = String(e.x ?? '').trim().slice(0, 60); return x ? { id: e.id, d: e.d, x } : null;
+}
+function saveMem() { mem.sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0)); if (mem.length > 80) mem = mem.slice(-80); try { localStorage.setItem('ols-mem', JSON.stringify(mem)); } catch {} } // oldest first (ids start with the time), the newest 80
+function memAdd(e, later) { const r = memClean(e); if (!r || mem.some(m => m.id === r.id || (m.d === r.d && m.x === r.x))) return false; mem.push(r); if (!later) saveMem(); return true; } // the same words twice in one evening count once (we may both have written it down)
+function logMem(x) { const e = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), d: dayKey(), x: String(x ?? '').trim().slice(0, 60) }; if (!memAdd(e)) return null; send({ t: 'mem', e }); return e; }
+try { const a = JSON.parse(localStorage.getItem('ols-mem') || '[]'); if (Array.isArray(a)) { for (const e of a) memAdd(e, true); saveMem(); } } catch {}
+
+function tapeKey(seed, id) { // where a card lands in this seed's order: its own name hashed into the 16807 LCG, so one more photo slips in without reshuffling the rest
+  let h = seed % TAPE_P; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % TAPE_P;
+  h = ((h || 1) * 16807) % TAPE_P; h ^= h >>> 11; return ((h || 1) * 16807) % TAPE_P;
+}
+function tapeLast() { // up to three things from the most recent evening before this one (a run of rally records counts once)
+  const today = dayKey(), out = []; let last = '', rally = false;
+  for (const e of mem) if (e.d < today && e.d > last) last = e.d;
+  for (let i = mem.length - 1; last && i >= 0 && out.length < 3; i--) { const e = mem[i]; if (e.d !== last) continue; if (/^\d+ in a row$/.test(e.x)) { if (rally) continue; rally = true; } out.unshift(e.x); }
+  return out;
+}
+function tapeBuild() { // the deck for tapeSeed: title, "last time" (once an evening), then photos and one-fact cards in the seed's order. Rebuilt at every card change on both sides
+  const seed = tapeSeed, pics = [], pool = [], nd = Math.max(1, love.days.length), wm = love.watchMin || 0, lv = loveLv(), na = Object.keys(love.ach).length;
+  for (const pl in picsState.places) for (const q of picsState.places[pl] || []) {
+    if (!q || typeof q.id !== 'string' || typeof q.img !== 'string' || !q.img.startsWith('data:image/')) continue; // a data URL never taints the canvas
+    pics.push({ k: 'pic', id: 'p' + q.id, picId: q.id, q, pl, key: tapeKey(seed, 'p' + q.id) });
+  }
+  pics.sort(tapeBy); if (pics.length > 12) pics.length = 12; // this loop's twelve; the next seed picks others
+  for (const c of pics) {
+    const d = Number.isFinite(c.q.at) ? new Date(c.q.at) : null;
+    c.place = lanPlaceName(c.pl).replace(/^[^\p{L}\p{N}]+/u, '').toUpperCase(); c.stamp = d ? `${TAPE_MON[d.getMonth()]} ${d.getDate()} ${d.getFullYear()}` : ''; c.tall = +c.q.ar > 1.2; c.dir = c.key & 1 ? 1 : -1;
+    if (!tapeImg[c.picId]) { const im = new Image(); im.src = c.q.img; tapeImg[c.picId] = im; } // decoded once
+    pool.push(c);
+  }
+  for (const k in tapeImg) if (!pics.some(c => c.picId === k)) delete tapeImg[k];
+  const S = [`${nd} night${nd === 1 ? '' : 's'} together`, `${wm} minute${wm === 1 ? '' : 's'} watched side by side`, `love level ${lv} · ${LV[lv - 1][1]}`, `${na} little first${na === 1 ? '' : 's'}`];
+  if (love.rally > 0) S.push(`best rally ${love.rally}`);
+  if (lanterns.length) S.push(`${lanterns.length} lantern${lanterns.length === 1 ? '' : 's'} in the sky`); // how many, never what a wish said
+  S.forEach((text, j) => pool.push({ k: 'stat', id: 's' + j, text, key: tapeKey(seed, 's' + j) }));
+  pool.sort(tapeBy); let a = 0; for (const c of pool) if (c.k === 'stat') c.c = TAPE_ACC[a++ % 3];
+  const head = [{ k: 'title', text: 'OUR TAPE', sub: `night ${nd}` }];
+  if (tapeLt) { const lines = tapeLast(); if (!lines.length) lines.push('it was a good night'); head.push({ k: 'last', lines, text: lines.join(' · ') }); }
+  if (!pics.length) head.push({ k: 'empty', text: 'take a 📸 and stick it on a wall · it shows up here' });
+  tapeDeck = head.concat(pool);
+}
+function tapeWrap(x, text, maxW) { const out = []; let line = ''; for (const w of text.split(' ')) { const tr = line ? line + ' ' + w : w; if (line && x.measureText(tr).width > maxW) { out.push(line); line = w; } else line = tr; } if (line) out.push(line); return out; }
+function tapeCard(c, p) { // the clean picture of one card (p: 0 to 1 through its seven seconds). Text cards are painted once, photos drift so they are repainted
+  const x = cardX, W = TAPE_W, H = TAPE_H;
+  x.globalAlpha = 1; x.fillStyle = '#0a0705'; x.fillRect(0, 0, W, H); x.textAlign = 'center'; x.textBaseline = 'middle';
+  if (!c) return;
+  if (c.k === 'pic') {
+    const im = tapeImg[c.picId], iw = im && im.complete ? im.naturalWidth : 0, ih = iw ? im.naturalHeight : 0;
+    if (iw && ih && c.tall) { // a photo strip: filmed top to bottom, with the dark either side
+      const dw = 300, sh = Math.min(ih, H * iw / dw), dh = sh * dw / iw;
+      x.drawImage(im, 0, (ih - sh) * p, iw, sh, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    } else if (iw && ih) { // cover the screen, creeping in and across (Ken Burns with a shaky hand)
+      const z = 1.06 + .1 * p, wide = iw / ih > W / H, sw = (wide ? ih * W / H : iw) / z, sh = (wide ? ih : iw * H / W) / z;
+      x.drawImage(im, (iw - sw) * (.5 + c.dir * .3 * (p - .5)), (ih - sh) * (.5 - c.dir * .5 * (p - .5)), sw, sh, 0, 0, W, H);
+    } else { x.fillStyle = '#fff4e2'; x.font = TAPE_MONO; x.fillText('· · ·', W / 2, H / 2); }
+    x.textAlign = 'left'; x.textBaseline = 'alphabetic'; x.font = TAPE_MONO; // the camcorder's own stamp, bottom left
+    for (let k = 0; k < 2; k++) { x.fillStyle = k ? '#fff4e2' : '#ff8a3d'; const o = k ? 0 : 2; if (c.stamp) x.fillText(c.stamp, 18 + o, H - 20); x.fillText(c.place, 18 + o, H - (c.stamp ? 42 : 20)); }
+    return;
+  }
+  if (c.k === 'title') {
+    x.fillStyle = '#ff8a3d'; x.font = '800 68px ui-rounded, system-ui, sans-serif'; x.fillText(c.text, W / 2, H / 2 - 16);
+    x.globalAlpha = .6; x.fillRect(W / 2 - 90, H / 2 + 26, 180, 2); x.globalAlpha = 1;
+    x.fillStyle = '#fff4e2'; x.font = TAPE_MONO; x.fillText(c.sub.toUpperCase(), W / 2, H / 2 + 50);
+  } else if (c.k === 'last') {
+    x.fillStyle = '#ff8a3d'; x.font = TAPE_MONO; x.fillText('LAST TIME', W / 2, 50);
+    x.fillStyle = '#fff4e2'; const y0 = H / 2 + 18 - (c.lines.length - 1) * 24;
+    c.lines.forEach((s, j) => { let px = 30; x.font = tapeHand(px); while (px > 14 && x.measureText(s).width > W - 56) x.font = tapeHand(px -= 2); x.fillText(s, W / 2, y0 + j * 48); });
+  } else if (c.k === 'stat') {
+    x.fillStyle = c.c || TAPE_ACC[0]; x.font = '800 40px ui-rounded, system-ui, sans-serif';
+    const L = tapeWrap(x, c.text, W - 90); L.forEach((s, j) => x.fillText(s, W / 2, H / 2 + (j - (L.length - 1) / 2) * 50));
+  } else {
+    x.fillStyle = '#fff4e2'; x.font = tapeHand(27); const L = c.text.split(' · '); L.forEach((s, j) => x.fillText(s, W / 2, H / 2 + (j - (L.length - 1) / 2) * 44));
+  }
+}
+function tapeDraw(now) { // card → worn tape. About seven of these a second, and only while the screen is in front of the camera
+  const x = tapeX, W = TAPE_W, H = TAPE_H, c = tapeDeck[tapeI], age = now - tapeCardAt;
+  if (tapeDirty || (c && c.k === 'pic')) { tapeDirty = false; tapeCard(c, Math.min(1, Math.max(0, age / TAPE_CARD))); }
+  x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1; x.drawImage(cardCv, 0, 0);
+  x.globalCompositeOperation = 'lighter'; x.globalAlpha = .2; x.drawImage(cardCv, 3, 0); // chroma bleed
+  x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1;
+  for (let b = 0; b < 2; b++) { // tracking tear: one band, sometimes two, sliding down with the picture pulled sideways inside it
+    if (b && Math.sin(now * .37) < 0) break;
+    const y = (((now * (b ? 41 : 23) + b * 150) % (H + 40)) - 20) | 0, h = (6 + 4 * (1 + Math.sin(now * 1.3 + b * 2))) | 0, dx = (8 + 6 * (1 + Math.sin(now * 2.9 + b))) | 0;
+    if (y < 0 || y + h > H) continue;
+    x.drawImage(cardCv, 0, y, W, h, dx, y, W, h); x.globalAlpha = .22; x.fillStyle = '#fff4e2'; x.fillRect(0, y, W, 1); x.globalAlpha = 1;
+  }
+  x.globalCompositeOperation = 'multiply'; x.globalAlpha = .12; x.fillStyle = '#ff8a3d'; x.fillRect(0, 0, W, H); // the warm wash
+  x.globalCompositeOperation = 'source-over'; x.globalAlpha = .18; x.fillStyle = tapeScan; x.fillRect(0, 0, W, H);
+  x.globalAlpha = .8; for (let k = 0; k < 40; k++) { x.fillStyle = TAPE_GREY[(Math.random() * 16) | 0]; x.fillRect((Math.random() * W) | 0, H - 10 + ((Math.random() * 10) | 0), 4 + ((Math.random() * 28) | 0), 1 + ((Math.random() * 2) | 0)); } // head-switching noise along the bottom
+  if (now < tapeBurst) { const ox = (Math.random() * 128) | 0, oy = (Math.random() * 128) | 0; x.globalAlpha = .85; x.fillStyle = tapeNoise; x.translate(-ox, -oy); x.fillRect(ox, oy, W, H); x.setTransform(1, 0, 0, 1, 0, 0); } // a burst of static between cards
+  const sec = Math.max(0, (tapeN * TAPE_CARD + age) | 0); // the counter: both sides are on the same card, so they read the same time
+  if (sec !== tapeSec) { tapeSec = sec; tapeCtr = `${(sec / 3600) | 0}:${String(((sec / 60) | 0) % 60).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`; }
+  x.globalAlpha = 1; x.font = TAPE_MONO; x.textBaseline = 'alphabetic';
+  for (let k = 0; k < 2; k++) { // OSD: cream with an orange ghost
+    x.fillStyle = k ? '#fff4e2' : '#ff8a3d'; const o = k ? 0 : 2;
+    x.textAlign = 'left'; x.fillText('▶︎ PLAY', 18 + o, 32); x.textAlign = 'right'; x.fillText('SP', W - 18 + o, 32); x.fillText(tapeCtr, W - 18 + o, H - 20);
+  }
+  tapeTex.needsUpdate = true; tapeDraws++;
+}
+function tapeShow(seed, i, lt, n, age, mine) { // both sides: card i of the deck this seed gives (age: how long it has already been up)
+  const now = tapeNow();
+  if (!tapeOn) {
+    tapeOn = true; tapeForce = true; screenMat.map = tapeTex; screenMat.needsUpdate = true;
+    let seen = true; try { seen = !!localStorage.getItem('ols-tape-seen'); localStorage.setItem('ols-tape-seen', '1'); } catch {}
+    if (!seen && !mine) toast('📼 the screen found an old tape of you two…');
+  }
+  tapeSeed = seed; tapeLt = lt ? 1 : 0; tapeN = n; tapeBuild();
+  tapeI = tapeDeck.length ? i % tapeDeck.length : 0; tapeCardAt = now - age; tapeBurst = now + .25; tapeDirty = true;
+  const c = place.scr.center; if (!document.hidden && Math.hypot(me.x - c.x, me.z - c.z) < 6) { const a = au(); if (a && a.state === 'running') nz(a.currentTime, .2, 'highpass', 3000, .04); } // the hiss of the cut, only up close
+}
+function tapeTell() { if (isHost) send(tapeOn ? { t: 'tape', on: true, seed: tapeSeed, i: tapeI, lt: tapeLt, n: tapeN, a: +(tapeNow() - tapeCardAt).toFixed(2), w: love.watchMin || 0 } : { t: 'tape', on: false }); }
+function tapeStart(seed, mine) { // the one in charge puts the tape in
+  if (!started || screenLive) return false;
+  const today = dayKey(), lt = love.lastTape !== today && tapeLast().length ? 1 : 0;
+  if (lt) { love.lastTape = today; saveLove(); } // "last time" plays once an evening
+  tapeShow(tapeNorm(seed), 0, lt, 0, 0, mine); tapeTell(); return true;
+}
+function tapeNext() { // the next card. Past the end the deck starts over in the order the next seed of the same LCG gives, so a guest left on their own lands on the same one
+  let i = tapeI + 1, seed = tapeSeed, lt = tapeLt;
+  if (i >= tapeDeck.length) { i = 0; seed = (seed * 16807) % TAPE_P || 1; lt = 0; }
+  tapeShow(seed, i, lt, tapeN + 1, 0, true); tapeTell();
+}
+function tapeOff(hold = 0) { // stop, and start the idle wait over (hold: extra seconds of peace after the stop pill)
+  tapeQuiet = Math.max(tapeQuiet, tapeNow() + hold);
+  if (!tapeOn) return;
+  tapeOn = false; screenMat.map = screenLive ? videoTex : placeholderTex; screenMat.needsUpdate = true;
+  for (const k in tapeImg) delete tapeImg[k];
+  if (isHost) send({ t: 'tape', on: false });
+}
+function tapeYield(hold = 0) { tapeOff(hold); if (!isHost && them) send({ t: 'tape', on: false, ask: 1, h: hold ? 1 : 0 }); } // something wants the screen (a doodle, a shared tab, the stop pill): as the guest, the host has to hear it too
+function tapePlay(seed) { // the 💗 pill (and dbg): play it now
+  if (!started) return false;
+  if (screenLive) { toast('📼 The tape waits while a tab is being shared'); return false; }
+  const has = seed != null && Number.isFinite(+seed);
+  if (tapeBoss()) return tapeOn && !has ? true : tapeStart(has ? +seed : tapeRand(), true);
+  send(has ? { t: 'tape', ask: 1, on: true, seed: +seed } : { t: 'tape', ask: 1, on: true }); return true;
+}
+function tapeHalt() { tapeYield(225); } // the stop pill: five minutes before it tries again
+function setTapePref(on) { tapePref = !!on; try { localStorage.setItem('ols-tape', on ? '1' : '0'); } catch {} if (on) tapeQuiet = Math.min(tapeQuiet, tapeNow()); else if (tapeOn && tapeBoss()) tapeOff(); } // On also forgives a stop pill's five minutes: the usual idle wait from now
+function onTape(m) {
+  if (m.ask) { // the guest asks the one in charge: play it now, or get off the screen
+    if (!isHost) return;
+    if (!m.on) { const was = tapeOn; tapeOff(m.h ? 225 : 0); if (!was) send({ t: 'tape', on: false }); } // (answered either way, in case their card and my stop crossed)
+    else if (tapeOn && !Number.isFinite(m.seed)) tapeTell();
+    else tapeStart(Number.isFinite(m.seed) ? m.seed : tapeRand(), false);
+    return;
+  }
+  if (isHost) return; // the host decides
+  if (!m.on) return tapeOff();
+  if (screenLive || doodling) return send({ t: 'tape', on: false, ask: 1 }); // not now: I am using the screen
+  if (!Number.isFinite(m.seed) || !Number.isFinite(m.i)) return;
+  tapeRx = tapeNow(); const today = dayKey();
+  if (m.lt && love.lastTape !== today) { love.lastTape = today; saveLove(); }
+  if (Number.isFinite(m.w) && m.w > (love.watchMin || 0)) { love.watchMin = m.w; saveLove(); } // only the host counts watched minutes: take theirs so that card reads the same
+  tapeShow(tapeNorm(m.seed), Math.max(0, Math.floor(m.i)), m.lt, Math.max(0, Math.floor(+m.n || 0)), Math.min(TAPE_CARD, Math.max(0, +m.a || 0)), false);
+}
+function tapeClock() { // twice a second and off the frame loop, so the host's tape keeps time for the other one while this tab is in the background
+  if (!started) return;
+  const now = tapeNow(), boss = isHost || !them; if (tapeQuiet < 0) tapeQuiet = now; // the wait starts when you walk in
+  if (!tapeOn) { // idle long enough? (longer when there is a doodle it would cover)
+    if (boss && tapePref && !screenLive && !doodling && !(them && them.share) && now - Math.max(tapeQuiet, lastInkAt) > (inkDirty ? 300 : 75) && now - lastShareEnd > 45) tapeStart(tapeRand(), false);
+    return;
+  }
+  if (now - tapeCardAt >= TAPE_CARD && (boss || now - tapeRx > 12)) tapeNext(); // the guest only moves on by itself when the host has gone quiet
+}
+setInterval(tapeClock, 500);
+function tickTape() { // per frame: nothing at all unless the tape is playing
+  if (!tapeOn) return;
+  const now = performance.now() / 1000, scr = place.scr; scr.light.intensity = 2.3 + .3 * Math.sin(now * 9.1) * Math.sin(now * 2.3); // the screen's own light flickers a little (fitScreen sets it back every frame)
+  if (!tapeForce) { // seven redraws a second, and none at all while the screen is behind the camera
+    if (frameN % 8 || document.hidden) return;
+    camera.getWorldDirection(tapeV); const c = scr.center, p = camera.position;
+    if (tapeV.x * (c.x - p.x) + tapeV.y * (c.y - p.y) + tapeV.z * (c.z - p.z) < 0) return;
+  }
+  tapeForce = false; tapeDraw(now);
+}
+
+function tick13(dt, t) { if (strip) tickStrip(); tickLan(dt, t); tickTape(); } // per-frame hook for the newest features (the rally balloon ticks inside tickGame, next to the other little games)
 function onFun13(m) {
   switch (m.t) {
-    case 'hello': send({ t: 'lanAll', all: lanterns }); return false; // both sides send theirs: the two skies become the union
+    case 'hello': send({ t: 'lanAll', all: lanterns }); send({ t: 'memAll', all: mem }); // both sides send theirs: the two skies (and the two memory logs) become the union
+      if (isHost) setTimeout(tapeTell, 800); // after the photos, lanterns and memories have crossed, so their deck is built from the same things as mine
+      return false;
+    case 'mem': memAdd(m.e); return true;
+    case 'memAll': if (Array.isArray(m.all)) { let n = 0; for (const e of m.all.slice(-80)) if (memAdd(e, true)) n++; if (n) saveMem(); } return true;
+    case 'tape': onTape(m); return true;
+    case 'share': if (m.on) tapeOff(); return false; // they are about to show something: do not wait for the picture to arrive (the rest of 'share' is handled further up)
     case 'lan': onLan(m); return true;
     case 'lanAll': { // merge by id, keep the newest 400, and repaint every sky that is already built
       if (!Array.isArray(m.all)) return true;
@@ -4478,6 +4697,6 @@ $('go').onclick = () => {
   }, 980);
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { lan: { get pending() { return lanPending }, get all() { return lanterns }, place: lanPlace, hold(on) { lanForce = on ? true : null; }, go: lanRelease }, get lanSky() { return (place && place.lanSky) || null }, openScope, closeScope, nearTel, startStrip, shootFrame, get stripRun() { return strip && { seed: strip.seed, i: strip.i, prompts: strip.prompts } }, get lastStrip() { return lastStrip }, get rally() { return game && game.mode === 'rally' ? game : null }, rallyHit, rallyDrop, GATES, carE, exitCar, driveStep, get karts() { return place.karts }, newGame, kartBlocked, eatSnack, setLights, lightV, startCuddle, seatPair, iceServers, get peer() { return peer }, setGfx, get qMode() { return qMode }, get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: (v, ar) => (hangAr = ar, hanging = v), doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { tape: { get on() { return tapeOn }, start: tapePlay, stop: tapeHalt, get i() { return tapeI }, get seed() { return tapeSeed }, get draws() { return tapeDraws }, get deck() { return tapeDeck.map(c => c.k === 'pic' ? { k: c.k, picId: c.picId } : { k: c.k, text: c.text }) } }, logMem, get mem() { return mem }, dayKey, lan: { get pending() { return lanPending }, get all() { return lanterns }, place: lanPlace, hold(on) { lanForce = on ? true : null; }, go: lanRelease }, get lanSky() { return (place && place.lanSky) || null }, openScope, closeScope, nearTel, startStrip, shootFrame, get stripRun() { return strip && { seed: strip.seed, i: strip.i, prompts: strip.prompts } }, get lastStrip() { return lastStrip }, get rally() { return game && game.mode === 'rally' ? game : null }, rallyHit, rallyDrop, GATES, carE, exitCar, driveStep, get karts() { return place.karts }, newGame, kartBlocked, eatSnack, setLights, lightV, startCuddle, seatPair, iceServers, get peer() { return peer }, setGfx, get qMode() { return qMode }, get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: (v, ar) => (hangAr = ar, hanging = v), doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
