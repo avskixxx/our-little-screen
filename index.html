@@ -2452,7 +2452,7 @@ cv.addEventListener('pointermove', e => {
 }, { capture: true });
 cv.addEventListener('pointerup', e => { if (!stroke) return; e.stopImmediatePropagation(); flushInk(); stroke = null; inkBuf = []; }, { capture: true });
 function toggleDoodle() {
-  doodling = !doodling; $('doodle').classList.toggle('on', doodling); tapeYield(); // on: the tape stops for both · off: the idle wait starts over
+  doodling = !doodling; $('doodle').classList.toggle('on', doodling); tapeYield(); send({ t: 'tape', dd: doodling ? 1 : 0 }); // on: the tape stops for both, and stays away while the pens are out · off: the idle wait starts over
   if (!doodling) { if (panel.dataset.k === 'doodle') closePanel(); return; }
   if (decorating) toggleDecorate(); if (building) toggleBuild();
   if (screenLive) toast('Stop sharing first to doodle on the screen');
@@ -3213,7 +3213,7 @@ function onData(m) {
   else if (m.t === 'heart' && them) addHeart(them, 'theirs');
   else if (m.t === 'share' && them) {
     them.share = m.on;
-    if (m.on && myStream) stopShare(false); // one controller at a time
+    if (m.on && myStream) stopShare(); // one controller at a time (and they hear that mine ended: a them.share left on would keep their tape from ever starting by itself again)
     if (!m.on && !myStream) showStream(null);
   }
 }
@@ -3225,6 +3225,7 @@ function partnerGone() {
   if (quiz) { quiz = null; if (panel.dataset.k === 'quiz') closePanel(); }
   lanCancel(false); // a lantern needs both of you
   hand = null; pendingHat = ''; pendingPet = ''; pendingPetName = '';
+  if (them) tapeAlone();
   them = null; conn = null; if (!myStream) showStream(null);
 }
 let joined = false, rejoinTries = 0, reclaim = isHost && !!ROOM, hostTries = 0;
@@ -4445,7 +4446,7 @@ const tapeNoise = (() => { // static: a 128 px grey noise tile, made once
   x.putImageData(d, 0, 0); return tapeX.createPattern(c, 'repeat');
 })();
 let tapePref = true; try { tapePref = localStorage.getItem('ols-tape') !== '0'; } catch {}
-let tapeSeed = 1, tapeI = 0, tapeLt = 0, tapeN = 0, tapeDeck = [], tapeCardAt = 0, tapeRx = 0, tapeQuiet = -1, tapeBurst = 0, tapeDirty = false, tapeForce = false, tapeDraws = 0, tapeSec = -1, tapeCtr = '0:00:00';
+let tapeSeed = 1, tapeI = 0, tapeLt = 0, tapeN = 0, tapeDeck = [], tapeCardAt = 0, tapeRx = 0, tapeQuiet = -1, tapeBurst = 0, tapeDirty = false, tapeForce = false, tapeDraws = 0, tapeSec = -1, tapeCtr = '0:00:00', themDoodle = false; // (themDoodle: the other one has the doodle pens out)
 const tapeImg = {}, tapeV = new THREE.Vector3(); // decoded photos by id (only the ones in the deck, dropped when the tape stops) · scratch
 const tapeNow = () => performance.now() / 1000, tapeBoss = () => isHost || !them;
 const tapeNorm = s => Math.min(TAPE_P - 1, Math.max(1, Math.floor(Math.abs(+s)) || 1));
@@ -4560,23 +4561,26 @@ function tapeShow(seed, i, lt, n, age, mine) { // both sides: card i of the deck
   const now = tapeNow();
   if (!tapeOn) {
     tapeOn = true; tapeForce = true; screenMat.map = tapeTex; screenMat.needsUpdate = true;
-    let seen = true; try { seen = !!localStorage.getItem('ols-tape-seen'); localStorage.setItem('ols-tape-seen', '1'); } catch {}
-    if (!seen && !mine) toast('📼 the screen found an old tape of you two…');
+    if (mine || !document.hidden) { // (one that starts by itself in a background tab keeps its first hello for a time you can read it)
+      let seen = true; try { seen = !!localStorage.getItem('ols-tape-seen'); localStorage.setItem('ols-tape-seen', '1'); } catch {}
+      if (!seen && !mine) toast('📼 the screen found an old tape of you two…');
+    }
   }
   tapeSeed = seed; tapeLt = lt ? 1 : 0; tapeN = n; tapeBuild();
   tapeI = tapeDeck.length ? i % tapeDeck.length : 0; tapeCardAt = now - age; tapeBurst = now + .25; tapeDirty = true;
+  if (them && !document.hidden && tapeDeck[tapeI] && tapeDeck[tapeI].k === 'last') { const today = dayKey(); if (love.lastTape !== today) { love.lastTape = today; saveLove(); } } // "last time" has had its evening only once it has really been up, with both of you here
   const c = place.scr.center; if (!document.hidden && Math.hypot(me.x - c.x, me.z - c.z) < 6) { const a = au(); if (a && a.state === 'running') nz(a.currentTime, .2, 'highpass', 3000, .04); } // the hiss of the cut, only up close
 }
 function tapeTell() { if (isHost) send(tapeOn ? { t: 'tape', on: true, seed: tapeSeed, i: tapeI, lt: tapeLt, n: tapeN, a: +(tapeNow() - tapeCardAt).toFixed(2), w: love.watchMin || 0 } : { t: 'tape', on: false }); }
 function tapeStart(seed, mine) { // the one in charge puts the tape in
-  if (!started || screenLive) return false;
-  const today = dayKey(), lt = love.lastTape !== today && tapeLast().length ? 1 : 0;
-  if (lt) { love.lastTape = today; saveLove(); } // "last time" plays once an evening
-  tapeShow(tapeNorm(seed), 0, lt, 0, 0, mine); tapeTell(); return true;
+  if (!started || screenLive || doodling || themDoodle) return false;
+  tapeShow(tapeNorm(seed), 0, tapeDue(), 0, 0, mine); tapeTell(); return true;
 }
+function tapeDue() { return love.lastTape !== dayKey() && tapeLast().length ? 1 : 0; } // is "last time" still owed this evening? (tapeShow ticks it off when the card is really seen, so a tape that played to an empty room does not use it up)
+function tapeAlone() { themDoodle = false; tapeQuiet = Math.max(tapeQuiet, tapeNow()); } // they left: whoever stays is in charge now, and waits the usual idle minute before putting a tape in
 function tapeNext() { // the next card. Past the end the deck starts over in the order the next seed of the same LCG gives, so a guest left on their own lands on the same one
   let i = tapeI + 1, seed = tapeSeed, lt = tapeLt;
-  if (i >= tapeDeck.length) { i = 0; seed = (seed * 16807) % TAPE_P || 1; lt = 0; }
+  if (i >= tapeDeck.length) { i = 0; seed = (seed * 16807) % TAPE_P || 1; lt = tapeDue(); }
   tapeShow(seed, i, lt, tapeN + 1, 0, true); tapeTell();
 }
 function tapeOff(hold = 0) { // stop, and start the idle wait over (hold: extra seconds of peace after the stop pill)
@@ -4590,6 +4594,8 @@ function tapeYield(hold = 0) { tapeOff(hold); if (!isHost && them) send({ t: 'ta
 function tapePlay(seed) { // the 💗 pill (and dbg): play it now
   if (!started) return false;
   if (screenLive) { toast('📼 The tape waits while a tab is being shared'); return false; }
+  if (themDoodle) { toast(`📼 The tape waits while ${them ? them.name : 'the other one'} is doodling on the screen`); return false; }
+  if (doodling) toggleDoodle(); // asking for the tape puts my own pens down
   const has = seed != null && Number.isFinite(+seed);
   if (tapeBoss()) return tapeOn && !has ? true : tapeStart(has ? +seed : tapeRand(), true);
   send(has ? { t: 'tape', ask: 1, on: true, seed: +seed } : { t: 'tape', ask: 1, on: true }); return true;
@@ -4597,6 +4603,7 @@ function tapePlay(seed) { // the 💗 pill (and dbg): play it now
 function tapeHalt() { tapeYield(225); } // the stop pill: five minutes before it tries again
 function setTapePref(on) { tapePref = !!on; try { localStorage.setItem('ols-tape', on ? '1' : '0'); } catch {} if (on) tapeQuiet = Math.min(tapeQuiet, tapeNow()); else if (tapeOn && tapeBoss()) tapeOff(); } // On also forgives a stop pill's five minutes: the usual idle wait from now
 function onTape(m) {
+  if (m.dd != null) { themDoodle = !!m.dd; return; } // their doodle pens came out or went away
   if (m.ask) { // the guest asks the one in charge: play it now, or get off the screen
     if (!isHost) return;
     if (!m.on) { const was = tapeOn; tapeOff(m.h ? 225 : 0); if (!was) send({ t: 'tape', on: false }); } // (answered either way, in case their card and my stop crossed)
@@ -4617,7 +4624,7 @@ function tapeClock() { // twice a second and off the frame loop, so the host's t
   if (!started) return;
   const now = tapeNow(), boss = isHost || !them; if (tapeQuiet < 0) tapeQuiet = now; // the wait starts when you walk in
   if (!tapeOn) { // idle long enough? (longer when there is a doodle it would cover)
-    if (boss && tapePref && !screenLive && !doodling && !(them && them.share) && now - Math.max(tapeQuiet, lastInkAt) > (inkDirty ? 300 : 75) && now - lastShareEnd > 45) tapeStart(tapeRand(), false);
+    if (boss && tapePref && !screenLive && !doodling && !themDoodle && !(them && them.share) && now - Math.max(tapeQuiet, lastInkAt) > (inkDirty ? 300 : 75) && now - lastShareEnd > 45) tapeStart(tapeRand(), false);
     return;
   }
   if (now - tapeCardAt >= TAPE_CARD && (boss || now - tapeRx > 12)) tapeNext(); // the guest only moves on by itself when the host has gone quiet
@@ -4638,6 +4645,7 @@ function tick13(dt, t) { if (strip) tickStrip(); tickLan(dt, t); tickTape(); } /
 function onFun13(m) {
   switch (m.t) {
     case 'hello': send({ t: 'lanAll', all: lanterns }); send({ t: 'memAll', all: mem }); // both sides send theirs: the two skies (and the two memory logs) become the union
+      send({ t: 'tape', dd: doodling ? 1 : 0 });
       if (isHost) setTimeout(tapeTell, 800); // after the photos, lanterns and memories have crossed, so their deck is built from the same things as mine
       return false;
     case 'mem': memAdd(m.e); return true;
