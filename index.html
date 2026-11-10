@@ -4682,6 +4682,7 @@ function wxBegin(k = 'rain', dur = 200, seed = 1 + Math.floor(Math.random() * 2e
 function wxEnd() { if (!isHost) return false; send({ t: 'wx', k: null }); stopWeather(false); return true; }
 function onWx(m) {
   if (isHost) return; // only the host makes weather
+  if (m.after != null && isFinite(+m.after)) wxAfter = Math.max(0, Math.min(1, +m.after)); // (on hello) how wet the host's ground still is: a late joiner gets the same shine and bow
   if (m.k !== 'rain' && m.k !== 'storm') { stopWeather(false); return; }
   const dur = Math.max(20, Math.min(900, +m.dur || 0)), el = Math.max(0, +m.el || 0), seed = Math.abs(Math.floor(+m.seed || 0)) % 2147483646;
   if (el < dur) startWeather(m.k, dur, seed, el); else stopWeather(false);
@@ -4698,8 +4699,10 @@ function weatherLight(dt) { // loop hook, right after place.tick: works out the 
   if (!weather && wxW <= 0) return;
   if (weather) {
     const el = wxNow() - weather.t0;
-    if (el >= weather.dur) stopWeather(true);
-    else {
+    if (el >= weather.dur) { // over by the clock, so its 20 s ramp-out is over too: a tab that was hidden through the end must not replay it from a stale intensity
+      const d = weather.dur, h = Math.min(20, d / 2); stopWeather(true); wxW = 0;
+      if (el - d > 2) { wxAfter = Math.max(0, h / 20 - (el - d + h) / 120); wxT = wxNow(); } // (and the ground has been drying since that ramp-out began, as it has for the other one)
+    } else {
       wxW = Math.max(0, Math.min(1, el / 20, (weather.dur - el) / 20)); // 20 s in, 20 s out
       const S = weather.strikes; while (weather.si < S.length && el >= S[weather.si]) { if (el - S[weather.si] < 1.5) wxStrike(weather.delays[weather.si]); weather.si++; }
     }
@@ -4755,7 +4758,7 @@ function wxFloor(k) { // wet ground: the floor of the place you are in gets its 
 function wxFireReset() { for (const f of FIRES) if (f.userData.s0) f.scale.setScalar(f.userData.s0); wxFires.length = 0; wxFirePl = ''; }
 function wxUmb(mesh, p, mine, on) { // each little one gets an umbrella, built once like the s'more stick (host orange, guest violet)
   if (!mesh) return null; const u = mesh.userData;
-  if (!on || !p || p.car >= 0 || p.ko) { if (u.umb) u.umb.visible = false; return null; }
+  if (!on || !p || p.car >= 0 || p.ko || p.pose === 'back' || p.pose === 'belly' || p.pose === 'slide') { if (u.umb) u.umb.visible = false; return null; } // (lying down: it would hover a metre above you)
   if (!u.umb) {
     const g = new THREE.Group(); g.userData.c = put(new THREE.Mesh(GEO.umb ||= shared(new THREE.ConeGeometry(.55, .24, 10)), M(mine === isHost ? '#ff8a3d' : '#a77bff', { roughness: .6 })), 0, 0, 0, g);
     put(cyl(.012, .012, .8, '#5a4034', 6), 0, -.42, 0, g); g.position.set(.16, 1.12, 0); mesh.add(g); u.umb = g;
@@ -4765,6 +4768,7 @@ function wxUmb(mesh, p, mine, on) { // each little one gets an umbrella, built o
 function wxUmbPose(g, lead, mesh, p, q, merged, k) { // standing close: the guest's folds away, the host's grows and leans half-way over to the other one
   let x = .16, y = 1.12, z = 0, s = 1;
   if (merged) { if (!lead) { g.visible = false; return; } const dx = (q.x - p.x) / 2, dz = (q.z - p.z) / 2, c = Math.cos(mesh.rotation.y), sn = Math.sin(mesh.rotation.y); x = dx * c - dz * sn; z = dx * sn + dz * c; y = 1.2; s = 1.5; }
+  if (p.pose === 'crouch' || p.pose === 'floor') y -= .18; // it comes down with whoever holds it
   const P = g.position, S = g.userData.c.scale; P.x += (x - P.x) * k; P.y += (y - P.y) * k; P.z += (z - P.z) * k; S.x = S.z = S.x + (s - S.x) * k;
 }
 function wxSound(dt, w) { // one looping noise source on the ambience bus (kept apart from AU.amb, which every place change clears)
@@ -4779,6 +4783,7 @@ function wxSound(dt, w) { // one looping noise source on the ambience bus (kept 
   if (target <= 0 && wxGain < .0005) wxSilence(); // the rain is over: nothing keeps looping under the afterglow
 }
 function wxSilence() { const A = wxAudio; if (!A) return; wxAudio = null; try { A.g.gain.setTargetAtTime(0, actx.currentTime, .3); A.src.stop(actx.currentTime + 1.5); } catch {} }
+document.addEventListener('visibilitychange', () => { if (document.hidden) wxSilence(); }); // a hidden tab stops ticking, so nothing would ever fade the loop: let it go now (wxSound brings it back in on the first frame after, if it still rains)
 function wxDry() { // it is over and the ground has dried: everything back the way it was, once
   wxLive = false; wxW = wxAfter = 0; wxMerged = false;
   if (wxRain && wxRain.parent) scene.remove(wxRain); if (wxRipG && wxRipG.parent) scene.remove(wxRipG); if (wxBow && wxBow.parent) scene.remove(wxBow);
@@ -4818,7 +4823,7 @@ function tickWeather(dt, t) {
   const bowA = out && (!weather || now - weather.t0 > weather.dur - 20) ? .12 * wxAfter * (1 - w) * (1 - w) : 0;
   if (bowA > .002) { const b = wxBowObj(); b.material.opacity = bowA; if (!b.parent) scene.add(b); } else if (wxBow && wxBow.parent) scene.remove(wxBow);
   // umbrellas, and the one you share: worked out from positions both sides already have, no messages
-  const umbOn = out && w > .3, ua = wxUmb(meMesh, me, true, umbOn), ub = wxUmb(themMesh, them && !them.away ? them : null, false, umbOn);
+  const umbOn = out && w > .3 && !(game && game.mode === 'hide'), ua = wxUmb(meMesh, me, true, umbOn), ub = wxUmb(themMesh, them && !them.away ? them : null, false, umbOn);
   const merged = !!(ua && ub) && Math.hypot(me.x - them.x, me.z - them.z) < (wxMerged ? 1.1 : .95), k = Math.min(1, dt * 8);
   if (ua) wxUmbPose(ua, isHost, meMesh, me, them, merged, k);
   if (ub) wxUmbPose(ub, !isHost, themMesh, them, me, merged, k);
@@ -4837,7 +4842,7 @@ function onFun13(m) {
     case 'hello': send({ t: 'lanAll', all: lanterns }); send({ t: 'memAll', all: mem }); // both sides send theirs: the two skies (and the two memory logs) become the union
       send({ t: 'tape', dd: doodling ? 1 : 0 });
       if (isHost) setTimeout(tapeTell, 800); // after the photos, lanterns and memories have crossed, so their deck is built from the same things as mine
-      if (isHost) send(weather ? { t: 'wx', k: weather.k, dur: weather.dur, seed: weather.seed, el: +(wxNow() - weather.t0).toFixed(2) } : { t: 'wx', k: null }); // a shower already under way: they join it where it is (and a rain I no longer have stops for them)
+      if (isHost) send(weather ? { t: 'wx', k: weather.k, dur: weather.dur, seed: weather.seed, el: +(wxNow() - weather.t0).toFixed(2), after: +wxAfter.toFixed(2) } : { t: 'wx', k: null, after: +wxAfter.toFixed(2) }); // a shower already under way: they join it where it is (and a rain I no longer have stops for them)
       return false;
     case 'wx': onWx(m); return true;
     case 'mem': memAdd(m.e); return true;
