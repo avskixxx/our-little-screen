@@ -1292,7 +1292,8 @@ const locked = () => document.pointerLockElement === cv;
 function lockMouse() { if (started && !locked() && cv.requestPointerLock && !isTouch) { try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch {} } }
 function unlockMouse() { if (locked()) document.exitPointerLock(); }
 const KART_Y = .36;
-function headOf(p) { return new THREE.Vector3(p.x, (p.car >= 0 ? KART_Y : p.seat >= 0 && place.seats[p.seat] ? place.seats[p.seat].y - .1 : 0) + .6 + (p.jy || 0), p.z); }
+function headY(p) { return (p.car >= 0 ? KART_Y : p.seat >= 0 && place.seats[p.seat] ? place.seats[p.seat].y - .1 : 0) + .6 + (p.jy || 0); }
+function headOf(p) { return new THREE.Vector3(p.x, headY(p), p.z); }
 let headDrop = 0, lieTilt = 0; // eased eye drop / look-up while crouched, lying or knocked
 function stepCam(dt) {
   const head = headOf(me); snapCam = false;
@@ -1510,13 +1511,14 @@ const otherRole = () => isHost ? 'guest' : 'host';
 const nameOf = role => role === myRole() ? me.name : (them ? them.name : '…');
 const fmt = s => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.floor(Math.max(0, s) % 60)).padStart(2, '0')}`;
 const textTexCache = {};
-function textTex(txt, color) {
-  return textTexCache[txt + color] ||= canvasTex(320, 96, (x, w) => { x.font = '700 50px ui-rounded, system-ui'; x.textAlign = 'center'; x.lineWidth = 10; x.strokeStyle = '#1a0d06aa'; x.strokeText(txt, w / 2, 64); x.fillStyle = color; x.fillText(txt, w / 2, 64); });
+function textTex(txt, color, own) { // own: a one-off texture (ever-changing text like a rally count), freed when its sprite goes
+  const mk = () => canvasTex(320, 96, (x, w) => { x.font = '700 50px ui-rounded, system-ui'; x.textAlign = 'center'; x.lineWidth = 10; x.strokeStyle = '#1a0d06aa'; x.strokeText(txt, w / 2, 64); x.fillStyle = color; x.fillText(txt, w / 2, 64); });
+  return own ? mk() : (textTexCache[txt + color] ||= mk());
 }
-function floatText(p, txt, color = '#fff4e2') {
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTex(txt, color), transparent: true, depthWrite: false, depthTest: false }));
+function floatText(p, txt, color = '#fff4e2', own = false) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTex(txt, color, own), transparent: true, depthWrite: false, depthTest: false }));
   sp.scale.set(1, .3, 1); sp.position.copy(headOf(p)).add(new THREE.Vector3(0, .6, 0)); sp.renderOrder = 11; scene.add(sp);
-  hearts.push({ s: sp, t0: clock.elapsedTime, p: 0 });
+  hearts.push({ s: sp, t0: clock.elapsedTime, p: 0, own });
 }
 function burst() { for (let i = 0; i < 7; i++) setTimeout(() => addHeart(me, 'mine'), i * 90); }
 
@@ -1576,6 +1578,7 @@ function newGame(mode) {
   if (mode === 'potato') g = { mode, it: Math.random() < .5 ? 'host' : 'guest', dur: 18 + Math.random() * 22 };
   if (mode === 'lava') g = { mode, rounds: lavaRounds(), dur: 999, lives: { host: 3, guest: 3 } };
   if (mode === 'hide') g = { mode, seeker: myRole(), dur: 75, count: 12 };
+  if (mode === 'rally') g = { mode, dur: 99999, first: Math.random() < .5 ? 'host' : 'guest' };
   if (mode === 'stars') {
     const b = place.bounds, pts = [];
     for (let i = 0; i < 12; i++) pts.push([+(b[0] + .4 + Math.random() * (b[1] - b[0] - .8)).toFixed(2), +(b[2] + .4 + Math.random() * (b[3] - b[2] - .8)).toFixed(2)]);
@@ -1590,6 +1593,7 @@ function beginGame(g, remote) {
   if (g.mode === 'potato') toast(g.it === myRole() ? '🥔 You have the hot potato! Touch them to pass it' : `🥔 ${nameOf(g.it)} has the hot potato… run!`);
   if (g.mode === 'lava') toast('🔥 Floor is lava! Hop on a glowing pad (or a seat) before it rises');
   if (g.mode === 'race') raceStart();
+  if (g.mode === 'rally') rallyStart(g);
   if (g.mode === 'tag') toast(g.it === myRole() ? '🏃 Tag! You are it, go catch them' : `🏃 Tag! ${nameOf(g.it)} is it, run!`);
   if (g.mode === 'hide') { if (g.seeker === myRole()) { setPov(1); toast('🙈 Count to 12… no peeking!'); } else toast(`🙈 Hide! ${nameOf(g.seeker)} is counting`); }
   if (g.mode === 'stars') { game.stars = g.pts.map(([x, z]) => { const st = put(new THREE.Mesh(starGeo, GLOW('#ffcf6b', 3)), x, .7, z, scene); st.scale.setScalar(.15); return st; }); toast('⭐ Star race! Grab the most stars'); }
@@ -1598,6 +1602,7 @@ function endGame(silent, msg) {
   if (!game) return;
   if (game.stars) game.stars.forEach(st => st && scene.remove(st));
   if (game.rings) game.rings.forEach(q => scene.remove(q));
+  if (game.ball) { scene.remove(game.ball, game.shadow, game.ring); game.bmat.dispose(); if (game.btex) game.btex.dispose(); } // the rally balloon: its material (and beach-ball stripes) are its own
   if (itRing.parent) itRing.parent.remove(itRing);
   if (potato.parent) potato.parent.remove(potato); potato.scale.setScalar(1);
   clearPads(); lava.visible = false;
@@ -1614,6 +1619,7 @@ function finishTagPotato(it) {
 function tickGame(t) {
   if (!game) { hud.style.display = 'none'; return; }
   if (game.mode === 'race') return tickRace(t);
+  if (game.mode === 'rally') return tickRally(t);
   const el = t - game.t0, left = game.dur - el; let txt = '';
   if (game.mode === 'lava') { txt = tickLava(t, el); if (txt === null) return; }
   else if (game.mode === 'tag' || game.mode === 'potato') {
@@ -1818,7 +1824,7 @@ function openGames() {
   if (quiz) return renderQuiz(true); // a quiz is still going: Games brings it back
   claimPanel();
   panel.dataset.k = 'games'; panel.classList.remove('side');
-  panel.innerHTML = `<h3>🎲 Little games</h3><div class="grid">${[['race', '🏎 Car race', 'At the Drive-in: 3 laps through the gates, first one wins'], ['quiz', "💘 Who's more likely", 'Both answer, see if you match'], ['lava', '🔥 Floor is lava', 'Hop on a pad or a seat before the lava rises'], ['potato', '🥔 Hot potato', 'Touch them to pass it before it blows'], ['tag', '🏃 Tag', 'Catch each other. Whoever is it at the end loses'], ['hide', '🙈 Hide & seek', 'You count, they hide, then go find them'], ['stars', '⭐ Star race', 'Grab more glowing stars than them']].map(([k, a, b]) => `<button class="tile" data-g="${k}"><b>${a}</b><span>${b}</span></button>`).join('')}</div>
+  panel.innerHTML = `<h3>🎲 Little games</h3><div class="grid">${[['rally', '🎈 Keep it up', `Bop it back and forth, don't let it land · best ${love.rally || 0}`], ['race', '🏎 Car race', 'At the Drive-in: 3 laps through the gates, first one wins'], ['quiz', "💘 Who's more likely", 'Both answer, see if you match'], ['lava', '🔥 Floor is lava', 'Hop on a pad or a seat before the lava rises'], ['potato', '🥔 Hot potato', 'Touch them to pass it before it blows'], ['tag', '🏃 Tag', 'Catch each other. Whoever is it at the end loses'], ['hide', '🙈 Hide & seek', 'You count, they hide, then go find them'], ['stars', '⭐ Star race', 'Grab more glowing stars than them']].map(([k, a, b]) => `<button class="tile" data-g="${k}"><b>${a}</b><span>${b}</span></button>`).join('')}</div>
     ${game ? '<div class="row"><button class="pill" data-stop>Stop the game</button></div>' : ''}
     <div class="row hintrow">🍿 Press F (or tap 🍿) to throw popcorn: boop them, or toss it up and catch it in your mouth</div>`;
   panel.style.display = 'block';
@@ -2594,6 +2600,7 @@ function tickLava(t, el) {
 
 function funTick4(dt, t) { tickFaces(); }
 function onFun4(m) {
+  if (onFun13(m)) return true;
   if (onFun12(m)) return true;
   if (onFun11(m)) return true;
   if (onFun10(m)) return true;
@@ -3148,8 +3155,8 @@ function loop() {
   solveLegs(meMesh, me); if (them && themMesh) solveLegs(themMesh, them);
   const close = them && !them.away && me.seat >= 0 && them.seat >= 0 && Math.abs(me.seat - them.seat) === 1;
   cuddle.visible = !!close; if (close) { cuddle.position.copy(headOf(me)).lerp(headOf(them), .5).add(new THREE.Vector3(0, .45 + Math.sin(t * 2) * .05, 0)); }
-  for (let i = hearts.length - 1; i >= 0; i--) { const h = hearts[i], a = (t - h.t0) / 2.2; if (a > 1) { scene.remove(h.s); hearts.splice(i, 1); continue; } h.s.position.y += dt * .5; h.s.position.x += Math.sin(a * 9 + h.p) * .004; h.s.material.opacity = 1 - a; }
-  tickSwoop(t); tick11(dt, t); tick12(dt, t); stepCam(dt); highCam(t); followKey(); if (frameN % 20 === 0) shadowize();
+  for (let i = hearts.length - 1; i >= 0; i--) { const h = hearts[i], a = (t - h.t0) / 2.2; if (a > 1) { scene.remove(h.s); if (h.own) { h.s.material.map.dispose(); h.s.material.dispose(); } hearts.splice(i, 1); continue; } h.s.position.y += dt * .5; h.s.position.x += Math.sin(a * 9 + h.p) * .004; h.s.material.opacity = 1 - a; }
+  tickSwoop(t); tick11(dt, t); tick12(dt, t); tick13(dt, t); stepCam(dt); highCam(t); followKey(); if (frameN % 20 === 0) shadowize();
   if ((frameN = (frameN || 0) + 1) % 3 === 0) grain.uniforms.t.value = (grain.uniforms.t.value + 1.7) % 100; composer.render();
   if (snapNext) { snapNext = false; grabPhoto(); }
   if (t - lastSent > .05) { lastSent = t; send({ t: 'me', pl: place.id, x: +me.x.toFixed(3), z: +me.z.toFixed(3), ry: +me.ry.toFixed(3), seat: me.seat, c: me.car >= 0 ? me.car : -1, w: me.walking, j: +me.jy.toFixed(3), a: me.vy !== 0 ? 1 : 0, ps: me.pose || '', fl: me.flipT ? 1 : 0, hy: +(me.lookY || 0).toFixed(2), hp: +(me.lookP || 0).toFixed(2) }); }
@@ -3394,7 +3401,7 @@ $('radiob').onclick = openRadio;
 // ---------- our love level: do sweet things together, level up, unlock achievements ----------
 const LV = [[0, 'just met'], [30, 'crushing'], [90, 'talking stage'], [180, 'dating'], [320, 'official'], [520, 'in love'], [800, 'soulmates'], [1200, 'forever'], [1800, 'legendary ♾']];
 const ACH = { cuddle: '🫂 Cuddle puddle', race: '🏁 Won a car race', hug: '🤗 First hug', kiss: '💋 First kiss', dance: '💃 First slow dance', beachdance: '🌅 Slow dance on the beach', massage: '💆 Spa day', letter: '✉️ Love letter', watch30: '🍿 30 min watching together',
-  days7: '📅 7 days together', match5: '💞 Matched 5 times', rpswin: '✊ Played RPS to 3', stare: '👀 Had a staring contest', wish: '🌠 Made a wish', smore: "🔥 Perfect s'more", places: '🗺 Been everywhere', pets: '🐾 Pet playdate', wall: '📌 Photo on the wall', fetch: '🎾 Good pet' };
+  days7: '📅 7 days together', match5: '💞 Matched 5 times', rpswin: '✊ Played RPS to 3', stare: '👀 Had a staring contest', wish: '🌠 Made a wish', smore: "🔥 Perfect s'more", places: '🗺 Been everywhere', pets: '🐾 Pet playdate', wall: '📌 Photo on the wall', fetch: '🎾 Good pet', rally10: '🎈 10 in a row', rally25: '🎈 25 in a row' };
 let love = { xp: 0, ach: {}, days: [], places: [], matches: 0, watchMin: 0, lastLv: 1 };
 try { love = { ...love, ...JSON.parse(localStorage.getItem('ols-love') || '{}') }; } catch {}
 let wishes = []; try { wishes = JSON.parse(localStorage.getItem('ols-wishes') || '[]'); } catch {}
@@ -3515,7 +3522,7 @@ function onFun11(m) {
   switch (m.t) {
     case 'hello': send({ t: 'love', s: love }); if (radio && isHost) send({ t: 'radio', st: radio.st }); return false;
     case 'love': { const o = m.s || {}; love.xp = Math.max(love.xp, o.xp || 0); love.ach = { ...(o.ach || {}), ...love.ach }; for (const k of ['days', 'places']) love[k] = [...new Set([...(love[k] || []), ...(o[k] || [])])];
-      love.matches = Math.max(love.matches || 0, o.matches || 0); love.watchMin = Math.max(love.watchMin || 0, o.watchMin || 0); saveLove(); checkLevel(); return true; }
+      love.matches = Math.max(love.matches || 0, o.matches || 0); love.watchMin = Math.max(love.watchMin || 0, o.watchMin || 0); love.rally = Math.max(love.rally || 0, +o.rally || 0); saveLove(); checkLevel(); return true; }
     case 'lovexp': loveAdd(m.n, true); return true;
     case 'ach': achieve(m.id, true); return true;
     case 'radio': if (m.st && radio && radio.st === m.st) return true; if (m.st) { radioOn(m.st, false); toast(`📻 ${them ? them.name : 'They'} put on ${STATIONS[m.st].name}`); } else radioOff(false); return true;
@@ -3805,7 +3812,9 @@ function openHelp() {
   panel.dataset.k = 'help'; panel.classList.remove('side');
   const K = [['WASD', 'move'], ['Space', 'jump (run + jump = flip)'], ['Shift', 'run'], ['drag / 2-finger drag', 'turn the camera'], ['scroll', 'zoom · all the way in = 1st person'], ['C', 'crouch · slide while running'], ['X', 'sit → lie on back → lie on stomach'],
     ['E', 'hold hands · pet · bong · tea'], ['B', 'throw the ball for your pet'], ['F', 'throw popcorn'], ['Q / G', 'push / smack'], ['H', 'hearts'], ['1-9', 'emotes'], ['Enter', 'chat'], ['T', 'watch mode (theater / split)'], ['L', 'camera lock'], ['V', '1st / 3rd person']];
-  panel.innerHTML = `<h3>⌨️ Controls</h3><div class="keys">${K.map(([k, d]) => `<kbd>${k}</kbd><span>${d}</span>`).join('')}</div>`;
+  const NEW = ['🎈 Games → Keep it up: walk or jump under the balloon'];
+  panel.innerHTML = `<h3>⌨️ Controls</h3><div class="keys">${K.map(([k, d]) => `<kbd>${k}</kbd><span>${d}</span>`).join('')}</div>
+    <h3 style="margin-top:14px">✨ New things to try</h3>${NEW.map(s => `<div class="row hintrow" style="margin-top:4px">${s}</div>`).join('')}`;
   panel.style.display = 'block';
 }
 $('helpb').onclick = openHelp;
@@ -3930,6 +3939,118 @@ function onFun10(m) {
   return false;
 }
 
+// ---------- 🎈 keep it up: a floaty balloon you bop back and forth with your heads (co-op, one shared count) ----------
+// Strict turns: only the player whose turn it is can touch it or let it land, so one client is always the authority for both.
+const RALLY_R = .23, RALLY_ROLE = { host: '#ff8a3d', guest: '#a77bff' }, RALLY_TIER = ['', '#ffcf6b', '#b6ff3b', '#a77bff'], RALLY_WHITE = new THREE.Color('#ffffff');
+function rallyStart(g) {
+  const beach = place.id === 'beach', ball = new THREE.Group(), o = them || me, first = g.first === myRole() ? me : o, now = clock.elapsedTime;
+  let mat, tex = null;
+  if (beach) { // a striped beach ball instead of a balloon
+    tex = canvasTex(256, 64, (x, w, h) => ['#ff8a3d', '#fff4e2', '#a77bff', '#fff4e2', '#ff8a3d', '#fff4e2', '#a77bff', '#fff4e2'].forEach((c, i) => { x.fillStyle = c; x.fillRect(i * w / 8, 0, w / 8 + 1, h); }));
+    mat = new THREE.MeshStandardMaterial({ map: tex, roughness: .45, envMapIntensity: .35, emissive: '#ff5a1f', emissiveIntensity: .12 });
+    ball.add(ell(.24, .24, .24, mat));
+  } else { // its own material (not M(), which is shared): it gets retinted and is disposed with the game
+    mat = new THREE.MeshStandardMaterial({ color: '#ff8a3d', roughness: .35, envMapIntensity: .35, emissive: '#ff5a1f', emissiveIntensity: .3 });
+    ball.add(ell(.2, .24, .2, mat)); put(ell(.03, .025, .03, mat), 0, -.25, 0, ball); put(cyl(.004, .004, .5, '#fff4e2', 4), 0, -.52, 0, ball);
+  }
+  const shadow = new THREE.Mesh(GEO.rallyBlob ||= shared(new THREE.PlaneGeometry(1, 1)), blobMat); shadow.rotation.x = -PI / 2; // how big it is tells you how low the balloon is
+  const ring = new THREE.Mesh(GEO.rallyRing ||= shared(new THREE.TorusGeometry(.32, .014, 6, 36)), GLOW('#ffcf6b', 3)); ring.rotation.x = PI / 2;
+  for (const q of [ball, shadow, ring]) { q.traverse(n => n.userData.rally = true); scene.add(q); }
+  let x = (me.x + o.x) / 2, z = (me.z + o.z) / 2; const dx = x - first.x, dz = z - first.z, d = Math.hypot(dx, dz);
+  if (d > 1.6) { x = first.x + dx / d * 1.6; z = first.z + dz / d * 1.6; } // far apart: between you, but still a few steps from whoever goes first
+  ball.position.set(x, 2.6, z);
+  Object.assign(game, { ball, shadow, ring, bmat: mat, btex: tex, beach, vel: new THREE.Vector3(), off: new THREE.Vector3(), easeT: 0, turn: g.first === 'guest' ? 'guest' : 'host', n: 0, h: 0,
+    hitAt: -9, serveAt: now + 1.2, lt: now, down: false, downAt: 0, over: false, pz: z, tintK: -1, hudK: -1 });
+  rallyLook(now, 0);
+  toast(game.turn === myRole() ? '🎈 Keep it up! You go first: walk or jump under the balloon' : `🎈 Keep it up! ${nameOf(game.turn)} goes first, then it's yours`);
+}
+// seconds until a balloon hit upward at vy from y0 is back down at head height: the same floaty physics as tickRally, so the aim really lands
+function rallyFlight(y0, vy, top) {
+  const G = 2.4, VT = 1.6; let up = vy / G, peak = y0 + vy * vy / (2 * G), v0 = 0;
+  if (peak > top) { const vc = Math.sqrt(Math.max(0, vy * vy - 2 * G * Math.max(0, top - y0))); up = (vy - vc) / G; peak = top; v0 = Math.min(VT, vc * .3); } // it bumps the ceiling first
+  const d = Math.max(0, peak - 1.15), dAcc = (VT * VT - v0 * v0) / (2 * G);
+  return Math.max(.8, up + (d <= dAcc ? (Math.sqrt(v0 * v0 + 2 * G * d) - v0) / G : (VT - v0) / G + (d - dAcc) / VT));
+}
+function rallyLook(t, dt) { // shadow, turn ring, colour, wobble, HUD: no allocations unless something changed
+  const b = game.ball, p = b.position, mine = game.turn === myRole(), n = game.n, best = love.rally || 0;
+  game.shadow.position.set(p.x, .014, p.z); game.shadow.scale.setScalar(.3 + (1 - Math.min(1, Math.max(0, p.y / 3))) * .5);
+  game.ring.visible = mine; game.ring.position.set(p.x, .03, p.z); game.ring.scale.setScalar(1 + Math.sin(t * 6) * .06);
+  if (game.beach) { b.rotation.x += game.vel.z * dt * 1.5; b.rotation.z -= game.vel.x * dt * 1.5; b.rotation.y += dt * .6; } else b.rotation.z = Math.sin(t * 2.2) * .1 - game.vel.x * .12;
+  const tier = n >= 50 ? 3 : n >= 25 ? 2 : n >= 10 ? 1 : 0, key = tier * 2 + (game.turn === 'host' ? 0 : 1);
+  if (key !== game.tintK) { // role colour says whose turn it is; 10 / 25 / 50 in a row turn it gold / acid green / violet (same on both screens: it only depends on n and turn)
+    game.tintK = key; const c = RALLY_TIER[tier] || RALLY_ROLE[game.turn] || RALLY_ROLE.host;
+    game.bmat.color.set(c); game.bmat.emissive.set(c); if (game.beach) game.bmat.color.lerp(RALLY_WHITE, .55); // the beach ball keeps its stripes, just tinted
+  }
+  const hk = n * 2 + (mine ? 1 : 0) + best * 1e6;
+  if (hk !== game.hudK) { game.hudK = hk; hud.textContent = `🎈 ${n} · best ${best} · ${mine ? 'your turn!' : nameOf(game.turn) + "'s turn"}`; }
+  hud.style.display = 'block';
+}
+function tickRally(t) {
+  const b = game.ball.position, v = game.vel, R = RALLY_R, dt = Math.min(.05, Math.max(0, t - game.lt)); game.lt = t;
+  if (!travelling) {
+    const easing = game.easeT > 0;
+    if (easing) { b.addScaledVector(game.off, Math.min(dt, game.easeT) / .15); game.easeT -= dt; } // glide onto where their hit really happened
+    if (game.down) { if (t - game.downAt > 1.5) rallyOver(game.n, false); } // it landed on their turn and their call never arrived
+    else if (t >= game.serveAt) {
+      v.y = Math.max(-1.6, v.y - 2.4 * dt); b.addScaledVector(v, dt);
+      const B = place.bounds, top = (place.outdoor ? 7 : 2.9) - R;
+      if (b.x < B[0]) { b.x = B[0]; v.x = Math.abs(v.x) * .6; } else if (b.x > B[1]) { b.x = B[1]; v.x = -Math.abs(v.x) * .6; }
+      if (b.z < B[2]) { b.z = B[2]; v.z = Math.abs(v.z) * .6; } else if (b.z > B[3]) { b.z = B[3]; v.z = -Math.abs(v.z) * .6; }
+      if (b.y > top) { b.y = top; v.y = -Math.abs(v.y) * .3; }
+      if (game.beach) { if (!easing && (game.pz - 8.6) * (b.z - 8.6) < 0 && Math.abs(b.x) < 3.2 && b.y > 2.2) game.over = true; game.pz = b.z; } // over the volleyball net
+      if (game.turn === myRole()) {
+        if (!me.ko && !(me.car >= 0) && t - game.hitAt > .35 && v.y <= .3) { const dx = b.x - me.x, dy = b.y - headY(me) - .15, dz = b.z - me.z; if (dx * dx + dy * dy + dz * dz < .25) rallyHit(); }
+        if (game.turn === myRole() && b.y <= R) rallyDrop(); // still mine and it touched the ground
+      } else if (b.y <= R) { b.y = R; v.set(0, 0, 0); game.down = true; game.downAt = t; } // not mine to call: hold it there and wait for theirs
+    }
+  }
+  rallyLook(t, dt);
+}
+function rallyHit() { // the reach / cooldown checks live in tickRally; dbg.rallyHit calls this directly (it must still be my turn)
+  if (!game || game.mode !== 'rally' || game.turn !== myRole() || !them || travelling) return false;
+  const b = game.ball.position, v = game.vel, jumpHit = me.vy > 0, B = place.bounds, prev = game.n, over = game.over, vy = jumpHit ? 3.2 : 2.6;
+  // the scatter is rolled here only and travels in the message; it grows with the count, and a jumping header halves it
+  const s = (.3 + Math.min(1.2, prev * .03)) * (jumpHit ? .5 : 1), a = Math.random() * PI * 2, r = Math.sqrt(Math.random()) * s;
+  const ax = Math.min(B[1] - .3, Math.max(B[0] + .3, them.x + Math.cos(a) * r)), az = Math.min(B[3] - .3, Math.max(B[2] + .3, them.z + Math.sin(a) * r));
+  const T = rallyFlight(b.y, vy, (place.outdoor ? 7 : 2.9) - RALLY_R);
+  v.set(+((ax - b.x) / T).toFixed(3), vy, +((az - b.z) / T).toFixed(3));
+  game.n += over ? 2 : 1; game.over = false; game.h++; game.turn = otherRole(); game.hitAt = clock.elapsedTime; game.serveAt = 0; game.easeT = 0; game.down = false;
+  me.squish = .6; sfx('pop'); if (over) floatText(me, 'over the net! +2', '#ffcf6b');
+  send({ t: 'bal', h: game.h, n: game.n, p: [+b.x.toFixed(3), +b.y.toFixed(3), +b.z.toFixed(3)], v: [v.x, v.y, v.z] });
+  for (const k of [10, 25, 50]) if (prev < k && game.n >= k) { burst(); sfx('match'); loveAdd(3); if (k < 50) achieve('rally' + k); }
+  return true;
+}
+function rallyDrop() { // only the turn-holder calls the drop; they also pick the next serve spot so both screens agree on it
+  if (!game || game.mode !== 'rally' || game.turn !== myRole()) return false;
+  const q = them || me, B = place.bounds, n = game.n;
+  const x = +Math.min(B[1] - .3, Math.max(B[0] + .3, q.x + Math.sin(q.ry) * .8)).toFixed(2), z = +Math.min(B[3] - .3, Math.max(B[2] + .3, q.z + Math.cos(q.ry) * .8)).toFixed(2);
+  send({ t: 'balx', h: game.h, n, s: [x, z] }); rallyOver(n, true, x, z); return true;
+}
+function rallyOver(n, mine, x, z) { // mine: I dropped it. The one who did NOT drop gets the next serve, a step in front of them
+  if (!game || game.mode !== 'rally') return;
+  const rec = n > (love.rally || 0), B = place.bounds;
+  toast(`🎈 ${n} in a row${rec ? ' · new record!' : ''}`);
+  if (rec) { love.rally = n; saveLove(); burst(); sfx('win'); }
+  if (!Number.isFinite(x) || !Number.isFinite(z)) { const q = mine ? them || me : me; x = q.x + Math.sin(q.ry) * .8; z = q.z + Math.cos(q.ry) * .8; }
+  x = Math.min(B[1] - .3, Math.max(B[0] + .3, x)); z = Math.min(B[3] - .3, Math.max(B[2] + .3, z));
+  game.n = 0; game.h++; game.turn = mine ? otherRole() : myRole(); game.down = false; game.over = false; game.easeT = 0; game.pz = z;
+  game.ball.position.set(x, 2.6, z); game.vel.set(0, 0, 0); game.serveAt = clock.elapsedTime + 2.2;
+}
+function tick13(dt, t) { } // per-frame hook for the newest features (the rally balloon ticks inside tickGame, next to the other little games)
+function onFun13(m) {
+  switch (m.t) {
+    case 'hello': return false;
+    case 'bal': { // their hit: the count, where it happened and where it is going
+      if (!game || game.mode !== 'rally' || !(m.h > game.h) || !Array.isArray(m.p) || !Array.isArray(m.v) || ![...m.p, ...m.v].every(Number.isFinite) || m.p.length < 3 || m.v.length < 3) return true;
+      game.h = m.h; game.n = Math.max(0, Math.floor(+m.n || 0)); game.vel.fromArray(m.v); game.off.fromArray(m.p).sub(game.ball.position); game.easeT = .15;
+      game.turn = myRole(); game.down = false; game.serveAt = 0; game.over = false;
+      if (them) floatText(them, String(game.n), '#ffcf6b', true);
+      return true; }
+    case 'balx': if (game && game.mode === 'rally' && m.h >= game.h) { const s = Array.isArray(m.s) ? m.s : []; rallyOver(Math.max(0, Math.floor(+m.n || 0)), false, s[0], s[1]); } return true;
+  }
+  return false;
+}
+
 // ---------- intro: quick picks next to your little you ----------
 function renderQuick() {
   const L = myLook, el = $('qPicks'); if (!el) return;
@@ -3959,6 +4080,6 @@ $('go').onclick = () => {
   }, 980);
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { GATES, carE, exitCar, driveStep, get karts() { return place.karts }, newGame, kartBlocked, eatSnack, setLights, lightV, startCuddle, seatPair, iceServers, get peer() { return peer }, setGfx, get qMode() { return qMode }, get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: v => hanging = v, doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { get rally() { return game && game.mode === 'rally' ? game : null }, rallyHit, rallyDrop, GATES, carE, exitCar, driveStep, get karts() { return place.karts }, newGame, kartBlocked, eatSnack, setLights, lightV, startCuddle, seatPair, iceServers, get peer() { return peer }, setGfx, get qMode() { return qMode }, get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: v => hanging = v, doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
