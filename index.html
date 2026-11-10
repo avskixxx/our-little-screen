@@ -1578,7 +1578,7 @@ function newGame(mode) {
   if (mode === 'potato') g = { mode, it: Math.random() < .5 ? 'host' : 'guest', dur: 18 + Math.random() * 22 };
   if (mode === 'lava') g = { mode, rounds: lavaRounds(), dur: 999, lives: { host: 3, guest: 3 } };
   if (mode === 'hide') g = { mode, seeker: myRole(), dur: 75, count: 12 };
-  if (mode === 'rally') g = { mode, dur: 99999, first: Math.random() < .5 ? 'host' : 'guest' };
+  if (mode === 'rally') g = { mode, dur: 99999, first: Math.random() < .5 ? 'host' : 'guest', id: Math.floor(Math.random() * 1e9) }; // id: which rally a hit belongs to (it also makes two starts in a row differ, so the guest's dupStart keeps a quick restart)
   if (mode === 'stars') {
     const b = place.bounds, pts = [];
     for (let i = 0; i < 12; i++) pts.push([+(b[0] + .4 + Math.random() * (b[1] - b[0] - .8)).toFixed(2), +(b[2] + .4 + Math.random() * (b[3] - b[2] - .8)).toFixed(2)]);
@@ -3942,6 +3942,11 @@ function onFun10(m) {
 // ---------- 🎈 keep it up: a floaty balloon you bop back and forth with your heads (co-op, one shared count) ----------
 // Strict turns: only the player whose turn it is can touch it or let it land, so one client is always the authority for both.
 const RALLY_R = .23, RALLY_ROLE = { host: '#ff8a3d', guest: '#a77bff' }, RALLY_TIER = ['', '#ffcf6b', '#b6ff3b', '#a77bff'], RALLY_WHITE = new THREE.Color('#ffffff');
+function rallySpot(x, z) { // a serve / aim spot the players can really walk to: inside the walkable box, and in a room (not a wall) where the place has several
+  const B = place.box || place.bounds; x = Math.min(B[1] - .3, Math.max(B[0] + .3, x)); z = Math.min(B[3] - .3, Math.max(B[2] + .3, z));
+  if (place.rects && !inRects(x, z)) [x, z] = nearRect(x, z);
+  return [+x.toFixed(2), +z.toFixed(2)];
+}
 function rallyStart(g) {
   const beach = place.id === 'beach', ball = new THREE.Group(), o = them || me, first = g.first === myRole() ? me : o, now = clock.elapsedTime;
   let mat, tex = null;
@@ -3958,9 +3963,9 @@ function rallyStart(g) {
   for (const q of [ball, shadow, ring]) { q.traverse(n => n.userData.rally = true); scene.add(q); }
   let x = (me.x + o.x) / 2, z = (me.z + o.z) / 2; const dx = x - first.x, dz = z - first.z, d = Math.hypot(dx, dz);
   if (d > 1.6) { x = first.x + dx / d * 1.6; z = first.z + dz / d * 1.6; } // far apart: between you, but still a few steps from whoever goes first
-  ball.position.set(x, 2.6, z);
+  [x, z] = rallySpot(x, z); ball.position.set(x, 2.6, z);
   Object.assign(game, { ball, shadow, ring, bmat: mat, btex: tex, beach, vel: new THREE.Vector3(), off: new THREE.Vector3(), easeT: 0, turn: g.first === 'guest' ? 'guest' : 'host', n: 0, h: 0,
-    hitAt: -9, serveAt: now + 1.2, lt: now, down: false, downAt: 0, over: false, pz: z, tintK: -1, hudK: -1 });
+    hitAt: -9, serveAt: now + 1.2, lt: now, down: false, downAt: 0, over: false, pz: z, tintK: -1, hudK: -1, idle: 0, fb: -1 }); // idle: serves in a row nobody touched · fb: the touch my own fallback call made
   rallyLook(now, 0);
   toast(game.turn === myRole() ? '🎈 Keep it up! You go first: walk or jump under the balloon' : `🎈 Keep it up! ${nameOf(game.turn)} goes first, then it's yours`);
 }
@@ -3990,10 +3995,10 @@ function tickRally(t) {
   if (!travelling) {
     const easing = game.easeT > 0;
     if (easing) { b.addScaledVector(game.off, Math.min(dt, game.easeT) / .15); game.easeT -= dt; } // glide onto where their hit really happened
-    if (game.down) { if (t - game.downAt > 1.5) rallyOver(game.n, false); } // it landed on their turn and their call never arrived
+    if (game.down) { if (t - game.downAt > 1.5) rallyFallback(); } // it landed on their turn and their call never arrived
     else if (t >= game.serveAt) {
       v.y = Math.max(-1.6, v.y - 2.4 * dt); b.addScaledVector(v, dt);
-      const B = place.bounds, top = (place.outdoor ? 7 : 2.9) - R;
+      const B = place.box || place.bounds, top = (place.outdoor ? 7 : 2.9) - R; // the whole walkable box: the lobby / bedrooms count too
       if (b.x < B[0]) { b.x = B[0]; v.x = Math.abs(v.x) * .6; } else if (b.x > B[1]) { b.x = B[1]; v.x = -Math.abs(v.x) * .6; }
       if (b.z < B[2]) { b.z = B[2]; v.z = Math.abs(v.z) * .6; } else if (b.z > B[3]) { b.z = B[3]; v.z = -Math.abs(v.z) * .6; }
       if (b.y > top) { b.y = top; v.y = -Math.abs(v.y) * .3; }
@@ -4004,49 +4009,57 @@ function tickRally(t) {
       } else if (b.y <= R) { b.y = R; v.set(0, 0, 0); game.down = true; game.downAt = t; } // not mine to call: hold it there and wait for theirs
     }
   }
-  rallyLook(t, dt);
+  if (game) rallyLook(t, dt); // (an idle balloon may just have been put away)
 }
 function rallyHit() { // the reach / cooldown checks live in tickRally; dbg.rallyHit calls this directly (it must still be my turn)
   if (!game || game.mode !== 'rally' || game.turn !== myRole() || !them || travelling) return false;
-  const b = game.ball.position, v = game.vel, jumpHit = me.vy > 0, B = place.bounds, prev = game.n, over = game.over, vy = jumpHit ? 3.2 : 2.6;
+  const b = game.ball.position, v = game.vel, jumpHit = me.vy > 0, prev = game.n, over = game.over, vy = jumpHit ? 3.2 : 2.6;
   // the scatter is rolled here only and travels in the message; it grows with the count, and a jumping header halves it
   const s = (.3 + Math.min(1.2, prev * .03)) * (jumpHit ? .5 : 1), a = Math.random() * PI * 2, r = Math.sqrt(Math.random()) * s;
-  const ax = Math.min(B[1] - .3, Math.max(B[0] + .3, them.x + Math.cos(a) * r)), az = Math.min(B[3] - .3, Math.max(B[2] + .3, them.z + Math.sin(a) * r));
+  const [ax, az] = rallySpot(them.x + Math.cos(a) * r, them.z + Math.sin(a) * r);
   const T = rallyFlight(b.y, vy, (place.outdoor ? 7 : 2.9) - RALLY_R);
   v.set(+((ax - b.x) / T).toFixed(3), vy, +((az - b.z) / T).toFixed(3));
-  game.n += over ? 2 : 1; game.over = false; game.h++; game.turn = otherRole(); game.hitAt = clock.elapsedTime; game.serveAt = 0; game.easeT = 0; game.down = false;
+  game.n += over ? 2 : 1; game.over = false; game.h++; game.turn = otherRole(); game.hitAt = clock.elapsedTime; game.serveAt = 0; game.easeT = 0; game.down = false; game.idle = 0;
   me.squish = .6; sfx('pop'); if (over) floatText(me, 'over the net! +2', '#ffcf6b');
-  send({ t: 'bal', h: game.h, n: game.n, p: [+b.x.toFixed(3), +b.y.toFixed(3), +b.z.toFixed(3)], v: [v.x, v.y, v.z] });
+  send({ t: 'bal', g: game.id, h: game.h, n: game.n, p: [+b.x.toFixed(3), +b.y.toFixed(3), +b.z.toFixed(3)], v: [v.x, v.y, v.z] });
   for (const k of [10, 25, 50]) if (prev < k && game.n >= k) { burst(); sfx('match'); loveAdd(3); if (k < 50) achieve('rally' + k); }
   return true;
 }
 function rallyDrop() { // only the turn-holder calls the drop; they also pick the next serve spot so both screens agree on it
   if (!game || game.mode !== 'rally' || game.turn !== myRole()) return false;
-  const q = them || me, B = place.bounds, n = game.n;
-  const x = +Math.min(B[1] - .3, Math.max(B[0] + .3, q.x + Math.sin(q.ry) * .8)).toFixed(2), z = +Math.min(B[3] - .3, Math.max(B[2] + .3, q.z + Math.cos(q.ry) * .8)).toFixed(2);
-  send({ t: 'balx', h: game.h, n, s: [x, z] }); rallyOver(n, true, x, z); return true;
+  const q = them || me, n = game.n, [x, z] = rallySpot(q.x + Math.sin(q.ry) * .8, q.z + Math.cos(q.ry) * .8);
+  send({ t: 'balx', g: game.id, h: game.h, n, s: [x, z] }); rallyOver(n, true, x, z); rallyIdle(); return true;
+}
+function rallyFallback() { // it sat on the floor 1.5 s on THEIR turn with no call (their tab is asleep?): I call it, take the serve, and say so (f), so both stay on the same touch count
+  const n = game.n, [x, z] = rallySpot(me.x + Math.sin(me.ry) * .8, me.z + Math.cos(me.ry) * .8);
+  send({ t: 'balx', g: game.id, h: game.h, n, s: [x, z], f: 1 }); rallyOver(n, false, x, z); game.fb = game.h; rallyIdle();
+}
+function rallyIdle() { // asked by whoever just made the call: five serves in a row that nobody touched, so put it away instead of serving forever
+  if (!game || game.idle < 5) return;
+  send({ t: 'gameEnd' }); endGame(true); toast('🎈 Balloon put away');
 }
 function rallyOver(n, mine, x, z) { // mine: I dropped it. The one who did NOT drop gets the next serve, a step in front of them
   if (!game || game.mode !== 'rally') return;
-  const rec = n > (love.rally || 0), B = place.bounds;
-  toast(`🎈 ${n} in a row${rec ? ' · new record!' : ''}`);
+  const rec = n > (love.rally || 0);
+  if (n || !game.idle) toast(`🎈 ${n} in a row${rec ? ' · new record!' : ''}`); // an untouched serve landing again says nothing (it would bury every other toast)
   if (rec) { love.rally = n; saveLove(); burst(); sfx('win'); }
   if (!Number.isFinite(x) || !Number.isFinite(z)) { const q = mine ? them || me : me; x = q.x + Math.sin(q.ry) * .8; z = q.z + Math.cos(q.ry) * .8; }
-  x = Math.min(B[1] - .3, Math.max(B[0] + .3, x)); z = Math.min(B[3] - .3, Math.max(B[2] + .3, z));
-  game.n = 0; game.h++; game.turn = mine ? otherRole() : myRole(); game.down = false; game.over = false; game.easeT = 0; game.pz = z;
+  [x, z] = rallySpot(x, z);
+  game.n = 0; game.h++; game.idle++; game.turn = mine ? otherRole() : myRole(); game.down = false; game.over = false; game.easeT = 0; game.pz = z;
   game.ball.position.set(x, 2.6, z); game.vel.set(0, 0, 0); game.serveAt = clock.elapsedTime + 2.2;
 }
 function tick13(dt, t) { } // per-frame hook for the newest features (the rally balloon ticks inside tickGame, next to the other little games)
 function onFun13(m) {
   switch (m.t) {
     case 'hello': return false;
-    case 'bal': { // their hit: the count, where it happened and where it is going
-      if (!game || game.mode !== 'rally' || !(m.h > game.h) || !Array.isArray(m.p) || !Array.isArray(m.v) || ![...m.p, ...m.v].every(Number.isFinite) || m.p.length < 3 || m.v.length < 3) return true;
+    case 'bal': { // their hit: the count, where it happened and where it is going (g: this rally only · a hit that crossed my own fallback call still wins)
+      if (!game || game.mode !== 'rally' || m.g !== game.id || !(m.h > game.h || (m.h === game.h && game.fb === game.h)) || !Array.isArray(m.p) || !Array.isArray(m.v) || ![...m.p, ...m.v].every(Number.isFinite) || m.p.length < 3 || m.v.length < 3) return true;
       game.h = m.h; game.n = Math.max(0, Math.floor(+m.n || 0)); game.vel.fromArray(m.v); game.off.fromArray(m.p).sub(game.ball.position); game.easeT = .15;
-      game.turn = myRole(); game.down = false; game.serveAt = 0; game.over = false;
+      game.turn = myRole(); game.down = false; game.serveAt = 0; game.over = false; game.idle = 0; game.fb = -1;
       if (them) floatText(them, String(game.n), '#ffcf6b', true);
       return true; }
-    case 'balx': if (game && game.mode === 'rally' && m.h >= game.h) { const s = Array.isArray(m.s) ? m.s : []; rallyOver(Math.max(0, Math.floor(+m.n || 0)), false, s[0], s[1]); } return true;
+    case 'balx': // their call that it landed. f: their fallback call on MY turn, so the serve is theirs. Taking their h keeps both on the same touch
+      if (game && game.mode === 'rally' && m.g === game.id && m.h >= game.h) { const s = Array.isArray(m.s) ? m.s : []; game.h = +m.h; rallyOver(Math.max(0, Math.floor(+m.n || 0)), !!m.f, s[0], s[1]); } return true;
   }
   return false;
 }
