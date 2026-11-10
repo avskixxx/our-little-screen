@@ -61,7 +61,14 @@
   #flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:30}
   #photo{position:fixed;inset:0;z-index:25;background:#050308cc;display:none;align-items:center;justify-content:center;padding:16px}
   #photoCard{max-width:min(92vw,560px);text-align:center}
-  #photoImg{width:100%;border-radius:10px;transform:rotate(-2deg);box-shadow:0 20px 60px #000a, 0 0 40px #ff8a3d33}
+  #photoImg{width:auto;max-width:100%;max-height:74vh;border-radius:10px;transform:rotate(-2deg);box-shadow:0 20px 60px #000a, 0 0 40px #ff8a3d33}
+  #strip{position:relative}
+  #strip.new::after{content:"";position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:#b6ff3b;box-shadow:0 0 8px #b6ff3b}
+  #stripHud{position:absolute;left:50%;top:max(15%,104px);transform:translateX(-50%);z-index:4;pointer-events:none;display:none;text-align:center;white-space:nowrap}
+  #stripHud b{display:block;font:italic 700 clamp(24px,5vh,38px) "Bradley Hand","Segoe Print","Comic Sans MS",cursive;color:#fff6e6;text-shadow:0 2px 16px #000d,0 0 26px #ff8a3d99}
+  #stripHud i{display:block;height:1.05em;font:800 clamp(64px,15vh,120px)/1.05 ui-rounded,"SF Pro Rounded",system-ui,sans-serif;color:#ffcf6b;text-shadow:0 4px 28px #000b,0 0 34px #ff8a3d88}
+  @media (max-width:430px){#actions .grp .pill{padding:6px}}
+  #stripHud span{display:block;font-size:12px;font-weight:700;letter-spacing:.24em;color:#ffcf6b;opacity:.8;text-shadow:0 1px 8px #000}
   a.pill{text-decoration:none;display:inline-block}
   #chat{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);z-index:6;width:min(86%,440px);display:none;border:1px solid #ffcf6b55;border-radius:999px;padding:12px 20px;background:#140c18ee;color:#f6e7cf;font:inherit;outline:none;box-shadow:0 0 30px #ff8a3d33}
   .pvbox{width:170px;height:190px;margin:0 auto 8px;border-radius:40px;background:radial-gradient(circle at 50% 60%,#ffcf6b22,#0000 70%);touch-action:none}
@@ -164,11 +171,11 @@
     <div id="hud"></div><input id="chat" maxlength="80" placeholder="say something sweet… (Enter to send)" autocomplete="off"><div id="blind"></div><div id="panel"></div>
     <div id="actions">
       <div class="grp" id="more" style="display:none"><button class="pill" id="pov" title="Switch view (V)">👀 3rd person</button><button class="pill" id="pop" title="Throw popcorn (F)">🍿</button><button class="pill" id="pushb" title="Push (Q)">🫸</button><button class="pill" id="smackb" title="Smack (G)">🖐</button></div>
-      <div class="grp"><button class="pill" id="moreb" title="More">⋯</button><button class="pill" id="mic" title="Voice chat">🎙</button><button class="pill" id="camb" title="Webcam">📷</button><button class="pill" id="talk" title="Chat (Enter)">💬</button><button class="pill" id="emote" title="Emotes (1-6)">😊</button><button class="pill" id="snackb" title="Snacks">🍔</button><button class="pill" id="hands" title="Hold hands / pet (E)">🤝</button><button class="pill" id="heart" title="Send a heart (H)">♥</button><button class="pill" id="snap" title="Photo booth">📸</button></div>
+      <div class="grp"><button class="pill" id="moreb" title="More">⋯</button><button class="pill" id="mic" title="Voice chat">🎙</button><button class="pill" id="camb" title="Webcam">📷</button><button class="pill" id="talk" title="Chat (Enter)">💬</button><button class="pill" id="emote" title="Emotes (1-6)">😊</button><button class="pill" id="snackb" title="Snacks">🍔</button><button class="pill" id="hands" title="Hold hands / pet (E)">🤝</button><button class="pill" id="heart" title="Send a heart (H)">♥</button><button class="pill" id="snap" title="Photo booth">📸</button><button class="pill" id="strip" title="Photo strip: 4 poses, 3 seconds each">🎞</button></div>
       <button class="pill" id="watch" title="Watch mode (T)" style="display:none">📺 Watch</button><button class="pill" id="fs" title="Full screen">⛶</button>
       <button class="pill" id="share" title="Put a Chrome tab on the screen">🎮 Share a tab</button>
     </div>
-    <div id="fade"><div><b id="fadeTitle"></b><i id="fadeSub"></i></div></div><div id="ptitle"></div><div id="cg"></div><button class="pill on" id="wishb">🌠 Make a wish</button>
+    <div id="fade"><div><b id="fadeTitle"></b><i id="fadeSub"></i></div></div><div id="ptitle"></div><div id="stripHud"><b id="stripP"></b><i id="stripN"></i><span id="stripS"></span></div><div id="cg"></div><button class="pill on" id="wishb">🌠 Make a wish</button>
   </div>
   <div id="places"></div>
   <div id="hint">WASD move · Space jump · drag to turn · scroll in for 1st person · Shift run · C crouch (slide while running) · X sit / lie down · Q push · G smack · L camera lock · Enter chat · E hold hands / pet / bong / tea · B throw ball for your pet · F popcorn · 1-6 emotes · H hearts</div>
@@ -2008,7 +2015,7 @@ $('hats').onclick = openHats;
 // photo booth: a little polaroid of you two
 let snapNext = false;
 function takePhoto() { snapNext = true; }
-function grabPhoto() {
+function shootFrame(w, h) { // returns a w x h canvas. Call it right after composer.render(): the drawing buffer can only be read in that same task
   // re-render once from a camera in front of you two, so the photo shows your faces
   const mid = them ? headOf(me).lerp(headOf(them), .5) : headOf(me), fr = new THREE.Vector3(Math.sin(me.ry), 0, Math.cos(me.ry));
   const pos = mid.clone().addScaledVector(fr, them ? 2.5 : 1.9).add(new THREE.Vector3(0, .75, 0)), c = place.cam;
@@ -2016,29 +2023,34 @@ function grabPhoto() {
   const saveP = camera.position.clone(), saveQ = camera.quaternion.clone(), vis = meMesh.visible;
   camera.position.copy(pos); camera.lookAt(mid.clone().add(new THREE.Vector3(0, -.1, 0))); meMesh.visible = true;
   composer.render();
-  const src = renderer.domElement, W = src.width, H = src.height, iw = Math.min(W, H * 4 / 3), ih = iw * 3 / 4;
-  const ow = 900, ph = 675, pad = 36, out = document.createElement('canvas'); out.width = ow + pad * 2; out.height = ph + pad + 160;
+  const src = renderer.domElement, W = src.width, H = src.height, iw = Math.min(W, H * w / h), ih = iw * h / w;
+  const shot = document.createElement('canvas'); shot.width = w; shot.height = h;
+  shot.getContext('2d').drawImage(src, (W - iw) / 2, (H - ih) / 2, iw, ih, 0, 0, w, h);
+  camera.position.copy(saveP); camera.quaternion.copy(saveQ); meMesh.visible = vis;
+  return shot;
+}
+function grabPhoto() {
+  const ow = 900, ph = 675, pad = 36, shot = shootFrame(ow, ph), out = document.createElement('canvas'); out.width = ow + pad * 2; out.height = ph + pad + 160;
   const x = out.getContext('2d');
   x.fillStyle = '#fbf6ec'; x.fillRect(0, 0, out.width, out.height);
-  x.drawImage(src, (W - iw) / 2, (H - ih) / 2, iw, ih, pad, pad, ow, ph);
+  x.drawImage(shot, pad, pad); shot.width = shot.height = 0;
   x.fillStyle = 'rgba(255,170,90,.08)'; x.fillRect(pad, pad, ow, ph);
   x.textAlign = 'center'; x.fillStyle = '#3a2a20'; x.font = 'italic 600 46px "Bradley Hand", "Segoe Print", "Comic Sans MS", cursive';
   x.fillText(them ? `${me.name} ♥ ${them.name}` : `${me.name} ♥`, out.width / 2, ph + pad + 74);
   x.font = '26px ui-rounded, system-ui'; x.fillStyle = '#8a7060';
   x.fillText(`${place.name.replace(/^\S+\s/, '')} · ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`, out.width / 2, ph + pad + 122);
-  camera.position.copy(saveP); camera.quaternion.copy(saveQ); meMesh.visible = vis;
   const url = out.toDataURL('image/png');
   const sm = document.createElement('canvas'); sm.width = 360; sm.height = Math.round(360 * out.height / out.width); sm.getContext('2d').drawImage(out, 0, 0, sm.width, sm.height);
-  lastSnap = sm.toDataURL('image/jpeg', .82); viewPic = null;
-  $('photoImg').src = url; $('photoSave').href = url; $('photo').style.display = 'flex'; $('photoHang').style.display = ''; $('photoDown').style.display = 'none';
+  lastSnap = sm.toDataURL('image/jpeg', .82); lastAr = undefined; viewPic = null;
+  $('photoImg').src = url; $('photoSave').href = url; $('photoSave').download = 'our-little-screen.png'; $('photo').style.display = 'flex'; $('photoHang').style.display = ''; $('photoDown').style.display = 'none';
   flash();
 }
 function flash() { const f = $('flash'); f.style.transition = 'none'; f.style.opacity = 1; requestAnimationFrame(() => { f.style.transition = 'opacity .6s'; f.style.opacity = 0; }); }
-$('snap').onclick = () => { takePhoto(); send({ t: 'snap' }); loveAdd(4); };
+$('snap').onclick = () => { if (strip) return toast('🎞 Mid photo strip · one sec'); takePhoto(); send({ t: 'snap' }); loveAdd(4); };
 $('photoClose').onclick = () => $('photo').style.display = 'none';
 // pinned photos: click a wall (or anything) to stick it there; click one later to take it down. Shared with them.
 let picsState = { places: {}, gone: [] }; try { picsState = { places: {}, gone: [], ...JSON.parse(localStorage.getItem('ols-pics') || '{}') }; } catch {}
-let hanging = null, lastSnap = null, viewPic = null;
+let hanging = null, lastSnap = null, viewPic = null, lastAr, hangAr; // lastAr: height / width of lastSnap when it is not a polaroid (a photo strip is 3) · hangAr: the same for the one being hung
 const picTex = {};
 function savePics() { try { localStorage.setItem('ols-pics', JSON.stringify(picsState)); } catch { toast('Too many photos to save on this computer'); } }
 function rebuildPics(id) {
@@ -2047,11 +2059,11 @@ function rebuildPics(id) {
   pl.picsG = new THREE.Group(); pl.g.add(pl.picsG);
   for (const q of picsState.places[id] || []) {
     const tex = picTex[q.id] ||= new THREE.TextureLoader().load(q.img, tx => { tx.colorSpace = THREE.SRGBColorSpace; });
-    const g = new THREE.Group(), w = .62;
-    const ph = new THREE.Mesh(new THREE.PlaneGeometry(w, w * .9), new THREE.MeshStandardMaterial({ map: tex, roughness: .7, envMapIntensity: .3 }));
+    const g = new THREE.Group(), ar = +q.ar > 0 ? Math.min(4, +q.ar) : .9, w = ar > 1.2 ? .34 : .62; // a tall photo strip is narrower
+    const ph = new THREE.Mesh(new THREE.PlaneGeometry(w, w * ar), new THREE.MeshStandardMaterial({ map: tex, roughness: .7, envMapIntensity: .3 }));
     ph.userData.pic = q.id; g.add(ph);
     const tape = new THREE.Mesh(new THREE.PlaneGeometry(.12, .035), new THREE.MeshStandardMaterial({ color: '#fff3c8', transparent: true, opacity: .7, roughness: .9 }));
-    tape.position.set(0, w * .45, .002); tape.rotation.z = q.roll * -2; g.add(tape);
+    tape.position.set(0, w * ar / 2, .002); tape.rotation.z = q.roll * -2; g.add(tape);
     g.position.set(q.x, q.y, q.z); g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(q.nx, q.ny, q.nz)); g.rotateZ(q.roll);
     pl.picsG.add(g);
   }
@@ -2064,19 +2076,20 @@ function hangClick(e) {
   if (!hit) { toast('Click a wall or something solid'); return; }
   const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld); if (n.dot(ray.ray.direction) > 0) n.negate();
   const at = place.g.worldToLocal(hit.point.clone().addScaledVector(n, .012));
-  const q = { id: Math.random().toString(36).slice(2, 10), x: +at.x.toFixed(3), y: +at.y.toFixed(3), z: +at.z.toFixed(3), nx: +n.x.toFixed(3), ny: +n.y.toFixed(3), nz: +n.z.toFixed(3), roll: +((Math.random() - .5) * .12).toFixed(3), img: hanging };
+  const q = { id: Math.random().toString(36).slice(2, 10), x: +at.x.toFixed(3), y: +at.y.toFixed(3), z: +at.z.toFixed(3), nx: +n.x.toFixed(3), ny: +n.y.toFixed(3), nz: +n.z.toFixed(3), roll: +((Math.random() - .5) * .12).toFixed(3), img: hanging, at: Date.now() };
+  if (hangAr) q.ar = hangAr; // only strips carry a shape; a polaroid has no ar and keeps the old one
   (picsState.places[place.id] ||= []).push(q); picsChanged(place.id); send({ t: 'pic', id: place.id, q });
-  hanging = null; toast('📌 Stuck it up!'); achieve('wall'); floatText(me, '📌', '#ffcf6b');
+  hanging = null; hangAr = undefined; toast('📌 Stuck it up!'); achieve('wall'); floatText(me, '📌', '#ffcf6b');
 }
 function picClick(e) {
   if (!place.picsG) return false; rayAt(e);
   const hit = ray.intersectObject(place.picsG, true).find(h => h.object.userData.pic); if (!hit) return false;
   const q = (picsState.places[place.id] || []).find(x => x.id === hit.object.userData.pic); if (!q) return false;
-  viewPic = q; $('photoImg').src = q.img; $('photoSave').href = q.img; $('photo').style.display = 'flex'; $('photoHang').style.display = 'none'; $('photoDown').style.display = '';
+  viewPic = q; $('photoImg').src = q.img; $('photoSave').href = q.img; $('photoSave').download = q.ar > 1.2 ? 'our-strip.jpg' : 'our-little-screen.jpg'; $('photo').style.display = 'flex'; $('photoHang').style.display = 'none'; $('photoDown').style.display = '';
   return true;
 }
 function dropPic(id, pid) { picsState.places[id] = (picsState.places[id] || []).filter(x => x.id !== pid); if (!picsState.gone.includes(pid)) picsState.gone.push(pid); picsChanged(id); }
-$('photoHang').onclick = () => { if (!lastSnap) return; hanging = lastSnap; $('photo').style.display = 'none'; if (pov === 1) setPov(3); toast('Click a wall to stick your photo there · Esc to cancel'); };
+$('photoHang').onclick = () => { if (!lastSnap) return; hanging = lastSnap; hangAr = lastAr; $('photo').style.display = 'none'; if (pov === 1) setPov(3); toast('Click a wall to stick your photo there · Esc to cancel'); };
 $('photoDown').onclick = () => { if (!viewPic) return; dropPic(place.id, viewPic.id); send({ t: 'picDel', id: place.id, pid: viewPic.id }); viewPic = null; $('photo').style.display = 'none'; };
 addEventListener('keydown', e => { if (e.key === 'Escape' && hanging) { hanging = null; toast('Okay, not hanging it'); } });
 function mergePics(all) {
@@ -3159,6 +3172,7 @@ function loop() {
   tickSwoop(t); tick11(dt, t); tick12(dt, t); tick13(dt, t); stepCam(dt); highCam(t); followKey(); if (frameN % 20 === 0) shadowize();
   if ((frameN = (frameN || 0) + 1) % 3 === 0) grain.uniforms.t.value = (grain.uniforms.t.value + 1.7) % 100; composer.render();
   if (snapNext) { snapNext = false; grabPhoto(); }
+  if (stripShot) { stripShot = false; if (strip) { strip.frames.push(shootFrame(420, 315)); strip.i++; } } // a photo strip shutter: read the frame in the same task as the render
   if (t - lastSent > .05) { lastSent = t; send({ t: 'me', pl: place.id, x: +me.x.toFixed(3), z: +me.z.toFixed(3), ry: +me.ry.toFixed(3), seat: me.seat, c: me.car >= 0 ? me.car : -1, w: me.walking, j: +me.jy.toFixed(3), a: me.vy !== 0 ? 1 : 0, ps: me.pose || '', fl: me.flipT ? 1 : 0, hy: +(me.lookY || 0).toFixed(2), hp: +(me.lookP || 0).toFixed(2) }); }
   requestAnimationFrame(loop);
 }
@@ -3401,7 +3415,7 @@ $('radiob').onclick = openRadio;
 // ---------- our love level: do sweet things together, level up, unlock achievements ----------
 const LV = [[0, 'just met'], [30, 'crushing'], [90, 'talking stage'], [180, 'dating'], [320, 'official'], [520, 'in love'], [800, 'soulmates'], [1200, 'forever'], [1800, 'legendary ♾']];
 const ACH = { cuddle: '🫂 Cuddle puddle', race: '🏁 Won a car race', hug: '🤗 First hug', kiss: '💋 First kiss', dance: '💃 First slow dance', beachdance: '🌅 Slow dance on the beach', massage: '💆 Spa day', letter: '✉️ Love letter', watch30: '🍿 30 min watching together',
-  days7: '📅 7 days together', match5: '💞 Matched 5 times', rpswin: '✊ Played RPS to 3', stare: '👀 Had a staring contest', wish: '🌠 Made a wish', smore: "🔥 Perfect s'more", places: '🗺 Been everywhere', pets: '🐾 Pet playdate', wall: '📌 Photo on the wall', fetch: '🎾 Good pet', rally10: '🎈 10 in a row', rally25: '🎈 25 in a row' };
+  days7: '📅 7 days together', match5: '💞 Matched 5 times', rpswin: '✊ Played RPS to 3', stare: '👀 Had a staring contest', wish: '🌠 Made a wish', smore: "🔥 Perfect s'more", places: '🗺 Been everywhere', pets: '🐾 Pet playdate', wall: '📌 Photo on the wall', fetch: '🎾 Good pet', rally10: '🎈 10 in a row', rally25: '🎈 25 in a row', strip: '🎞 First photo strip', strip4: '🌟 Nailed all four poses' };
 let love = { xp: 0, ach: {}, days: [], places: [], matches: 0, watchMin: 0, lastLv: 1 };
 try { love = { ...love, ...JSON.parse(localStorage.getItem('ols-love') || '{}') }; } catch {}
 let wishes = []; try { wishes = JSON.parse(localStorage.getItem('ols-wishes') || '[]'); } catch {}
@@ -3812,7 +3826,7 @@ function openHelp() {
   panel.dataset.k = 'help'; panel.classList.remove('side');
   const K = [['WASD', 'move'], ['Space', 'jump (run + jump = flip)'], ['Shift', 'run'], ['drag / 2-finger drag', 'turn the camera'], ['scroll', 'zoom · all the way in = 1st person'], ['C', 'crouch · slide while running'], ['X', 'sit → lie on back → lie on stomach'],
     ['E', 'hold hands · pet · bong · tea'], ['B', 'throw the ball for your pet'], ['F', 'throw popcorn'], ['Q / G', 'push / smack'], ['H', 'hearts'], ['1-9', 'emotes'], ['Enter', 'chat'], ['T', 'watch mode (theater / split)'], ['L', 'camera lock'], ['V', '1st / 3rd person']];
-  const NEW = ['🎈 Games → Keep it up: walk or jump under the balloon'];
+  const NEW = ['🎈 Games → Keep it up: walk or jump under the balloon', '🎞 next to 📸: four prompts, three seconds each, one film strip'];
   panel.innerHTML = `<h3>⌨️ Controls</h3><div class="keys">${K.map(([k, d]) => `<kbd>${k}</kbd><span>${d}</span>`).join('')}</div>
     <h3 style="margin-top:14px">✨ New things to try</h3>${NEW.map(s => `<div class="row hintrow" style="margin-top:4px">${s}</div>`).join('')}`;
   panel.style.display = 'block';
@@ -4048,10 +4062,124 @@ function rallyOver(n, mine, x, z) { // mine: I dropped it. The one who did NOT d
   game.n = 0; game.h++; game.idle++; game.turn = mine ? otherRole() : myRole(); game.down = false; game.over = false; game.easeT = 0; game.pz = z;
   game.ball.position.set(x, 2.6, z); game.vel.set(0, 0, 0); game.serveAt = clock.elapsedTime + 2.2;
 }
-function tick13(dt, t) { } // per-frame hook for the newest features (the rally balloon ticks inside tickGame, next to the other little games)
+
+// ---------- photo strip: four prompts, three seconds each, one film strip. One seed message; each of you shoots your own angle ----------
+const STRIP_PROMPTS = ['kiss!', 'back to back', 'JUMP!', 'silliest emote', 'one of you lies down', 'hug it out', 'look away dramatically', 'strike a pose', 'heart hands', 'freeze like statues', 'crouch + stand tall', 'point at each other'];
+const STRIP_MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'], STRIP_LIE = ['back', 'belly', 'floor'];
+const STRIP_READY = 1, STRIP_STEP = 3.6, STRIP_COUNT = 3; // 1 s 'get ready', then per frame a 3 s count, the shutter and a .6 s breath: 15.4 s in all
+let strip = null, stripShot = false, lastStrip = null, stripGrain = null;
+const stripSeed = v => Math.abs(Math.floor(+v || 0)) % 2147483646 || 1;
+function stripHud(p, n, s) { $('stripP').textContent = p; $('stripN').textContent = n; $('stripS').textContent = s; $('stripHud').style.display = 'block'; } // only called when the step changes, never per frame
+function startStrip(seed, mine) {
+  if (!started || !place || !meMesh) return false;
+  seed = stripSeed(seed);
+  let sd = seed; const rr = () => (sd = (sd * 16807) % 2147483647) / 2147483647; rr(); // the LCG launchFireworks uses, so both screens pick the same four (a small seed's first draw is always tiny: skip it)
+  const idx = STRIP_PROMPTS.map((_, i) => i);
+  for (let i = 0; i < 4; i++) { const j = i + Math.floor(rr() * (idx.length - i)), v = idx[i]; idx[i] = idx[j]; idx[j] = v; }
+  idx.length = 4;
+  if (strip) for (const c of strip.frames) c.width = c.height = 0; // restarting (their seed won): drop what was shot so far
+  strip = { seed, mine: !!mine, t0: clock.elapsedTime, i: 0, c: -1, idx, prompts: idx.map(i => STRIP_PROMPTS[i]), frames: [], stars: [], leak: Math.floor(rr() * 4), edge: Math.floor(rr() * 4) };
+  stripShot = false; hanging = null; hangAr = undefined; viewPic = null; $('photo').style.display = 'none';
+  $('strip').classList.add('on'); stripHud('get ready…', '', 'PHOTO STRIP');
+  return true;
+}
+function stripPose(pi) { // did we do what the prompt said? Judged here, at the shutter, from what this screen sees
+  const e1 = me.emote && me.emote.k, e2 = them && them.emote && them.emote.k, p1 = me.pose, p2 = them && them.pose;
+  switch (pi) {
+    case 0: return e1 === 'smooch' || e1 === 'kiss' || e2 === 'smooch' || e2 === 'kiss';
+    case 1: return !!them && Math.hypot(me.x - them.x, me.z - them.z) < 1 && Math.cos(me.ry - them.ry) < -.6;
+    case 2: return me.vy !== 0 || !!(them && them.air);
+    case 3: return !!(e1 || e2);
+    case 4: return STRIP_LIE.includes(p1) || STRIP_LIE.includes(p2);
+    case 5: return e1 === 'hug' || e1 === 'hug-back' || e2 === 'hug' || e2 === 'hug-back';
+    case 8: return e1 === 'hearts' || e2 === 'hearts';
+    case 10: return p1 === 'crouch' || p2 === 'crouch';
+  }
+  return true; // the rest are yours to interpret
+}
+function tickStrip(t) { // runs off clock.elapsedTime: at most one step per frame, so a tab that slept catches up one shutter at a time
+  const s = strip, el = t - s.t0;
+  if (stripShot) return;
+  if (s.i >= 4) { if (el >= STRIP_READY + 4 * STRIP_STEP) finishStrip(); return; }
+  const fe = el - STRIP_READY - s.i * STRIP_STEP; // seconds into this frame's countdown (below 0: 'get ready', or the breath after a shutter)
+  if (fe < 0) return;
+  if (fe >= STRIP_COUNT) { // shutter: loop() grabs the frame right after this frame's render
+    const hit = stripPose(s.idx[s.i]); s.stars.push(hit); s.c = -1; stripShot = true;
+    sfx('pop'); flash(); stripHud(s.prompts[s.i], hit ? '★' : '', `${s.i + 1} / 4`);
+    return;
+  }
+  const c = STRIP_COUNT - Math.floor(fe);
+  if (c !== s.c) { s.c = c; sfx('click'); stripHud(s.prompts[s.i], c, `${s.i + 1} / 4`); }
+}
+function stripStar(x, cx, cy, R) { x.beginPath(); for (let k = 0; k < 10; k++) { const a = -PI / 2 + k * PI / 5, r = k % 2 ? R * .45 : R; x.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } x.closePath(); x.fill(); }
+function composeStrip(s) { // once, at the end: dark film, sprocket holes, four warm frames, camcorder date stamp
+  const W = 500, H = 1500, FX = 40, FW = 420, FH = 315, GAP = 24, TOP = 36, MONO = '"SF Mono", ui-monospace, Menlo, Consolas, monospace';
+  const out = document.createElement('canvas'); out.width = W; out.height = H; const x = out.getContext('2d');
+  x.beginPath(); x.roundRect(0, 0, W, H, 16); x.clip();
+  x.fillStyle = '#0d0906'; x.fillRect(0, 0, W, H);
+  x.fillStyle = '#1c1410'; x.strokeStyle = '#3a2a20'; x.lineWidth = 1;
+  for (let y = 12; y + 20 < H; y += 44) for (const hx of [13, W - 27]) { x.beginPath(); x.roundRect(hx + .5, y + .5, 14, 20, 3); x.fill(); x.stroke(); }
+  const d = new Date(), stamp = `${STRIP_MON[d.getMonth()]} ${d.getDate()} ${d.getFullYear()}`;
+  for (let i = 0; i < 4; i++) {
+    const fy = TOP + i * (FH + GAP), f = s.frames[i], cx = FX + FW / 2, cy = fy + FH / 2;
+    x.save(); x.beginPath(); x.rect(FX, fy, FW, FH); x.clip();
+    if (f) x.drawImage(f, FX, fy, FW, FH); else { x.fillStyle = '#1a120c'; x.fillRect(FX, fy, FW, FH); }
+    x.fillStyle = 'rgba(255,150,70,.10)'; x.fillRect(FX, fy, FW, FH);
+    let g = x.createRadialGradient(cx, cy, FH * .36, cx, cy, FW * .66); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.55)');
+    x.fillStyle = g; x.fillRect(FX, fy, FW, FH);
+    if (i === s.leak) { // one seeded frame gets a light leak from one edge
+      const [lx, ly] = [[FX, fy + FH * .4], [FX + FW, fy + FH * .6], [FX + FW * .3, fy], [FX + FW * .7, fy + FH]][s.edge];
+      g = x.createRadialGradient(lx, ly, 0, lx, ly, FW * .55); g.addColorStop(0, '#ff8a3d'); g.addColorStop(.35, 'rgba(255,138,61,.45)'); g.addColorStop(1, 'rgba(255,138,61,0)');
+      x.globalCompositeOperation = 'screen'; x.fillStyle = g; x.fillRect(FX, fy, FW, FH); x.globalCompositeOperation = 'source-over';
+    }
+    x.font = `700 17px ${MONO}`; x.textAlign = 'right'; x.fillStyle = '#ff9a3d'; x.shadowColor = '#ff9a3d'; x.shadowBlur = 6;
+    x.fillText(stamp, FX + FW - 14, fy + FH - 14);
+    if (i === 0) { x.textAlign = 'left'; x.fillText('PLAY', FX + 33, fy + 30); x.beginPath(); x.moveTo(FX + 14, fy + 16); x.lineTo(FX + 27, fy + 23.5); x.lineTo(FX + 14, fy + 31); x.closePath(); x.fill(); } // the ▶ is drawn, so no emoji font can sneak in
+    if (s.stars[i]) { x.fillStyle = '#ffcf6b'; x.shadowColor = '#ffb347'; x.shadowBlur = 10; stripStar(x, FX + FW - 26, fy + 26, 13); }
+    x.restore();
+    x.font = `700 9px ${MONO}`; x.textAlign = 'left'; x.fillStyle = '#c9a24a'; x.fillText(`${i + 1}A`, FX + 2, fy - 7);
+  }
+  x.textAlign = 'center'; x.fillStyle = '#f6ead6'; x.font = 'italic 600 34px "Bradley Hand", "Segoe Print", "Comic Sans MS", cursive';
+  x.fillText(them ? `${me.name} ♥ ${them.name}` : `${me.name} ♥`, W / 2, H - 72, FW - 20);
+  x.font = '15px ui-rounded, system-ui, sans-serif'; x.fillStyle = '#a08a74'; x.fillText(place.name.replace(/^\S+\s/, ''), W / 2, H - 40, FW - 20);
+  if (!stripGrain) { // one warm 128 px noise tile, built once and reused for every strip
+    stripGrain = document.createElement('canvas'); stripGrain.width = stripGrain.height = 128;
+    const gx = stripGrain.getContext('2d'), im = gx.createImageData(128, 128), px = im.data;
+    for (let i = 0; i < px.length; i += 4) { const v = Math.random() * 255; px[i] = v; px[i + 1] = v * .95; px[i + 2] = v * .86; px[i + 3] = 255; }
+    gx.putImageData(im, 0, 0);
+  }
+  x.globalAlpha = .25; x.globalCompositeOperation = 'overlay'; x.fillStyle = x.createPattern(stripGrain, 'repeat'); x.fillRect(0, 0, W, H);
+  x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
+  return out;
+}
+function finishStrip() {
+  const s = strip; strip = null; stripShot = false; $('stripHud').style.display = 'none'; $('strip').classList.remove('on');
+  const stars = s.stars.filter(Boolean).length, out = composeStrip(s), url = out.toDataURL('image/png');
+  const sm = document.createElement('canvas'); sm.width = 200; sm.height = Math.round(200 * out.height / out.width);
+  const sx = sm.getContext('2d'); sx.fillStyle = '#0d0906'; sx.fillRect(0, 0, sm.width, sm.height); sx.drawImage(out, 0, 0, sm.width, sm.height); // the small one that goes on a wall (and to them)
+  lastSnap = sm.toDataURL('image/jpeg', .8); lastAr = +(sm.height / sm.width).toFixed(3); viewPic = null;
+  lastStrip = { w: out.width, h: out.height, stars };
+  for (const c of s.frames) c.width = c.height = 0; out.width = out.height = 0; sm.width = sm.height = 0; // hand the canvas memory back
+  $('photoImg').src = url; $('photoSave').href = url; $('photoSave').download = 'our-strip.png'; $('photo').style.display = 'flex'; $('photoHang').style.display = ''; $('photoDown').style.display = 'none';
+  toast(stars ? `🎞 ${stars} of 4 poses nailed` : '🎞 Your strip is ready'); sfx('win');
+  if (s.mine) loveAdd(4); // only the one who started it: it reaches them as 'lovexp'
+  achieve('strip'); if (stars === 4) achieve('strip4');
+}
+$('strip').onclick = () => {
+  $('strip').classList.remove('new'); try { localStorage.setItem('ols-new2', '1'); } catch {}
+  if (strip) return; // one at a time
+  if (startStrip((Math.random() * 1e9) | 0, true)) send({ t: 'strip', seed: strip.seed });
+};
+try { if (!localStorage.getItem('ols-new2')) $('strip').classList.add('new'); } catch {} // a little acid-green dot until it has been tried once
+
+function tick13(dt, t) { if (strip) tickStrip(t); } // per-frame hook for the newest features (the rally balloon ticks inside tickGame, next to the other little games)
 function onFun13(m) {
   switch (m.t) {
     case 'hello': return false;
+    case 'strip': // their photo strip: the same seed gives the same four prompts. Both pressed at once: the host keeps its own, the guest restarts with the host's
+      if (strip && isHost) return true;
+      if (startStrip(m.seed, false)) toast(`🎞 ${them ? them.name : 'They'} started a photo strip · pose!`);
+      return true;
     case 'bal': { // their hit: the count, where it happened and where it is going (g: this rally only · a hit that crossed my own fallback call still wins)
       if (!game || game.mode !== 'rally' || m.g !== game.id || !(m.h > game.h || (m.h === game.h && game.fb === game.h)) || !Array.isArray(m.p) || !Array.isArray(m.v) || ![...m.p, ...m.v].every(Number.isFinite) || m.p.length < 3 || m.v.length < 3) return true;
       game.h = m.h; game.n = Math.max(0, Math.floor(+m.n || 0)); game.vel.fromArray(m.v); game.off.fromArray(m.p).sub(game.ball.position); game.easeT = .15;
@@ -4093,6 +4221,6 @@ $('go').onclick = () => {
   }, 980);
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { get rally() { return game && game.mode === 'rally' ? game : null }, rallyHit, rallyDrop, GATES, carE, exitCar, driveStep, get karts() { return place.karts }, newGame, kartBlocked, eatSnack, setLights, lightV, startCuddle, seatPair, iceServers, get peer() { return peer }, setGfx, get qMode() { return qMode }, get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: v => hanging = v, doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { startStrip, shootFrame, get stripRun() { return strip && { seed: strip.seed, i: strip.i, prompts: strip.prompts } }, get lastStrip() { return lastStrip }, get rally() { return game && game.mode === 'rally' ? game : null }, rallyHit, rallyDrop, GATES, carE, exitCar, driveStep, get karts() { return place.karts }, newGame, kartBlocked, eatSnack, setLights, lightV, startCuddle, seatPair, iceServers, get peer() { return peer }, setGfx, get qMode() { return qMode }, get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: (v, ar) => (hangAr = ar, hanging = v), doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
