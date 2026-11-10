@@ -513,7 +513,7 @@ const PLACES = [
    const glass = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 2.1), new THREE.ShaderMaterial({ uniforms: sky.userData.u, fog: false,
      vertexShader: 'varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
      fragmentShader: 'uniform vec3 top, mid; varying vec2 vU; void main(){ gl_FragColor = vec4(mix(mid, top, vU.y), 1.);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}' }));
-   glass.rotation.y = PI / 2; put(glass, -6.88, 1.85, -.6, g);
+   glass.rotation.y = PI / 2; put(glass, -6.88, 1.85, -.6, g); rainGlass(g, 1.9, 2.1, -6.858, 1.85, -.6, PI / 2);
    const city = new THREE.Group(); city.rotation.y = PI / 2; city.position.set(-6.87, .8, -.6); g.add(city);
    for (let i = 0; i < 7; i++) { const b = put(rbox(.24, .4 + (i * 37 % 5) * .1, .01, '#2a2038', .02), -.8 + i * .27, .2, 0, city); b.userData.c = 1; }
    const orb = put(new THREE.Mesh(SPH, GLOW('#fff3c4', 3)), -6.86, 2.3, -.6, g); orb.scale.setScalar(.14);
@@ -591,9 +591,9 @@ const PLACES = [
    const glassM = new THREE.MeshStandardMaterial({ color: '#bcd4ff', transparent: true, opacity: .08, roughness: .05, depthWrite: false });
    const frameM = M('#1a1820', { roughness: .5, metalness: .4 });
    const glassPane = (x, z, w, rotY) => { put(new THREE.Mesh(new THREE.PlaneGeometry(w, 3.5), glassM), x, 1.75, z, g).rotation.y = rotY; };
-   glassPane(0, -5, 14, 0);
+   glassPane(0, -5, 14, 0); rainGlass(g, 14, 3.5, 0, 1.75, -4.99, 0); // (rain runs down the two big panes when a front comes through)
    for (let i = 0; i <= 8; i++) put(rbox(.08, 3.5, .1, frameM, .02), -7 + i * 1.75, 1.75, -5, g);
-   glassPane(7, 2.5, 15, -PI / 2);
+   glassPane(7, 2.5, 15, -PI / 2); rainGlass(g, 15, 3.5, 6.99, 1.75, 2.5, -PI / 2);
    for (let i = 0; i <= 6; i++) put(rbox(.1, 3.5, .08, frameM, .02), 7, 1.75, -5 + i * 2.5, g);
    glassPane(-7, -4, 2, PI / 2); glassPane(-7, 5.5, 9, PI / 2);
    for (const z of [-5, -3, 1, 3.5, 6, 8, 10]) put(rbox(.1, 3.5, .08, frameM, .02), -7, 1.75, z, g);
@@ -715,7 +715,7 @@ const PLACES = [
    const g = new THREE.Group();
    const sky = skyDome('#24163e', '#ff8a5a', '#2a1838'); g.add(sky); g.add(starField(250, .35));
    put(new THREE.Mesh(SPH, GLOW('#ffcf6b', 3)), 30, 3, -60, g).scale.setScalar(5);
-   put(rbox(18, .3, 15, woodMat('#a07060', 6), .05), 0, -.15, 2.5, g);
+   const deck = put(rbox(18, .3, 15, woodMat('#a07060', 6), .05), 0, -.15, 2.5, g);
    for (const [x, z, w, d] of [[0, -5, 18, .1], [-9, 2.5, .1, 15], [9, 2.5, .1, 15], [0, 10, 18, .1]]) { put(rbox(w || .1, .08, d || .1, '#2a1424', .03), x, 1, z, g); }
    for (let i = -9; i <= 9; i += 1) for (const z of [-5, 10]) put(cyl(.03, .03, 1, '#2a1424', 8), i, .5, z, g);
    for (let z = -4; z <= 9; z += 1) for (const x of [-9, 9]) put(cyl(.03, .03, 1, '#2a1424', 8), x, .5, z, g);
@@ -758,7 +758,7 @@ const PLACES = [
    for (const [x, z] of [[-8.4, 9.4], [8.4, 9.4], [-8.4, -4.4], [8.4, -1.5]]) put(plant(2.1, (x > 0) * 1), x, 0, z, g);
    for (const [x, z] of [[-8.6, 9.6], [8.6, 9.6]]) put(cyl(.04, .04, 3.2, '#3a2418', 8), x, 1.6, z, g);
    stringLights([-5.6, 3.1, 4.6], [-8.6, 3.1, 9.6], .35, 10, '#ff9ab8', g); stringLights([5.6, 3.1, 4.6], [8.6, 3.1, 9.6], .35, 10, '#ff9ab8', g); stringLights([-8.6, 3.1, 9.6], [8.6, 3.1, 9.6], .6, 26, '#ffcf6b', g);
-   return { g, scr, seats: [{ x: -.65, z: 1.45, y: .45, ry: PI }, { x: .65, z: 1.45, y: .45, ry: PI }, ...xs], bounds: [-8.6, 8.6, -3.8, 9.6], cam: [-13, 13, -4, 14, 7], spawn: [[-1, 3.5], [1, 3.5]],
+   return { g, scr, floor: deck, seats: [{ x: -.65, z: 1.45, y: .45, ry: PI }, { x: .65, z: 1.45, y: .45, ry: PI }, ...xs], bounds: [-8.6, 8.6, -3.8, 9.6], cam: [-13, 13, -4, 14, 7], spawn: [[-1, 3.5], [1, 3.5]],
      env: { bg: '#24163e', fog: ['#5a2a4a', 25, 90], hemi: ['#ffb08a', '#3a1a3a', .9] }, tick(t) { swayAll(g, t); twinkle(g, t); ftab.userData.tick(t); moveSwarm(bub, t, (x, y, z, i, t) => [x, .74 + ((y - .74 + t * .35 + i * .03) % .22), z]); } };
  } },
 
@@ -779,11 +779,11 @@ const PLACES = [
    for (const z of [-.6, -.35]) { put(cyl(.04, .04, .18, '#fff4e2'), -4.3, 1.75, z, g); put(new THREE.Mesh(SPH, GLOW('#ffcf6b', 5)), -4.3, 1.88, z, g).scale.set(.018, .03, .018); }
    const fp = fire(g, -3.95, -1, .7); fp.rotation.y = PI / 2;
    // window with snow
-   const glass = put(new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.9), new THREE.MeshBasicMaterial({ color: '#1a2650' })), 6.8, 1.9, .2, g); glass.rotation.y = -PI / 2;
+   const glass = put(new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.9), new THREE.MeshBasicMaterial({ color: '#1a2650' })), 6.8, 1.9, .2, g); glass.rotation.y = -PI / 2; rainGlass(g, 1.7, 1.9, 6.79, 1.9, .2, -PI / 2);
    for (const [h, z, w] of [[2.1, -.7, .12], [2.1, 1.1, .12], [2.1, .2, .06]]) put(rbox(.16, h, w, '#2a160e', .03), 6.78, 1.9, z, g);
    for (const y of [.9, 2.9, 1.9]) put(rbox(.16, y === 1.9 ? .06 : .12, 1.9, '#2a160e', .03), 6.78, y, .2, g);
    put(ell(.05, .12, .85, '#f2f4ff'), 6.77, .95, .2, g);
-   const snow = swarm(90, [6.74, 6.76, .95, 2.85, -.65, 1.05], '#e8ecff', .035); snow.material.color.set('#f2f4ff'); g.add(snow);
+   const snow = swarm(90, [6.74, 6.76, .95, 2.85, -.65, 1.05], '#e8ecff', .035); snow.material.color.set('#f2f4ff'); g.add(snow); let snowP = 0; // how far the snow has fallen: a weather front makes it a blizzard
    put(new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.1, .04, 40), M('#efe4d4', { roughness: 1 })), 0, .02, .5, g).scale.z = .6;
    couch(g, 0, 1.6, '#7a3a2a', 2.4, '#c8b090');
    const blanket = put(rbox(1.3, .06, 1.1, '#e8d8b8', .03), .55, .62, 1.55, g); blanket.rotation.z = -.1;
@@ -805,7 +805,7 @@ const PLACES = [
    put(hangingPlant(.9), 5.4, 2.8, 4, g); put(plant(1.2, 1), -4.3, 0, 6.3, g); guitar(g, 6.5, 2.9, -PI / 2);
    return { g, scr, seats: [{ x: -.6, z: 1.55, y: .55, ry: PI }, { x: .6, z: 1.55, y: .55, ry: PI }, ...xs], bounds: [-3.8, 6.4, -3.1, 6.6], cam: [-4.6, 6.6, -3.5, 8.6, 3.4], spawn: [[-1, 2.9], [1, 2.9]],
      env: { bg: '#120806', fog: null, hemi: ['#ffb07a', '#2a1410', .75] },
-     tick(t) { fp.userData.tick(t); swayAll(g, t); twinkle(g, t); moveSwarm(snow, t, (x, y, z, i, t) => [x, 2.85 - ((2.85 - y + t * .25 + i * .01) % 1.9), z + Math.sin(t + i) * .05]); } };
+     tick(t, dt) { fp.userData.tick(t); swayAll(g, t); twinkle(g, t); snowP += (dt || 0) * .25 * (1 + 3 * wxW); moveSwarm(snow, t, (x, y, z, i, t) => [x, 2.85 - ((2.85 - y + snowP + i * .01) % 1.9), Math.max(-.64, Math.min(1.04, z + Math.sin(t + i) * .05 + Math.sin(t * 2 + i) * .25 * wxW))]); } };
  } },
 
  { id: 'beach', name: '🌅 Beach', build() {
@@ -859,7 +859,7 @@ const PLACES = [
    put(rbox(6.4, .06, .03, '#fff4ec', .01), 0, 2.4, 8.6, g); put(new THREE.Mesh(SPH, M('#fff4ec')), 1.4, .15, 7.4, g).scale.setScalar(.15);
    for (let i = 0; i < 14; i++) { const x = -12 + rand() * 24, z = 1 + rand() * 8; if (Math.abs(x - 3.2) < 1.4 && Math.abs(z - 1.2) < 1.4) continue; const sh = put(ell(.05, .025, .04, i % 3 ? '#ffe0e8' : '#fff4ec'), x, .02, z, g); sh.rotation.y = rand() * PI; }
    for (const [x, z] of [[-1.6, 7.8], [4.6, 3.2], [-8.6, 5.6]]) for (let k = 0; k < 5; k++) { const a = put(ell(.03, .01, .1, '#ff7a59'), x, .02, z, g); a.rotation.y = k * PI * 2 / 5; a.translateZ(.08); }
-   return { g, scr, seats: [{ x: -.55, z: 1.75, y: .12, ry: PI }, { x: .55, z: 1.75, y: .12, ry: PI }, ...xs], bounds: [-13.5, 13.5, -2.6, 10.5], cam: [-20, 20, -3, 16, 8], spawn: [[-1, 4], [1, 4]],
+   return { g, scr, floor: sand, floorY: (x, z) => Math.sin(x * .3) * .08 + Math.cos((4 - z) * .5) * .05, seats: [{ x: -.55, z: 1.75, y: .12, ry: PI }, { x: .55, z: 1.75, y: .12, ry: PI }, ...xs], bounds: [-13.5, 13.5, -2.6, 10.5], cam: [-20, 20, -3, 16, 8], spawn: [[-1, 4], [1, 4]],
      env: { bg: '#2a1840', fog: ['#8a3a5a', 30, 140], hemi: ['#ffb08a', '#5a2a3a', 1.1] },
      tick(t) {
        bon.userData.tick(t); swayAll(g, t);
@@ -907,7 +907,7 @@ const PLACES = [
    shrooms(g, -4.5, 4.2); shrooms(g, 5.2, 2.6, 4, '#b6ff3b'); shrooms(g, -10, 8.5, 6, '#ff9ab8'); shrooms(g, 9.6, 3.2);
    for (const z of [4.5, 6.5, 8.5, 10.5]) for (const x of [-1.4, 1.4]) { put(cyl(.025, .025, .7, '#3a2a20', 6), x, .35, z, g); put(ell(.06, .08, .06, GLOW('#ffcf6b', 2.5)), x, .74, z, g); }
    guitar(g, -1.9, 2.5, .8);
-   return { g, scr, seats: [{ x: -.55, z: 1.7, y: .15, ry: PI }, { x: .55, z: 1.7, y: .15, ry: PI }, ...xs], bounds: [-12, 12, -3.2, 12], cam: [-18, 18, -3.5, 16, 8], spawn: [[-1, 4], [1, 4]],
+   return { g, scr, floor: grass, seats: [{ x: -.55, z: 1.7, y: .15, ry: PI }, { x: .55, z: 1.7, y: .15, ry: PI }, ...xs], bounds: [-12, 12, -3.2, 12], cam: [-18, 18, -3.5, 16, 8], spawn: [[-1, 4], [1, 4]],
      env: { bg: '#05071a', fog: ['#0a0a1a', 12, 45], hemi: ['#6a6aaa', '#0a140a', .55] },
      tick(t) { camp.userData.tick(t); moveSwarm(flies, t, (x, y, z, i, t) => [x + Math.sin(t * .5 + i) * .6, y + Math.sin(t * .7 + i * 2) * .3, z + Math.cos(t * .4 + i) * .6]); flies.material.opacity = .6 + .4 * Math.sin(t * 2); } };
  } },
@@ -952,7 +952,7 @@ const PLACES = [
    put(rbox(28, .08, .06, '#3a2a30', .02), 0, .85, 12.5, g); put(rbox(28, .08, .06, '#3a2a30', .02), 0, .45, 12.5, g);
    const booth = new THREE.Group(); booth.position.set(15.5, 0, 9); g.add(booth); put(rbox(1.6, 2.4, 1.6, '#c8202a', .1), 0, 1.2, 0, booth); put(rbox(.06, .7, 1, GLOW('#ffe7a8', 1.2), .02), -.82, 1.5, 0, booth); put(rbox(1.9, .15, 1.9, '#fff4ec', .05), 0, 2.45, 0, booth);
    put(new THREE.Mesh(new THREE.PlaneGeometry(2.2, .55), signTex('tickets ♥', '#ffcf6b', 'transparent')), -.84, 2.9, 0, booth).rotation.y = -PI / 2;
-   return { g, karts, scr, seats: [{ x: -.36, z: 1.3, y: .95, ry: PI, ax: -1.6, az: 1.3 }, { x: .36, z: 1.3, y: .95, ry: PI, ax: 1.6, az: 1.3 }, ...xs], bounds: [-14, 14, -12, 12], cam: [-24, 24, -14, 24, 12], spawn: [[-1.4, 3.6], [1.4, 3.6]],
+   return { g, karts, scr, floor: ground, seats: [{ x: -.36, z: 1.3, y: .95, ry: PI, ax: -1.6, az: 1.3 }, { x: .36, z: 1.3, y: .95, ry: PI, ax: 1.6, az: 1.3 }, ...xs], bounds: [-14, 14, -12, 12], cam: [-24, 24, -14, 24, 12], spawn: [[-1.4, 3.6], [1.4, 3.6]],
      env: { bg: '#05071a', fog: ['#0a0812', 25, 80], hemi: ['#7a7ab0', '#100a14', .6] },
      tick(t) { moveSwarm(flies, t, (x, y, z, i, t) => [x + Math.sin(t * .5 + i) * .6, y + Math.sin(t * .7 + i * 2) * .3, z + Math.cos(t * .4 + i) * .6]); flies.material.opacity = .6 + .4 * Math.sin(t * 2); } };
  } },
@@ -3180,7 +3180,7 @@ function loop() {
   placeChar(meMesh, me); animChar(meMesh, me, t);
   if (them) { if (!themMesh || themMesh.userData.look !== them.look || themMesh.userData.name !== them.name) { disposeTree(themMesh); themMesh = makeChar(them.look, them.name); scene.add(themMesh); } placeChar(themMesh, them); animChar(themMesh, them, t); themMesh.visible = !them.away; }
   else if (themMesh) { disposeTree(themMesh); themMesh = null; }
-  hemi.intensity = hemiBase; for (const l of placeLights) l.intensity = l.userData.base; place.tick(t, dt); if (key.castShadow) { hemi.intensity *= .5; for (const l of placeSuns) l.intensity *= .45; } dimLights(); fitScreen(place.scr); funTick(dt, t);
+  hemi.intensity = hemiBase; for (const l of placeLights) l.intensity = l.userData.base; place.tick(t, dt); weatherLight(dt); if (key.castShadow) { hemi.intensity *= .5; for (const l of placeSuns) l.intensity *= .45; } dimLights(); weatherKey(); fitScreen(place.scr); funTick(dt, t);
   solveLegs(meMesh, me); if (them && themMesh) solveLegs(themMesh, them);
   const close = them && !them.away && me.seat >= 0 && them.seat >= 0 && Math.abs(me.seat - them.seat) === 1;
   cuddle.visible = !!close; if (close) { cuddle.position.copy(headOf(me)).lerp(headOf(them), .5).add(new THREE.Vector3(0, .45 + Math.sin(t * 2) * .05, 0)); }
@@ -3436,7 +3436,7 @@ $('radiob').onclick = openRadio;
 // ---------- our love level: do sweet things together, level up, unlock achievements ----------
 const LV = [[0, 'just met'], [30, 'crushing'], [90, 'talking stage'], [180, 'dating'], [320, 'official'], [520, 'in love'], [800, 'soulmates'], [1200, 'forever'], [1800, 'legendary ♾']];
 const ACH = { cuddle: '🫂 Cuddle puddle', race: '🏁 Won a car race', hug: '🤗 First hug', kiss: '💋 First kiss', dance: '💃 First slow dance', beachdance: '🌅 Slow dance on the beach', massage: '💆 Spa day', letter: '✉️ Love letter', watch30: '🍿 30 min watching together',
-  days7: '📅 7 days together', match5: '💞 Matched 5 times', rpswin: '✊ Played RPS to 3', stare: '👀 Had a staring contest', wish: '🌠 Made a wish', smore: "🔥 Perfect s'more", places: '🗺 Been everywhere', pets: '🐾 Pet playdate', wall: '📌 Photo on the wall', fetch: '🎾 Good pet', rally10: '🎈 10 in a row', rally25: '🎈 25 in a row', strip: '🎞 First photo strip', strip4: '🌟 Nailed all four poses', lantern: '🏮 First lantern', lantern10: '🏮 Ten lanterns in the sky' };
+  days7: '📅 7 days together', match5: '💞 Matched 5 times', rpswin: '✊ Played RPS to 3', stare: '👀 Had a staring contest', wish: '🌠 Made a wish', smore: "🔥 Perfect s'more", places: '🗺 Been everywhere', pets: '🐾 Pet playdate', wall: '📌 Photo on the wall', fetch: '🎾 Good pet', rally10: '🎈 10 in a row', rally25: '🎈 25 in a row', strip: '🎞 First photo strip', strip4: '🌟 Nailed all four poses', lantern: '🏮 First lantern', lantern10: '🏮 Ten lanterns in the sky', umbrella: '☂️ Shared an umbrella', storm: '⛈ Watched a storm together' };
 let love = { xp: 0, ach: {}, days: [], places: [], matches: 0, watchMin: 0, lastLv: 1 };
 try { love = { ...love, ...JSON.parse(localStorage.getItem('ols-love') || '{}') }; } catch {}
 let wishes = []; try { wishes = JSON.parse(localStorage.getItem('ols-wishes') || '[]'); } catch {}
@@ -3805,6 +3805,7 @@ function goPlace(id, broadcast = true, who) {
   if (place && place.id === id) return;
   travelling = true; travelTo = id; closePanel(); sfx('whoosh'); const P = PLACES.find(q => q.id === id) || PLACES[0];
   $('fadeTitle').textContent = P.name; $('fadeSub').textContent = who ? `${who} took you here ♥` : (PLACE_TAG[id] || '');
+  if (weather && wxW > .15 && wxOutdoor(id)) $('fadeSub').textContent = who ? `${who} took you here ♥ · it’s raining ☔` : 'it’s raining ☔';
   $('fade').classList.add('on');
   setTimeout(() => { setPlace(id, broadcast); startSwoop(); setTimeout(() => { $('fade').classList.remove('on'); travelling = false; travelTo = null; const q = pendingPlace; pendingPlace = null; if (q) goPlace(...q); }, 380); }, 520);
 }
@@ -3819,7 +3820,7 @@ function openPlaces() {
   if (panel.dataset.k === 'places') return closePanel();
   claimPanel();
   panel.dataset.k = 'places'; panel.classList.remove('side');
-  panel.innerHTML = `<h3>🗺 Where to?</h3><div class="grid">${PLACES.map(q => `<button class="tile${place && place.id === q.id ? ' sel' : ''}" data-pl="${q.id}"><b>${q.name}</b><span>${PLACE_TAG[q.id] || ''}</span></button>`).join('')}</div><div class="row hintrow">You both go together</div>`;
+  panel.innerHTML = `<h3>🗺 Where to?</h3><div class="grid">${PLACES.map(q => `<button class="tile${place && place.id === q.id ? ' sel' : ''}" data-pl="${q.id}"><b>${q.name}</b><span>${PLACE_TAG[q.id] || ''}${weather && wxOutdoor(q.id) ? ' · 🌧 raining now' : ''}</span></button>`).join('')}</div><div class="row hintrow">You both go together</div>`;
   panel.style.display = 'block';
   panel.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => goPlace(b.dataset.pl));
 }
@@ -3851,7 +3852,7 @@ function openHelp() {
   panel.dataset.k = 'help'; panel.classList.remove('side');
   const K = [['WASD', 'move'], ['Space', 'jump (run + jump = flip)'], ['Shift', 'run'], ['drag / 2-finger drag', 'turn the camera'], ['scroll', 'zoom · all the way in = 1st person'], ['C', 'crouch · slide while running'], ['X', 'sit → lie on back → lie on stomach'],
     ['E', 'hold hands · pet · bong · tea · hold E together to light a lantern · telescope'], ['B', 'throw the ball for your pet'], ['F', 'throw popcorn'], ['Q / G', 'push / smack'], ['H', 'hearts'], ['1-9', 'emotes'], ['Enter', 'chat'], ['T', 'watch mode (theater / split)'], ['L', 'camera lock'], ['V', '1st / 3rd person']];
-  const NEW = ['🎈 Games → Keep it up: walk or jump under the balloon', '🎞 next to 📸: four prompts, three seconds each, one film strip', '🏮 Us → Light a lantern (outdoors, both hold E)', '🔭 Stars: press E at the telescope', '📼 Leave the screen idle for a minute'];
+  const NEW = ['🎈 Games → Keep it up: walk or jump under the balloon', '🎞 next to 📸: four prompts, three seconds each, one film strip', '🏮 Us → Light a lantern (outdoors, both hold E)', '🔭 Stars: press E at the telescope', '📼 Leave the screen idle for a minute', '🌧 If it rains, go outside and stand close'];
   panel.innerHTML = `<h3>⌨️ Controls</h3><div class="keys">${K.map(([k, d]) => `<kbd>${k}</kbd><span>${d}</span>`).join('')}</div>
     <h3 style="margin-top:14px">✨ New things to try</h3>${NEW.map(s => `<div class="row hintrow" style="margin-top:4px">${s}</div>`).join('')}`;
   panel.style.display = 'block';
@@ -4641,13 +4642,204 @@ function tickTape() { // per frame: nothing at all unless the tape is playing
   tapeForce = false; tapeDraw(now);
 }
 
-function tick13(dt, t) { if (strip) tickStrip(); tickLan(dt, t); tickTape(); } // per-frame hook for the newest features (the rally balloon ticks inside tickGame, next to the other little games)
+// ---------- weather fronts: rain rolls in by itself, one shared umbrella, and the glow after ----------
+// ONE seeded message from the host ({t:'wx'}); everything else is worked out locally from it. Weather is global (you travel together), what you see
+// depends on the place: real rain outdoors, streaks on the glass at home, a blizzard at the cabin, a patter on the cinema roof. No light is ever added,
+// removed or toggled (that would recompile every lit material): the two loop hooks only multiply intensities that are rewritten every frame anyway.
+let weather = null, wxW = 0, wxAfter = 0, wxMerged = false; // {k:'rain'|'storm', t0, dur, seed, strikes, delays, si} · intensity 0..1 · how wet it still is (lingers two minutes) · sharing one umbrella
+let wxNext = 0, wxT = 0, wxLive = false, wxFlash = -1, wxFlashK = 1, wxTint = false, wxKeyPl = '', wxRain = null, wxRipG = null, wxRipAt = 0, wxRipI = 0, wxBow = null, wxAudio = null, wxGain = 0, wxHissAt = 0, wxLoveAt = 0, wxSaidAt = 0, wxFirePl = '', rainGlassMat = null;
+const wxNow = () => performance.now() / 1000, wxOutdoor = id => ['rooftop', 'beach', 'camping', 'drivein'].includes(id), wxBaseKey = new THREE.Color(), WX_COOL = new THREE.Color('#9aa8d0'), wxFires = [];
+function rainGlass(parent, w, h, x, y, z, rotY) { // a pane of running streaks 1 cm inside a window: every pane shares one texture and one material, only the texture offset moves
+  if (!rainGlassMat) {
+    const tex = canvasTex(128, 256, (c, W, H) => {
+      c.fillStyle = '#000'; c.fillRect(0, 0, W, H); c.lineCap = 'round'; // additive: black is clear glass
+      for (let i = 0; i < 40; i++) { const sx = Math.random() * W, sy = Math.random() * H, len = 30 + Math.random() * 90, j = Math.random() * 2 - 1; c.strokeStyle = `rgba(215,228,255,${(.3 + Math.random() * .6).toFixed(2)})`; c.lineWidth = .6 + Math.random() * 1.2; for (const o of [0, -H]) { c.beginPath(); c.moveTo(sx, sy + o); c.lineTo(sx + j, sy + len + o); c.stroke(); } } // (drawn twice so a streak wraps over the seam)
+      for (let i = 0; i < 9; i++) { c.fillStyle = `rgba(230,238,255,${(.5 + Math.random() * .4).toFixed(2)})`; c.beginPath(); c.ellipse(Math.random() * W, Math.random() * H, 1.4, 2.2, 0, 0, PI * 2); c.fill(); }
+    });
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    rainGlassMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }); rainGlassMat.visible = false;
+  }
+  const geo = new THREE.PlaneGeometry(w, h), uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w, uv.getY(i) * h / 2); // one tile is 1 m wide and 2 m tall whatever the pane
+  put(new THREE.Mesh(geo, rainGlassMat), x, y, z, parent).rotation.y = rotY;
+}
+function startWeather(k, dur, seed, el = 0) {
+  const fresh = !weather || weather.seed !== seed, now = wxNow(), strikes = [], delays = [];
+  let s = seed % 2147483646 + 1; const r = () => (s = s * 16807 % 2147483647) / 2147483647; // the same lightning on both screens
+  if (k === 'storm') for (let x = 12 + r() * 18; x < dur - 4; x += 12 + r() * 18) { strikes.push(x); delays.push(.6 + r() * 1.9); }
+  weather = { k, t0: now - el, dur, seed, strikes, delays, si: 0 }; while (weather.si < strikes.length && strikes[weather.si] < el) weather.si++; // (joined late: the strikes already gone stay gone)
+  wxLive = true; if (isHost) wxNext = now + dur - el + (12 + Math.random() * 13) * 60; // the next front, 12 to 25 minutes after this one
+  if (fresh && el < 5 && !screenLive && place) toast(place.id === 'cabin' ? '❄️ the snow outside is picking up…' : k === 'storm' ? '⛈ a storm is rolling in…' : '🌧 it’s starting to rain…');
+}
+function stopWeather(natural) {
+  if (!weather) return; const k = weather.k; weather = null;
+  if (natural && k === 'storm' && isHost && them && !them.away) achieve('storm'); // (reaches them as 'ach')
+}
+function wxBegin(k = 'rain', dur = 200, seed = 1 + Math.floor(Math.random() * 2e9)) { // the host makes the weather and says so
+  if (!isHost) return false;
+  k = k === 'storm' ? 'storm' : 'rain'; dur = Math.max(20, Math.min(900, +dur || 200)); seed = Math.abs(Math.floor(+seed || 0)) % 2147483646;
+  send({ t: 'wx', k, dur, seed, el: 0 }); startWeather(k, dur, seed, 0); return true;
+}
+function wxEnd() { if (!isHost) return false; send({ t: 'wx', k: null }); stopWeather(false); return true; }
+function onWx(m) {
+  if (isHost) return; // only the host makes weather
+  if (m.k !== 'rain' && m.k !== 'storm') { stopWeather(false); return; }
+  const dur = Math.max(20, Math.min(900, +m.dur || 0)), el = Math.max(0, +m.el || 0), seed = Math.abs(Math.floor(+m.seed || 0)) % 2147483646;
+  if (el < dur) startWeather(m.k, dur, seed, el); else stopWeather(false);
+}
+function wxStrike(delay) { // a flash now, the thunder a moment later (softer indoors, halved under a film)
+  if (document.hidden) return;
+  if (place.id !== 'cinema') wxFlash = 0;
+  if (!actx || actx.state !== 'running' || !AU.noise) return;
+  const v = (screenLive ? .5 : 1) * (place.outdoor ? 1 : place.id === 'cinema' ? .35 : .6);
+  nz(actx.currentTime + delay, 2.2, 'lowpass', 180, .35 * v, 'a', .7, 60);
+  setTimeout(() => { if (!document.hidden) boom(.12 * v * Math.min(1, AU.vol.a / .55)); }, delay * 1000);
+}
+function weatherLight(dt) { // loop hook, right after place.tick: works out the intensity, then lets the sky close in (the loop resets hemi every frame, so this restores itself)
+  if (!weather && wxW <= 0) return;
+  if (weather) {
+    const el = wxNow() - weather.t0;
+    if (el >= weather.dur) stopWeather(true);
+    else {
+      wxW = Math.max(0, Math.min(1, el / 20, (weather.dur - el) / 20)); // 20 s in, 20 s out
+      const S = weather.strikes; while (weather.si < S.length && el >= S[weather.si]) { if (el - S[weather.si] < 1.5) wxStrike(weather.delays[weather.si]); weather.si++; }
+    }
+  }
+  if (!weather) wxW = Math.max(0, wxW - dt / 3); // stopped early: it eases off in three seconds
+  if (place.id === 'cinema') return; // no windows in there
+  hemi.intensity *= 1 - (place.outdoor ? .22 : .1) * wxW;
+  if (wxFlash >= 0) { if (wxFlash < 2 || wxFlash === 5) { wxFlashK = screenLive ? 1.25 : place.outdoor ? 2.2 : 1.5; hemi.intensity *= wxFlashK; } if (++wxFlash > 5) wxFlash = -1; } // two frames, then once more three frames later
+}
+function weatherKey() { // loop hook, right after dimLights (which rewrites key.intensity every frame): outdoors the key light goes cooler and the fog comes closer
+  if (wxW <= 0 && !wxTint) return;
+  const fg = place.env.fog;
+  if (place.outdoor && wxW > 0) {
+    if (wxKeyPl !== place.id || !wxTint) { wxKeyPl = place.id; wxBaseKey.set((KEYL[place.id] || KEYL.apartment)[0]); }
+    key.intensity *= 1 - .3 * wxW; key.color.copy(wxBaseKey).lerp(WX_COOL, .6 * wxW);
+    if (scene.fog && fg) { const k = 1 - .4 * wxW; scene.fog.near = fg[1] * k; scene.fog.far = fg[2] * k; }
+    wxTint = true;
+  } else { // dry again (or gone indoors, where the place drives its own key light): put it back once
+    wxTint = false;
+    if (place.outdoor) { key.color.set((KEYL[place.id] || KEYL.apartment)[0]); if (scene.fog && fg) { scene.fog.near = fg[1]; scene.fog.far = fg[2]; } }
+  }
+}
+function wxRainObj() { // ONE LineSegments: 300 streaks in a 16 x 9 x 16 box that wraps around you
+  if (wxRain) return wxRain;
+  const N = 300, pos = new Float32Array(N * 6), sd = new Float32Array(N * 3); for (let i = 0; i < N * 3; i++) sd[i] = Math.random(); for (let i = 0; i < N; i++) pos[i * 6 + 4] = Math.random() * 9;
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  wxRain = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: '#cfd8ff', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  wxRain.frustumCulled = false; wxRain.name = 'rain'; wxRain.userData.sd = sd; return wxRain;
+}
+function wxRipples(dt, w) { // a pool of ten warm rings on the ground around you
+  if (!wxRipG) { wxRipG = new THREE.Group(); const geo = new THREE.RingGeometry(.9, 1, 24); for (let i = 0; i < 10; i++) { const r = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#ffd9a0', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })); r.rotation.x = -PI / 2; r.visible = false; r.userData.a = 9; wxRipG.add(r); } }
+  if (!wxRipG.parent) scene.add(wxRipG);
+  const rs = wxRipG.children;
+  if ((wxRipAt -= dt) <= 0) {
+    wxRipAt = .12; const a = Math.random() * PI * 2, d = 6 * Math.sqrt(Math.random()), x = me.x + Math.cos(a) * d, z = me.z + Math.sin(a) * d, B = place.bounds;
+    if (x > B[0] - .3 && x < B[1] + .3 && z > B[2] - .3 && z < B[3] + .3) { const r = rs[wxRipI = (wxRipI + 1) % rs.length]; r.position.set(x, (place.floorY ? place.floorY(x, z) : 0) + .02, z); r.userData.a = 0; r.visible = true; } // only where there is floor to land on
+  }
+  for (let i = 0; i < rs.length; i++) { const r = rs[i]; if (!r.visible) continue; const k = (r.userData.a += dt) / .7; if (k >= 1) { r.visible = false; continue; } r.scale.setScalar(.05 + .45 * k); r.material.opacity = .5 * (1 - k) * w; }
+}
+function wxBowObj() { // a faint half ring far behind the screen: gold on the outside, acid green, violet inside
+  if (wxBow) return wxBow;
+  const geo = new THREE.TorusGeometry(60, .8, 6, 40, PI), p = geo.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color(), A = new THREE.Color('#ffcf6b'), B = new THREE.Color('#b6ff3b'), C = new THREE.Color('#a77bff');
+  for (let i = 0; i < p.count; i++) { const k = Math.max(0, Math.min(1, (60.8 - Math.hypot(p.getX(i), p.getY(i))) / 1.6)); if (k < .5) c.copy(A).lerp(B, k * 2); else c.copy(B).lerp(C, k * 2 - 1); c.toArray(col, i * 3); }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  wxBow = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  wxBow.position.set(0, 0, -90); return wxBow;
+}
+function wxFloor(k) { // wet ground: the floor of the place you are in gets its own copy of its material (the original is shared with other things) and goes shiny
+  const f = place.floor; if (!f) return; let q = place.wet;
+  if (!q) { if (k <= 0) return; const m0 = f.material, m = m0.clone(); m.userData.envB = m0.userData.envB ?? m0.envMapIntensity; f.material = m; envMats.push(m); q = place.wet = { m, r: m0.roughness, me: m0.metalness, e: m.userData.envB }; }
+  q.m.roughness = q.r + (.25 - q.r) * k; q.m.metalness = q.me + (.35 - q.me) * k; q.m.envMapIntensity = (q.e + (.9 - q.e) * k) * Math.max(.05, lightV()); // (the dimmer still applies)
+}
+function wxFireReset() { for (const f of FIRES) if (f.userData.s0) f.scale.setScalar(f.userData.s0); wxFires.length = 0; wxFirePl = ''; }
+function wxUmb(mesh, p, mine, on) { // each little one gets an umbrella, built once like the s'more stick (host orange, guest violet)
+  if (!mesh) return null; const u = mesh.userData;
+  if (!on || !p || p.car >= 0 || p.ko) { if (u.umb) u.umb.visible = false; return null; }
+  if (!u.umb) {
+    const g = new THREE.Group(); g.userData.c = put(new THREE.Mesh(GEO.umb ||= shared(new THREE.ConeGeometry(.55, .24, 10)), M(mine === isHost ? '#ff8a3d' : '#a77bff', { roughness: .6 })), 0, 0, 0, g);
+    put(cyl(.012, .012, .8, '#5a4034', 6), 0, -.42, 0, g); g.position.set(.16, 1.12, 0); mesh.add(g); u.umb = g;
+  }
+  u.umb.visible = true; return u.umb;
+}
+function wxUmbPose(g, lead, mesh, p, q, merged, k) { // standing close: the guest's folds away, the host's grows and leans half-way over to the other one
+  let x = .16, y = 1.12, z = 0, s = 1;
+  if (merged) { if (!lead) { g.visible = false; return; } const dx = (q.x - p.x) / 2, dz = (q.z - p.z) / 2, c = Math.cos(mesh.rotation.y), sn = Math.sin(mesh.rotation.y); x = dx * c - dz * sn; z = dx * sn + dz * c; y = 1.2; s = 1.5; }
+  const P = g.position, S = g.userData.c.scale; P.x += (x - P.x) * k; P.y += (y - P.y) * k; P.z += (z - P.z) * k; S.x = S.z = S.x + (s - S.x) * k;
+}
+function wxSound(dt, w) { // one looping noise source on the ambience bus (kept apart from AU.amb, which every place change clears)
+  const mode = place.outdoor ? 0 : place.id === 'cinema' ? 2 : 1, target = (mode === 0 ? .1 : mode === 1 ? .07 : .03) * w;
+  if (!wxAudio) {
+    if (target <= 0 || !actx || actx.state !== 'running' || !AU.noise) return;
+    const src = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain(); src.buffer = AU.noise; src.loop = true; g.gain.value = 0; src.connect(f).connect(g).connect(AU.a); src.start(0, Math.random()); src.onended = () => g.disconnect();
+    wxAudio = { src, f, g, mode: -1 }; wxGain = 0;
+  }
+  if (wxAudio.mode !== mode) { wxAudio.mode = mode; const f = wxAudio.f; f.type = mode ? 'lowpass' : 'bandpass'; f.frequency.value = mode === 0 ? 2500 : mode === 1 ? 420 : 300; f.Q.value = mode ? .7 : .5; } // open air · muffled behind glass · a patter on the cinema roof
+  wxGain += (target - wxGain) * Math.min(1, dt * 1.2); wxAudio.g.gain.value = wxGain; // about three seconds to settle
+  if (target <= 0 && wxGain < .0005) wxSilence(); // the rain is over: nothing keeps looping under the afterglow
+}
+function wxSilence() { const A = wxAudio; if (!A) return; wxAudio = null; try { A.g.gain.setTargetAtTime(0, actx.currentTime, .3); A.src.stop(actx.currentTime + 1.5); } catch {} }
+function wxDry() { // it is over and the ground has dried: everything back the way it was, once
+  wxLive = false; wxW = wxAfter = 0; wxMerged = false;
+  if (wxRain && wxRain.parent) scene.remove(wxRain); if (wxRipG && wxRipG.parent) scene.remove(wxRipG); if (wxBow && wxBow.parent) scene.remove(wxBow);
+  if (rainGlassMat) rainGlassMat.visible = false;
+  wxFireReset(); wxSilence();
+  for (const id in built) { const q = built[id].wet; if (q) { q.m.roughness = q.r; q.m.metalness = q.me; q.m.envMapIntensity = q.e * (built[id] === place ? Math.max(.05, lightV()) : 1); } }
+  for (const c of [meMesh, themMesh]) if (c && c.userData.umb) c.userData.umb.visible = false;
+}
+function tickWeather(dt, t) {
+  const now = wxNow(), dw = Math.min(600, now - wxT); wxT = now;
+  if (isHost && !weather) { // the host rolls the fronts, like the shooting stars: the first one no earlier than six minutes in
+    if (!wxNext) wxNext = now + 360 + Math.random() * 360;
+    else if (now > wxNext) wxBegin(Math.random() < .3 ? 'storm' : 'rain', Math.round(150 + Math.random() * 150));
+  }
+  if (!weather && wxW <= 0 && wxAfter <= 0) { if (wxLive) wxDry(); return; } // a clear day costs nothing
+  wxLive = true; wxAfter = Math.max(wxW, wxAfter - dw / 120); // wet as long as it rains, then two minutes to dry
+  const w = wxW, out = !!place.outdoor, wet = out && w > 0;
+  if (wet) { // the rain itself: 600 vertices moved in place, one draw call (half of them on the lowest graphics levels)
+    const R = wxRainObj(), n = qLevel >= 3 ? 150 : 300, a = R.geometry.attributes.position.array, sd = R.userData.sd, cx = me.x, cz = me.z;
+    for (let i = 0, j = 0, k = 0; i < n; i++, j += 6, k += 3) {
+      let y = a[j + 4] - (9.5 + 3 * sd[k + 1]) * dt; if (y < 0) y += 9;
+      const x = cx + ((sd[k] * 16 - cx) % 16 + 16) % 16 - 8, z = cz + ((sd[k + 2] * 16 - cz) % 16 + 16) % 16 - 8;
+      a[j] = x + .07; a[j + 1] = y + .35; a[j + 2] = z; a[j + 3] = x; a[j + 4] = y; a[j + 5] = z;
+    }
+    R.geometry.attributes.position.needsUpdate = true; R.geometry.setDrawRange(0, n * 2); R.material.opacity = .35 * w; if (!R.parent) scene.add(R);
+    wxRipples(dt, w);
+  } else { if (wxRain && wxRain.parent) scene.remove(wxRain); if (wxRipG && wxRipG.parent) scene.remove(wxRipG); }
+  if (rainGlassMat) { const on = !out && w > 0; rainGlassMat.visible = on; if (on) { rainGlassMat.opacity = .5 * w; rainGlassMat.map.offset.y = (rainGlassMat.map.offset.y + dt * .6) % 1; } } // indoors it runs down the glass
+  // the fires in this place hunker down, and hiss now and then
+  if (wet) {
+    if (wxFirePl !== place.id || frameN % 30 === 0) { wxFirePl = place.id; wxFires.length = 0; for (const f of FIRES) { let o = f; while (o && o !== place.g) o = o.parent; if (o) wxFires.push(f); else if (f.userData.s0) f.scale.setScalar(f.userData.s0); } }
+    for (const f of wxFires) { f.userData.s0 ??= f.scale.x; f.scale.setScalar(f.userData.s0 * (1 - .35 * w)); }
+    if (w > .3 && wxFires.length && now > wxHissAt) { wxHissAt = now + 1.5 + Math.random() * 3; if (actx && actx.state === 'running' && AU.noise && !document.hidden) nz(actx.currentTime, .3, 'highpass', 4500, .035 * w, 'a'); }
+  } else if (wxFirePl) wxFireReset();
+  // after the rain: shiny ground, and for a while a faint bow
+  if (out) wxFloor(wxAfter);
+  const bowA = out && (!weather || now - weather.t0 > weather.dur - 20) ? .12 * wxAfter * (1 - w) * (1 - w) : 0;
+  if (bowA > .002) { const b = wxBowObj(); b.material.opacity = bowA; if (!b.parent) scene.add(b); } else if (wxBow && wxBow.parent) scene.remove(wxBow);
+  // umbrellas, and the one you share: worked out from positions both sides already have, no messages
+  const umbOn = out && w > .3, ua = wxUmb(meMesh, me, true, umbOn), ub = wxUmb(themMesh, them && !them.away ? them : null, false, umbOn);
+  const merged = !!(ua && ub) && Math.hypot(me.x - them.x, me.z - them.z) < (wxMerged ? 1.1 : .95), k = Math.min(1, dt * 8);
+  if (ua) wxUmbPose(ua, isHost, meMesh, me, them, merged, k);
+  if (ub) wxUmbPose(ub, !isHost, themMesh, them, me, merged, k);
+  if (merged) {
+    if (!wxMerged) { wxLoveAt = now + 30; if (t > wxSaidAt) { wxSaidAt = t + 20; floatText(me, '☂️', '#ffcf6b'); } if (isHost) achieve('umbrella'); } // (the host counts it for both, it reaches them as 'ach')
+    me.happyUntil = Math.max(me.happyUntil || 0, t + 1.5); them.happyUntil = Math.max(them.happyUntil || 0, t + 1.5);
+    if (isHost && now > wxLoveAt) { wxLoveAt = now + 30; loveAdd(1); }
+  }
+  wxMerged = merged;
+  wxSound(dt, w);
+}
+
+function tick13(dt, t) { if (strip) tickStrip(); tickLan(dt, t); tickTape(); tickWeather(dt, t); } // per-frame hook for the newest features (the rally balloon ticks inside tickGame, next to the other little games)
 function onFun13(m) {
   switch (m.t) {
     case 'hello': send({ t: 'lanAll', all: lanterns }); send({ t: 'memAll', all: mem }); // both sides send theirs: the two skies (and the two memory logs) become the union
       send({ t: 'tape', dd: doodling ? 1 : 0 });
       if (isHost) setTimeout(tapeTell, 800); // after the photos, lanterns and memories have crossed, so their deck is built from the same things as mine
+      if (isHost) send(weather ? { t: 'wx', k: weather.k, dur: weather.dur, seed: weather.seed, el: +(wxNow() - weather.t0).toFixed(2) } : { t: 'wx', k: null }); // a shower already under way: they join it where it is (and a rain I no longer have stops for them)
       return false;
+    case 'wx': onWx(m); return true;
     case 'mem': memAdd(m.e); return true;
     case 'memAll': if (Array.isArray(m.all)) { let n = 0; for (const e of m.all.slice(-80)) if (memAdd(e, true)) n++; if (n) saveMem(); } return true;
     case 'tape': onTape(m); return true;
@@ -4705,6 +4897,6 @@ $('go').onclick = () => {
   }, 980);
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { tape: { get on() { return tapeOn }, start: tapePlay, stop: tapeHalt, get i() { return tapeI }, get seed() { return tapeSeed }, get draws() { return tapeDraws }, get deck() { return tapeDeck.map(c => c.k === 'pic' ? { k: c.k, picId: c.picId } : { k: c.k, text: c.text }) } }, logMem, get mem() { return mem }, dayKey, lan: { get pending() { return lanPending }, get all() { return lanterns }, place: lanPlace, hold(on) { lanForce = on ? true : null; }, go: lanRelease }, get lanSky() { return (place && place.lanSky) || null }, openScope, closeScope, nearTel, startStrip, shootFrame, get stripRun() { return strip && { seed: strip.seed, i: strip.i, prompts: strip.prompts } }, get lastStrip() { return lastStrip }, get rally() { return game && game.mode === 'rally' ? game : null }, rallyHit, rallyDrop, GATES, carE, exitCar, driveStep, get karts() { return place.karts }, newGame, kartBlocked, eatSnack, setLights, lightV, startCuddle, seatPair, iceServers, get peer() { return peer }, setGfx, get qMode() { return qMode }, get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: (v, ar) => (hangAr = ar, hanging = v), doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { get weather() { return weather }, wxStart: wxBegin, wxStop: wxEnd, get wxW() { return wxW }, get wxAfter() { return wxAfter }, get wxMerged() { return wxMerged }, get wxRain() { return wxRain }, get wxGlass() { return rainGlassMat }, get wxFlashK() { return wxFlashK }, hemi, tape: { get on() { return tapeOn }, start: tapePlay, stop: tapeHalt, get i() { return tapeI }, get seed() { return tapeSeed }, get draws() { return tapeDraws }, get deck() { return tapeDeck.map(c => c.k === 'pic' ? { k: c.k, picId: c.picId } : { k: c.k, text: c.text }) } }, logMem, get mem() { return mem }, dayKey, lan: { get pending() { return lanPending }, get all() { return lanterns }, place: lanPlace, hold(on) { lanForce = on ? true : null; }, go: lanRelease }, get lanSky() { return (place && place.lanSky) || null }, openScope, closeScope, nearTel, startStrip, shootFrame, get stripRun() { return strip && { seed: strip.seed, i: strip.i, prompts: strip.prompts } }, get lastStrip() { return lastStrip }, get rally() { return game && game.mode === 'rally' ? game : null }, rallyHit, rallyDrop, GATES, carE, exitCar, driveStep, get karts() { return place.karts }, newGame, kartBlocked, eatSnack, setLights, lightV, startCuddle, seatPair, iceServers, get peer() { return peer }, setGfx, get qMode() { return qMode }, get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: (v, ar) => (hangAr = ar, hanging = v), doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
