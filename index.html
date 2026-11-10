@@ -36,16 +36,16 @@
   .look{width:58px;height:58px;border-radius:50%;border:0;cursor:pointer;display:grid;place-items:center;font-size:26px;transition:box-shadow .2s}
   .look.on{box-shadow:0 0 0 3px var(--gold),0 0 22px #ffcf6b88}
   #go{width:100%;padding:13px;font-weight:700;font-size:16px}
-  #toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:20;padding:9px 18px;border-radius:999px;background:#ffcf6bee;color:#1a0d06;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none}
+  #toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:20;width:max-content;max-width:calc(100vw - 24px);box-sizing:border-box;text-align:center;padding:9px 18px;border-radius:18px;background:#ffcf6bee;color:#1a0d06;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none}
   #stick{position:absolute;left:22px;bottom:22px;width:120px;height:120px;border-radius:50%;background:#ffffff14;backdrop-filter:blur(6px);z-index:4;display:none;touch-action:none}
   #knob{position:absolute;left:35px;top:35px;width:50px;height:50px;border-radius:50%;background:#ffcf6bcc;box-shadow:0 0 20px #ff8a3d88;pointer-events:none}
   #jump{position:absolute;right:22px;bottom:70px;width:70px;height:70px;border-radius:50%;border:0;background:#ffffff1c;color:#ffcf6b;font-size:28px;z-index:4;display:none;place-items:center;touch-action:none}
   #hud{position:absolute;left:50%;top:58px;transform:translateX(-50%);z-index:3;padding:8px 18px;border-radius:999px;background:#000000aa;backdrop-filter:blur(8px);font-weight:700;color:#ffcf6b;display:none;white-space:nowrap;pointer-events:none}
   #blind{position:absolute;inset:0;z-index:2;background:#050308f2;display:none;align-items:center;justify-content:center;font-size:110px;font-weight:800;color:#ffcf6b;text-shadow:0 0 40px #ff8a3d;pointer-events:none}
-  #panel{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);z-index:5;width:min(94%,560px);max-height:70%;overflow:auto;padding:16px;border-radius:30px;background:#140c18ee;box-shadow:0 0 50px #ff8a3d33;display:none}
+  #panel{position:absolute;left:50%;bottom:calc(var(--dock,40px) + 24px);transform:translateX(-50%);z-index:5;width:min(94%,560px);max-height:70%;overflow:auto;padding:16px;border-radius:30px;background:#140c18ee;box-shadow:0 0 50px #ff8a3d33;display:none}
   .tile.item{flex:none;width:78px;padding:8px 4px;text-align:center;border-radius:20px}
   .tile.item .ie{display:block;font-size:24px}.tile.item .il{display:block;font-size:11px;opacity:.75;margin-top:3px;line-height:1.15}
-  #panel.side{left:14px;transform:none;width:min(360px,70%);bottom:64px;max-height:calc(100% - 140px)}
+  #panel.side{left:14px;transform:none;width:min(360px,70%);max-height:calc(100% - var(--dock,40px) - 100px)}
   #panel h3{margin:0 0 10px;font-size:15px;color:#ffcf6b}
   #panel .grid{display:flex;flex-wrap:wrap;gap:8px}
   .tile{border:0;border-radius:22px;padding:10px 14px;background:#ffffff12;color:#f6e7cf;font:inherit;cursor:pointer;text-align:left;flex:1 1 150px}
@@ -70,7 +70,7 @@
   @media (max-width:430px){#actions .grp .pill{padding:6px}}
   #stripHud span{display:block;font-size:12px;font-weight:700;letter-spacing:.24em;color:#ffcf6b;opacity:.8;text-shadow:0 1px 8px #000}
   a.pill{text-decoration:none;display:inline-block}
-  #chat{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);z-index:6;width:min(86%,440px);display:none;border:1px solid #ffcf6b55;border-radius:999px;padding:12px 20px;background:#140c18ee;color:#f6e7cf;font:inherit;outline:none;box-shadow:0 0 30px #ff8a3d33}
+  #chat{position:absolute;left:50%;bottom:calc(var(--dock,40px) + 24px);transform:translateX(-50%);z-index:6;width:min(86%,440px);display:none;border:1px solid #ffcf6b55;border-radius:999px;padding:12px 20px;background:#140c18ee;color:#f6e7cf;font:inherit;outline:none;box-shadow:0 0 30px #ff8a3d33}
   .pvbox{width:170px;height:190px;margin:0 auto 8px;border-radius:40px;background:radial-gradient(circle at 50% 60%,#ffcf6b22,#0000 70%);touch-action:none}
   .pvbox canvas{width:100%;height:100%;display:block;cursor:grab}
   #creator{position:fixed;inset:0;z-index:15;display:none;align-items:center;justify-content:center;background:#050308dd;padding:12px}
@@ -162,6 +162,8 @@
   .spark{position:absolute;border-radius:50%;background:#ffcf6b;box-shadow:0 0 12px #ffcf6b;opacity:.0;animation:spark linear infinite;pointer-events:none}
   @keyframes spark{0%{opacity:0;transform:translateY(20px)}20%{opacity:.8}100%{opacity:0;transform:translateY(-140px)}}
   #wishb{position:absolute;left:50%;top:112px;transform:translateX(-50%);z-index:5;display:none;animation:pulse 1.2s ease-in-out infinite}
+  #stage.stripping>#wishb{top:64px} /* a photo strip's prompt and count own the middle: the wish pill tucks above them, a couple-game card fades back until the last shutter */
+  #stage.stripping>#cg{opacity:.12;pointer-events:none;transition:opacity .2s}
   @keyframes pulse{50%{box-shadow:0 0 40px #ffcf6bcc}}
   .lvbar{height:12px;border-radius:999px;background:#ffffff14;overflow:hidden;margin:6px 0 4px}
   .lvbar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#ff7aa8,#ffcf6b);box-shadow:0 0 18px #ff9ab8}
@@ -181,7 +183,7 @@
     <div id="top"><span id="status">…</span><button class="pill" id="loveb" title="Our love level">💗 <span class="lbl">Lv </span>1</button><button class="pill" id="invite">💌 <span class="lbl">Invite</span></button><button class="pill" id="placesb">🗺 <span class="lbl">Places</span></button><span style="flex:1"></span><div class="grp"><button class="pill" id="charb" title="Your character">👤</button><button class="pill" id="pets" title="Pets">🐾</button><button class="pill" id="hats" title="Hats">🎩</button><button class="pill" id="fw" title="Fireworks">🎆</button><button class="pill" id="doodle" title="Doodle on the screen">✏️</button><button class="pill" id="radiob" title="Radio, sound & graphics">📻</button><button class="pill" id="lightb" title="Lights">💡</button></div><button class="pill" id="couple">💞 <span class="lbl">Us</span></button><button class="pill" id="games">🎲 <span class="lbl">Games</span></button><button class="pill" id="decor">🛋 <span class="lbl">Decorate</span></button><button class="pill" id="helpb" title="Controls">?</button></div>
     <div id="hud"></div><input id="chat" maxlength="80" placeholder="say something sweet… (Enter to send)" autocomplete="off"><div id="blind"></div><div id="panel"></div>
     <div id="actions">
-      <div class="grp" id="more" style="display:none"><button class="pill" id="pov" title="Switch view (V)">👀 3rd person</button><button class="pill" id="pop" title="Throw popcorn (F)">🍿</button><button class="pill" id="pushb" title="Push (Q)">🫸</button><button class="pill" id="smackb" title="Smack (G)">🖐</button></div>
+      <div class="grp" id="more" style="display:none"><button class="pill" id="pov" title="Switch view (V)">👀 3rd person</button><button class="pill" id="pop" title="Throw popcorn (F)">🍿</button><button class="pill" id="crouchb" title="Crouch (C)" style="display:none">🧎</button><button class="pill" id="pushb" title="Push (Q)">🫸</button><button class="pill" id="smackb" title="Smack (G)">🖐</button></div>
       <div class="grp"><button class="pill" id="moreb" title="More">⋯</button><button class="pill" id="mic" title="Voice chat">🎙</button><button class="pill" id="camb" title="Webcam">📷</button><button class="pill" id="talk" title="Chat (Enter)">💬</button><button class="pill" id="emote" title="Emotes (1-6)">😊</button><button class="pill" id="snackb" title="Snacks">🍔</button><button class="pill" id="hands" title="Hold hands / pet · hold it at a lantern (E)">🤝</button><button class="pill" id="heart" title="Send a heart (H)">♥</button><button class="pill" id="snap" title="Photo booth">📸</button><button class="pill" id="strip" title="Photo strip: 4 poses, 3 seconds each">🎞</button></div>
       <button class="pill" id="watch" title="Watch mode (T)" style="display:none">📺 Watch</button><button class="pill" id="fs" title="Full screen">⛶</button>
       <button class="pill" id="share" title="Put a Chrome tab on the screen">🎮 Share a tab</button>
@@ -1308,6 +1310,7 @@ const cam = { yaw: 0, pitch: .22, dist: 3.4, fp: 0 };
 const camLook = new THREE.Vector3();
 const cv = renderer.domElement;
 const isTouch = matchMedia('(pointer: coarse)').matches;
+const kE = isTouch ? '🤝' : 'E', kJump = isTouch ? '⤒' : 'Space', kToss = isTouch ? '⋯ 🫸' : 'Q'; // what a hint calls E, Space and Q where there is no keyboard: the buttons that do the same
 const locked = () => document.pointerLockElement === cv;
 function lockMouse() { if (started && !locked() && cv.requestPointerLock && !isTouch) { try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch {} } }
 function unlockMouse() { if (locked()) document.exitPointerLock(); }
@@ -1430,6 +1433,7 @@ function routeTo(a) {
   if (dist[n - 1] === Infinity) return [a];
   const out = []; for (let v = n - 1; v > 0; v = prev[v]) out.unshift(pts[v]); return out;
 }
+{ const dock = $('actions'), st = $('stage'), fitDock = () => st.style.setProperty('--dock', Math.max(40, dock.offsetHeight) + 'px'); new ResizeObserver(fitDock).observe(dock); fitDock(); } // panels and the chat box sit above the dock however it wraps (two rows on a phone), so 🤝 😊 🍔 stay reachable under an open panel
 // phone: thumbstick on the left, jump button on the right, drag anywhere else to look
 if (isTouch) {
   const stick = $('stick'), knob = $('knob'); stick.style.display = 'block'; $('jump').style.display = 'grid';
@@ -1440,6 +1444,7 @@ if (isTouch) {
   const end = () => { id = null; joy.on = false; joy.x = joy.y = 0; knob.style.transform = ''; };
   stick.addEventListener('pointerup', end); stick.addEventListener('pointercancel', end);
   $('jump').addEventListener('pointerdown', e => { e.stopPropagation(); jump(); });
+  $('crouchb').style.display = ''; $('crouchb').onclick = () => { me.crouchT = !me.crouchT; $('crouchb').classList.toggle('on', me.crouchT); }; // C has no key here: ⋯ then 🧎 crouches until tapped again (a strip's 'crouch + stand tall')
   const dock = $('actions'), fit = () => { const h = dock.offsetHeight + 22; stick.style.bottom = h + 'px'; $('jump').style.bottom = (h + 25) + 'px'; }; // sit above the dock, however it wraps
   new ResizeObserver(fit).observe(dock); addEventListener('resize', fit); fit();
 }
@@ -1625,7 +1630,7 @@ function beginGame(g, remote) {
 function endGame(silent, msg) {
   if (!game) return;
   if (game.stars) game.stars.forEach(st => st && scene.remove(st));
-  if (game.rings) game.rings.forEach(q => scene.remove(q));
+  if (game.rings) game.rings.forEach(q => { scene.remove(q); q.geometry.dispose(); }); // (their glow materials are shared ones: only the two tori go back)
   if (game.ball) { scene.remove(game.ball, game.shadow, game.ring); game.bmat.dispose(); if (game.btex) game.btex.dispose(); } // the rally balloon: its material (and beach-ball stripes) are its own
   if (itRing.parent) itRing.parent.remove(itRing);
   if (potato.parent) potato.parent.remove(potato); potato.scale.setScalar(1);
@@ -1776,7 +1781,27 @@ function rebuildDeco(id, blocksOnly) {
 function applyMood() { const st = decoOf(place.id); moodLight.intensity = st.mood ? 10 : 0; if (st.mood) moodLight.color.set(st.mood); }
 // edits go out as small ops, not whole snapshots, so two people decorating at once don't wipe each other's changes
 const BLOCK_OPS = ['bAdd', 'bDel', 'clearB'];
-function decoChanged(op, id = place.id) { saveDeco(); send({ t: 'decoOp', id, op }); rebuildDeco(id, BLOCK_OPS.includes(op.op)); applyMood(); }
+function decoChanged(op, id = place.id) { const st = decoOf(id); st.ts = Date.now(); if (conn && conn.open) st.sy = st.ts; saveDeco(); send({ t: 'decoOp', id, op, ts: st.ts }); rebuildDeco(id, BLOCK_OPS.includes(op.op)); applyMood(); } // ts: when this place was last edited · sy: the ts the two of us last agreed on (ts !== sy: edited alone since)
+function decoSynced() { const n = Date.now(); for (const id in decoState) { const st = decoState[id]; if (st && typeof st === 'object') { st.ts ||= n; st.sy = st.ts; } } }
+function decoMerge(all) { // host, at hello: the guest's own saved rooms come first, so joining never wipes what they made alone. A place only they edited since we last agreed is theirs, one only I edited stays mine, one we both edited (or an old save with no stamps) is the two put together
+  if (!all || typeof all !== 'object') return false;
+  const cell = b => b.slice(0, 3).join(), now = Date.now(); let ch = false;
+  for (const P of PLACES) {
+    const g = all[P.id]; if (!g || typeof g !== 'object' || (g.ts && g.ts === g.sy)) continue;
+    const gi = (Array.isArray(g.items) ? g.items : []).filter(it => it && typeof it === 'object' && typeof it.k === 'string' && Number.isFinite(it.x) && Number.isFinite(it.z)).slice(0, 2000);
+    const gb = (Array.isArray(g.blocks) ? g.blocks : []).filter(b => Array.isArray(b) && b.length >= 3 && b.slice(0, 3).every(Number.isInteger)).slice(0, 20000);
+    const h = decoOf(P.id); h.blocks ||= []; if (!Array.isArray(h.items)) h.items = [];
+    if (g.ts && h.ts && h.ts === h.sy) { h.items = gi; h.blocks = gb; h.wall = typeof g.wall === 'string' ? g.wall : ''; h.mood = typeof g.mood === 'string' ? g.mood : ''; }
+    else {
+      const hi = new Set(h.items.map(decoUid)), hb = new Set(h.blocks.map(cell)); let n = 0;
+      for (const it of gi) if (!hi.has(decoUid(it))) { hi.add(decoUid(it)); h.items.push(it); n++; }
+      for (const b of gb) if (!hb.has(cell(b))) { hb.add(cell(b)); h.blocks.push(b); n++; }
+      if (!n) continue; // nothing of theirs was missing here
+    }
+    h.ts = now; ch = true;
+  }
+  return ch;
+}
 const decoUid = it => it.u ||= it.k + '@' + it.x + ',' + it.z; // older saved items have no uid: derive the same one on both sides
 function applyDecoOp(id, o) {
   const st = decoOf(id), cell = b => b.slice(0, 3).join(); st.blocks ||= [];
@@ -1789,7 +1814,8 @@ function applyDecoOp(id, o) {
 
 let decorating = false, held = null, lastPtr = null;
 const panel = $('panel');
-function closePanel() { panel.style.display = 'none'; panel.dataset.k = ''; panel.classList.remove('side'); }
+function closePanel() { if (doodling && panel.dataset.k === 'doodle') return toggleDoodle(); // the pens go down with their panel (travel, an emote, a snack), so the other one hears it and the tape may play again
+  panel.style.display = 'none'; panel.dataset.k = ''; panel.classList.remove('side'); }
 function claimPanel() { if (decorating) toggleDecorate(); if (doodling) toggleDoodle(); if (building) toggleBuild(); } // another panel takes over: end the mode that owned it
 const MENU_PANELS = ['games', 'couple', 'places'];
 function panelFree() { return panel.style.display !== 'block' || !panel.dataset.k || panel.dataset.k === 'quiz' || MENU_PANELS.includes(panel.dataset.k); }
@@ -1870,8 +1896,9 @@ const EMOTES = [['wave', '👋', 'Wave'], ['dance', '💃', 'Dance'], ['kiss', '
 const EPAIR = { cuddle: 'cuddle', hug: 'hug-back', 'hug-back': 'hug', smooch: 'smooch', slowdance: 'slowdance', massage: 'massaged', massaged: 'massage' }; // paired emote on the other one
 function doEmote(k) {
   if (me.car >= 0) { toast('Hop out of the car first 🚗'); return; }
-  if (pig && ['cuddle', 'hug', 'smooch', 'slowdance', 'massage'].includes(k)) { toast(riding() ? 'Hop off first (Space) 🐒' : 'Put them down first (Q) 🐒'); return; }
+  if (pig && ['cuddle', 'hug', 'smooch', 'slowdance', 'massage'].includes(k)) { toast(riding() ? `Hop off first (${kJump}) 🐒` : `Put them down first (${kToss}) 🐒`); return; }
   if (leaning()) return; // mid trust fall
+  if (['cuddle', 'hug', 'smooch', 'slowdance', 'massage'].includes(k) && ((stunt && stunt.k !== 'pig') || (them && them.emote && (them.emote.k === 'lean' || (them.emote.k === 'five' && !them.emote.hit))))) { toast('One thing at a time ✋'); return; } // a hand is up or someone is falling: a hug now would take the pose away while the stunt runs on
   if (k === 'cuddle' && !startCuddle()) return;
   if (k === 'lieback' || k === 'liebelly') { layDown(k === 'lieback' ? 'back' : 'belly'); closePanel(); return; }
   if (me.ko) return;
@@ -2042,7 +2069,7 @@ function takePhoto() { snapNext = true; }
 function shootFrame(w, h) { // returns a w x h canvas. Call it right after composer.render(): the drawing buffer can only be read in that same task
   // re-render once from a camera in front of you two, so the photo shows your faces
   const mid = them ? headOf(me).lerp(headOf(them), .5) : headOf(me), fr = new THREE.Vector3(Math.sin(me.ry), 0, Math.cos(me.ry));
-  const pos = mid.clone().addScaledVector(fr, them ? 2.5 : 1.9).add(new THREE.Vector3(0, .75, 0)), c = place.cam;
+  const pos = mid.clone().addScaledVector(fr, them ? 2.5 : 1.9).add(new THREE.Vector3(0, .75, 0)), c = place.camAt ? place.camAt(me.x, me.z) : place.cam; // the box of the room you are in (a bedroom, the lobby), like the live camera: never the far side of its wall
   pos.x = Math.max(c[0], Math.min(c[1], pos.x)); pos.z = Math.max(c[2], Math.min(c[3], pos.z)); pos.y = Math.min(c[4], pos.y);
   const saveP = camera.position.clone(), saveQ = camera.quaternion.clone(), vis = meMesh.visible;
   camera.position.copy(pos); camera.lookAt(mid.clone().add(new THREE.Vector3(0, -.1, 0))); meMesh.visible = true;
@@ -2071,7 +2098,7 @@ function grabPhoto() {
 }
 function flash() { const f = $('flash'); f.style.transition = 'none'; f.style.opacity = 1; requestAnimationFrame(() => { f.style.transition = 'opacity .6s'; f.style.opacity = 0; }); }
 $('snap').onclick = () => { if (strip) return toast('🎞 Mid photo strip · one sec'); takePhoto(); send({ t: 'snap' }); loveAdd(4); };
-$('photoClose').onclick = () => $('photo').style.display = 'none';
+$('photoClose').onclick = () => { $('photo').style.display = 'none'; snapBack(); };
 // pinned photos: click a wall (or anything) to stick it there; click one later to take it down. Shared with them.
 let picsState = { places: {}, gone: [] }; try { picsState = { places: {}, gone: [], ...JSON.parse(localStorage.getItem('ols-pics') || '{}') }; } catch {}
 let hanging = null, lastSnap = null, viewPic = null, lastAr, hangAr; // lastAr: height / width of lastSnap when it is not a polaroid (a photo strip is 3) · hangAr: the same for the one being hung
@@ -2079,14 +2106,14 @@ const picTex = {};
 function savePics() { try { localStorage.setItem('ols-pics', JSON.stringify(picsState)); } catch { toast('Too many photos to save on this computer'); } }
 function rebuildPics(id) {
   const pl = built[id]; if (!pl) return;
-  if (pl.picsG) pl.g.remove(pl.picsG);
+  disposeTree(pl.picsG); // the old planes and their materials go back (the photo textures stay: they live in picTex and are not marked own)
   pl.picsG = new THREE.Group(); pl.g.add(pl.picsG);
   for (const q of picsState.places[id] || []) {
     const tex = picTex[q.id] ||= new THREE.TextureLoader().load(q.img, tx => { tx.colorSpace = THREE.SRGBColorSpace; });
     const g = new THREE.Group(), ar = +q.ar > 0 ? Math.min(4, +q.ar) : .9, w = ar > 1.2 ? .34 : .62; // a tall photo strip is narrower
     const ph = new THREE.Mesh(new THREE.PlaneGeometry(w, w * ar), new THREE.MeshStandardMaterial({ map: tex, roughness: .7, envMapIntensity: .3 }));
     ph.userData.pic = q.id; g.add(ph);
-    const tape = new THREE.Mesh(new THREE.PlaneGeometry(.12, .035), new THREE.MeshStandardMaterial({ color: '#fff3c8', transparent: true, opacity: .7, roughness: .9 }));
+    const tape = new THREE.Mesh(GEO.tape ||= shared(new THREE.PlaneGeometry(.12, .035)), new THREE.MeshStandardMaterial({ color: '#fff3c8', transparent: true, opacity: .7, roughness: .9 }));
     tape.position.set(0, w * ar / 2, .002); tape.rotation.z = q.roll * -2; g.add(tape);
     g.position.set(q.x, q.y, q.z); g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(q.nx, q.ny, q.nz)); g.rotateZ(q.roll);
     pl.picsG.add(g);
@@ -2103,7 +2130,7 @@ function hangClick(e) {
   const q = { id: Math.random().toString(36).slice(2, 10), x: +at.x.toFixed(3), y: +at.y.toFixed(3), z: +at.z.toFixed(3), nx: +n.x.toFixed(3), ny: +n.y.toFixed(3), nz: +n.z.toFixed(3), roll: +((Math.random() - .5) * .12).toFixed(3), img: hanging, at: Date.now() };
   if (hangAr) q.ar = hangAr; // only strips carry a shape; a polaroid has no ar and keeps the old one
   (picsState.places[place.id] ||= []).push(q); picsChanged(place.id); send({ t: 'pic', id: place.id, q });
-  hanging = null; hangAr = undefined; toast('📌 Stuck it up!'); achieve('wall'); floatText(me, '📌', '#ffcf6b');
+  hanging = null; hangAr = undefined; toast('📌 Stuck it up!'); achieve('wall'); floatText(me, '📌', '#ffcf6b'); snapBack();
 }
 function picClick(e) {
   if (!place.picsG) return false; rayAt(e);
@@ -2112,15 +2139,16 @@ function picClick(e) {
   viewPic = q; $('photoImg').src = q.img; $('photoSave').href = q.img; $('photoSave').download = q.ar > 1.2 ? 'our-strip.jpg' : 'our-little-screen.jpg'; $('photo').style.display = 'flex'; $('photoHang').style.display = 'none'; $('photoDown').style.display = '';
   return true;
 }
-function dropPic(id, pid) { picsState.places[id] = (picsState.places[id] || []).filter(x => x.id !== pid); if (!picsState.gone.includes(pid)) picsState.gone.push(pid); picsChanged(id); }
+function dropPic(id, pid) { picsState.places[id] = (picsState.places[id] || []).filter(x => x.id !== pid); if (!picsState.gone.includes(pid)) picsState.gone.push(pid); picsChanged(id); if (picTex[pid]) { picTex[pid].dispose(); delete picTex[pid]; } } // (after the rebuild: nothing on a wall still points at it)
 $('photoHang').onclick = () => { if (!lastSnap) return; hanging = lastSnap; hangAr = lastAr; $('photo').style.display = 'none'; if (pov === 1) setPov(3); toast('Click a wall to stick your photo there · Esc to cancel'); };
 $('photoDown').onclick = () => { if (!viewPic) return; dropPic(place.id, viewPic.id); send({ t: 'picDel', id: place.id, pid: viewPic.id }); viewPic = null; $('photo').style.display = 'none'; };
-addEventListener('keydown', e => { if (e.key === 'Escape' && hanging) { hanging = null; toast('Okay, not hanging it'); } });
+addEventListener('keydown', e => { if (e.key === 'Escape' && hanging) { hanging = null; toast('Okay, not hanging it'); snapBack(); } });
 function mergePics(all) {
   for (const g of all.gone || []) if (!picsState.gone.includes(g)) picsState.gone.push(g);
   for (const id in all.places || {}) { const L = picsState.places[id] ||= []; for (const q of all.places[id]) if (!L.some(x => x.id === q.id)) L.push(q); }
   for (const id in picsState.places) picsState.places[id] = picsState.places[id].filter(x => !picsState.gone.includes(x.id));
   savePics(); for (const id in built) rebuildPics(id);
+  for (const g of picsState.gone) if (picTex[g]) { picTex[g].dispose(); delete picTex[g]; } // photos taken down while we were apart
 }
 
 addEventListener('keydown', e => {
@@ -2138,7 +2166,8 @@ function onFun2(m) {
     case 'hello': send({ t: 'hat', h: me.hat }); return false;
     case 'hat': if (them) them.hat = m.h; else pendingHat = m.h; return true;
     case 'emote': if (them && m.k == null) { const pk = them.emote && them.emote.k; them.emote = null; if (me.emote && pk && EPAIR[pk] === me.emote.k) me.emote = null; return true; } // they stopped early
-      if (them) { them.emote = { k: m.k, t0: clock.elapsedTime }; emoteFx(them, m.k); if (m.k === 'hug') { me.floor = false; me.emote = { k: 'hug-back', t0: clock.elapsedTime }; } if (m.k === 'smooch' || m.k === 'slowdance') { me.floor = false; me.emote = { k: m.k, t0: clock.elapsedTime }; if (m.k === 'slowdance') toast(`💃 ${them.name} pulled you into a slow dance`); } if (m.k === 'massage') { me.emote = { k: 'massaged', t0: clock.elapsedTime }; emoteFx(me, 'massaged'); } if (m.k === 'cuddle') me.emote = { k: 'cuddle', t0: clock.elapsedTime }; } return true;
+      if (them) { them.emote = { k: m.k, t0: clock.elapsedTime }; emoteFx(them, m.k); if (pig || (stunt && stunt.role === 'ask' && stunt.k !== 'pig')) return true; // their hug crossed my raised hand or my trust fall on the wire: my pose stays (the stunt is still running)
+        if (m.k === 'hug') { me.floor = false; me.emote = { k: 'hug-back', t0: clock.elapsedTime }; } if (m.k === 'smooch' || m.k === 'slowdance') { me.floor = false; me.emote = { k: m.k, t0: clock.elapsedTime }; if (m.k === 'slowdance') toast(`💃 ${them.name} pulled you into a slow dance`); } if (m.k === 'massage') { me.emote = { k: 'massaged', t0: clock.elapsedTime }; emoteFx(me, 'massaged'); } if (m.k === 'cuddle') me.emote = { k: 'cuddle', t0: clock.elapsedTime }; } return true;
     case 'snap': flash(); toast(`📸 ${them ? them.name : 'They'} took a photo of you two`); return true;
   }
   return false;
@@ -2182,6 +2211,7 @@ function bubbleTex(text) {
     x.fillStyle = '#3a2a20'; x.textAlign = 'center'; lines.forEach((l, i) => x.fillText(l, w / 2, 50 + i * 42));
   });
 }
+let pendingSay = null; // their last line, held while this tab is hidden (or before their character exists): a bubble made then would be gone before the first frame back
 function say(mesh, text) {
   if (!mesh) return; const u = mesh.userData;
   if (u.bubble) mesh.remove(u.bubble);
@@ -2365,7 +2395,7 @@ let hand = null;
 function breakHands() { if (hand) { hand = null; send({ t: 'hand', on: false }); } }
 function toggleHands() {
   if (hand) return breakHands();
-  if (pig) { toast(riding() ? 'Hop off first (Space) 🐒' : 'Put them down first (Q) 🐒'); return; }
+  if (pig) { toast(riding() ? `Hop off first (${kJump}) 🐒` : `Put them down first (${kToss}) 🐒`); return; }
   if (!them || Math.hypot(me.x - them.x, me.z - them.z) > 1.6) { toast('Stand next to them to hold hands 🤝'); return; }
   if (me.seat >= 0 || them.seat >= 0) { toast('Stand up first to hold hands'); return; }
   hand = { leader: myRole() }; send({ t: 'hand', on: true }); floatText(me, '🤝', '#ffcf6b');
@@ -2535,6 +2565,7 @@ function placeChanged3() {
 }
 function funTick3(dt, t) {
   tickPet(me, dt, t); tickPet(them, dt, t); tickFireworks(dt);
+  if (pendingSay && themMesh) { say(themMesh, pendingSay); if (them) toast(`💬 ${them.name}: ${pendingSay}`); pendingSay = null; } // (a frame is being drawn, so I am looking: the bubble gets its whole time from here)
   for (const mesh of [meMesh, themMesh]) { const u = mesh && mesh.userData; if (u && u.bubble && t > u.bubbleEnd) { mesh.remove(u.bubble); u.bubble = null; } }
   if (hand && (!them || me.seat >= 0 || them.seat >= 0)) breakHands();
   handHeart.visible = !!hand;
@@ -2549,7 +2580,7 @@ function onFun3(m) {
   switch (m.t) {
     case 'hello': if (mic) setTimeout(callVoice, 300); send({ t: 'petk', k: me.pet, n: me.petName }); return false;
     case 'mic': toast(m.on ? `🎙 ${them ? them.name : 'They'} turned voice on${mic ? '' : ' · tap 🎙 to talk back'}` : `🎙 ${them ? them.name : 'They'} muted`); return true;
-    case 'say': say(themMesh, String(m.text).slice(0, 80)); return true;
+    case 'say': { const s = String(m.text).slice(0, 80); if (document.hidden || !themMesh) pendingSay = s; else say(themMesh, s); return true; }
     case 'petk': if (them) { them.pet = m.k; them.petName = m.n || ''; } else { pendingPet = m.k; pendingPetName = m.n || ''; } return true;
     case 'fetch': if (them) throwBall(them, m.x, m.z); return true;
     case 'petpet': { const o = m.whose === 'mine' ? them && them.petObj : me.petObj; if (o) petIt(o); return true; }
@@ -2627,7 +2658,7 @@ function tickLava(t, el) {
   }
   if (game.ri !== ri) {
     clearPads(); game.ri = ri; game.hit = false;
-    game.padMeshes = game.rounds[ri].map(([x, z]) => put(new THREE.Mesh(new THREE.CylinderGeometry(.75, .75, .05, 40), padMat), x, .05, z, scene));
+    game.padMeshes = game.rounds[ri].map(([x, z]) => put(new THREE.Mesh(GEO.pad ||= shared(new THREE.CylinderGeometry(.75, .75, .05, 40)), padMat), x, .05, z, scene));
   }
   const up = ph > 4.5;
   lava.visible = true; lava.position.y = up ? .035 : .012; lava.material.opacity = up ? .82 + Math.sin(t * 9) * .06 : .12 + Math.sin(t * 4) * .06;
@@ -3038,7 +3069,8 @@ function stepMoves(dt) {
   if (me.slide) { const k = (t - me.slide.t0) / .75; if (k >= 1 || me.seat >= 0) me.slide = null; else { me.vx = me.slide.vx * (1 - k * k); me.vz = me.slide.vz * (1 - k * k); } }
   if (me.ko && me.spinV) { me.ry += me.spinV * dt; me.spinV *= Math.pow(.05, dt); }
   if (me.vy === 0) me.flipT = 0;
-  me.pose = riding() ? 'pig' : me.ko ? 'ko' : me.slide ? 'slide' : me.floor === true ? 'floor' : me.floor ? me.floor : keys.c && me.seat < 0 && me.vy === 0 ? 'crouch' : '';
+  if (me.crouchT && (me.seat >= 0 || me.vy !== 0 || me.ko || me.floor || me.slide || me.car >= 0 || riding())) { me.crouchT = false; $('crouchb').classList.remove('on'); } // the touch crouch is a toggle: a jump, a seat, lying down, a kart or a fall stands you back up
+  me.pose = riding() ? 'pig' : me.ko ? 'ko' : me.slide ? 'slide' : me.floor === true ? 'floor' : me.floor ? me.floor : (keys.c || me.crouchT) && me.seat < 0 && me.vy === 0 ? 'crouch' : '';
 }
 function smackSound() {
   try {
@@ -3122,6 +3154,7 @@ $('smackb').onclick = () => attack('smack');
 function onPlaceChanged() {
   endGame(true); dropHeld(); stuntCancel(true); pigOff(true, false, true); // no stunt and no rider comes along to the next place
   rebuildDeco(place.id); rebuildPics(place.id); applyMood(); buildHiddenStars(); lanPlaceChanged(); placeChanged3();
+  if (kartSeen[place.id]) { kartsApply(place, kartSeen[place.id]); delete kartSeen[place.id]; } kartsTell(place.id); // parked karts: the host's spots, told again on arrival (a reloaded host starts from the default ones)
   if (decorating) renderDecoPanel(); else if (panel.dataset.k === 'games') closePanel();
 }
 function funTick(dt, t) {
@@ -3138,12 +3171,13 @@ function funTick(dt, t) {
 function onFun(m) {
   if (onFun2(m)) return true;
   switch (m.t) {
-    case 'hello': if (!m.reply && isHost) send({ t: 'decoAll', all: decoState }); send({ t: 'picsAll', all: picsState }); return false;
+    case 'hello': if (!m.reply && isHost && !m.dm) { decoSynced(); saveDeco(); send({ t: 'decoAll', all: decoState }); } send({ t: 'picsAll', all: picsState }); return false; // (dm: their own rooms are on the way as 'decoMine', and the one answer goes out from there)
+    case 'decoMine': if (!isHost) return true; if (decoMerge(m.all)) { for (const id in built) rebuildDeco(id); applyMood(); if (decorating) renderDecoPanel(); } decoSynced(); saveDeco(); send({ t: 'decoAll', all: decoState }); return true;
     case 'picsAll': mergePics(m.all || {}); return true;
     case 'pic': if (!(picsState.places[m.id] ||= []).some(x => x.id === m.q.id)) { picsState.places[m.id].push(m.q); picsChanged(m.id); toast(`📌 ${them ? them.name : 'They'} stuck a photo up`); } return true;
     case 'picDel': dropPic(m.id, m.pid); return true;
-    case 'decoAll': decoState = m.all || {}; saveDeco(); for (const id in built) rebuildDeco(id); applyMood(); if (decorating) renderDecoPanel(); return true;
-    case 'decoOp': if (!m.id || !m.op) return true; applyDecoOp(m.id, m.op); saveDeco(); rebuildDeco(m.id, BLOCK_OPS.includes(m.op.op)); applyMood(); if (decorating && m.id === place.id) renderDecoPanel(); return true;
+    case 'decoAll': decoState = m.all && typeof m.all === 'object' ? m.all : {}; decoSynced(); saveDeco(); for (const id in built) rebuildDeco(id); applyMood(); if (decorating) renderDecoPanel(); return true;
+    case 'decoOp': if (!m.id || !m.op) return true; applyDecoOp(m.id, m.op); if (m.ts > 0) { const st = decoOf(m.id); st.ts = st.sy = +m.ts; } saveDeco(); rebuildDeco(m.id, BLOCK_OPS.includes(m.op.op)); applyMood(); if (decorating && m.id === place.id) renderDecoPanel(); return true;
     case 'deco': decoState[m.id] = m.d; saveDeco(); rebuildDeco(m.id); applyMood(); if (decorating && m.id === place.id) renderDecoPanel(); return true;
     case 'pop': spawnPop(new THREE.Vector3(...m.p), new THREE.Vector3(...m.v), 'theirs'); return true;
     case 'booped': boops++; if (them) { floatText(them, boops > 1 ? `boop! ×${boops}` : 'boop!', '#ff7a59'); them.squish = 1; } return true;
@@ -3242,7 +3276,7 @@ function partnerGone() {
   stuntCancel(false); pigOff(false); // and so does a stunt (a rider left alone lands on their feet)
   hand = null; pendingHat = ''; pendingPet = ''; pendingPetName = '';
   if (them) tapeAlone();
-  them = null; conn = null; if (!myStream) showStream(null);
+  pendingSay = null; them = null; conn = null; if (!myStream) showStream(null);
 }
 let joined = false, rejoinTries = 0, reclaim = isHost && !!ROOM, hostTries = 0;
 function rejoin() { // guest: keep knocking for a while (the host may be reloading)
@@ -3254,8 +3288,8 @@ function rejoin() { // guest: keep knocking for a while (the host may be reloadi
 function wire(c) {
   conn = c;
   if (!isHost) setTimeout(() => { if (conn === c && !c.open) { conn = null; try { c.close(); } catch {} rejoin(); } }, 7000); // a knock that never opens: try again
-  c.on('open', () => send({ t: 'hello', name: me.name, look: me.look }));
-  c.on('data', m => { c.rx = performance.now(); if (m && m.t === 'hello') { joined = true; rejoinTries = 0; } onData(m); });
+  c.on('open', () => { send({ t: 'hello', name: me.name, look: me.look, dm: isHost ? 0 : 1 }); if (!isHost) send({ t: 'decoMine', all: decoState }); }); // the guest's decorations go along, and the host merges them before it answers with the shared set
+  c.on('data', m => { c.rx = performance.now(); if (m && m.t === 'hello') { joined = true; rejoinTries = 0; } if (document.hidden) clock.getElapsedTime(); onData(m); }); // a hidden tab draws no frames, so its clock stands still: move it here (hidden only), or a game they start now is stamped in the past and ends the moment I am back
   c.on('close', () => { if (conn !== c) return; partnerGone(); setStatus(isHost ? '💌 waiting… send the invite link' : 'reconnecting…'); rejoin(); }); // a replaced connection closing late must not end the live one
 }
 // relay passwords from our tiny Cloudflare Worker, so the two of you connect on any network (falls back to direct-only if it can't be reached)
@@ -3270,8 +3304,8 @@ async function connect() {
   const id = isHost ? (reclaim ? ROOM : 'ols-' + Math.random().toString(36).slice(2, 8)) : undefined;
   const p = peer = new Peer(id, ice ? { debug: 1, config: { iceServers: ice, iceTransportPolicy: params.has('relay') ? 'relay' : 'all' } } : { debug: 1 });
   p.on('open', pid => {
-    if (isHost) { myRoom = pid; hostTries = 0; try { sessionStorage.setItem('ols-own-room', pid); } catch {} history.replaceState(null, '', '?room=' + pid + (HOUR_OVERRIDE !== null ? '&hour=' + HOUR_OVERRIDE : '')); setStatus('💌 waiting… send the invite link'); }
-    else { myRoom = ROOM; setStatus('connecting…'); wire(p.connect(ROOM, { reliable: true })); }
+    if (isHost) { myRoom = pid; hostTries = 0; try { sessionStorage.setItem('ols-own-room', pid); } catch {} history.replaceState(null, '', '?room=' + pid + (HOUR_OVERRIDE !== null ? '&hour=' + HOUR_OVERRIDE : '')); setStatus(conn && conn.open && them ? `💞 together with ${them.name}` : '💌 waiting… send the invite link'); } // ('open' comes again after every signalling reconnect, while the two of you are still connected)
+    else { myRoom = ROOM; if (conn) { if (conn.open && them) setStatus(`💞 together with ${them.name}`); return; } setStatus('connecting…'); wire(p.connect(ROOM, { reliable: true })); } // never knock again over a live (or pending) connection: a second knock would replace it and drop everything I send
   });
   // a returning partner replaces a connection that has gone quiet instead of being turned away
   p.on('connection', c => { if (conn && conn.open && performance.now() - (conn.rx || 0) < 4000) { c.close(); return; } if (conn) { const old = conn; partnerGone(); old.close(); } wire(c); });
@@ -3478,9 +3512,10 @@ function loveFor(k) {
   const m = { cuddle: [6, 'cuddle'], hug: [5, 'hug'], smooch: [8, 'kiss'], slowdance: [10, 'dance'], massage: [6, 'massage'] }[k]; if (!m) return;
   loveAdd(m[0]); achieve(m[1]); if (k === 'slowdance' && place.id === 'beach') achieve('beachdance');
 }
-function markDay() { const d = new Date().toISOString().slice(0, 10); if (!love.days.includes(d)) { love.days.push(d); saveLove(); } if (love.days.length >= 7) achieve('days7'); }
+function markDay(d = dayKey()) { if (!love.days.includes(d)) { love.days.push(d); saveLove(); } if (love.days.length >= 7) achieve('days7'); }
 function minuteTogether() {
-  if (!them) return; markDay(); if (!isHost) return;
+  if (!them || !isHost) return; // the host counts for both: the minutes, and which evening it is ('day'), so two clocks either side of midnight never make one night into two
+  const d = dayKey(); markDay(d); send({ t: 'day', d });
   let n = 2; if (screenLive) { n += 2; love.watchMin = (love.watchMin || 0) + 1; } if (hand) n += 2; if (me.seat >= 0 && them.seat >= 0 && Math.abs(me.seat - them.seat) === 1) n += 1;
   loveAdd(n); if (love.watchMin >= 30) achieve('watch30');
 }
@@ -3539,7 +3574,7 @@ function tickRoast(p, mesh, t) {
 // ---------- shooting stars outside: make a wish ----------
 let starNext = 12, wishUntil = 0; const streaks = [];
 function shootStar(s) {
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(.09, 0, 7, 6), GLOW('#fff4d0', 4)), vx = s.dx * 30, vy = -10;
+  const m = new THREE.Mesh(GEO.streak ||= shared(new THREE.CylinderGeometry(.09, 0, 7, 6)), GLOW('#fff4d0', 4)), vx = s.dx * 30, vy = -10;
   m.position.set(s.x, s.y, -45); m.rotation.z = Math.atan2(-vx, vy); scene.add(m); streaks.push({ m, t0: clock.elapsedTime, s, vx, vy });
   sfx('star'); wishUntil = clock.elapsedTime + 7; $('wishb').style.display = 'block';
 }
@@ -3563,7 +3598,17 @@ $('wishb').onclick = () => {
 // ---------- sparkle trails + heart aura (love level unlocks), footsteps ----------
 const lsparks = [];
 function loveSpark(p, gold) { const m = new THREE.Mesh(SPH, GLOW(gold ? '#ffcf6b' : ['#ffcf6b', '#ff9ab8', '#cdb8ff'][Math.random() * 3 | 0], 3)); m.position.set(p.x + (Math.random() - .5) * .3, .12 + Math.random() * .3, p.z + (Math.random() - .5) * .3); m.scale.setScalar(.022); scene.add(m); lsparks.push({ m, t0: clock.elapsedTime }); }
-let loveMinT = 60, auraAt = 0, stepAt = 0;
+let loveMinAt = 0, auraAt = 0, stepAt = 0;
+function loveClock() { // the minutes together run on the wall clock and off the frame loop (like the tape): the host's tab is hidden for the whole film when it is the one sharing it
+  if (!started) return;
+  const now = performance.now();
+  if (!them) { loveMinAt = now; return; } // alone: nothing is banked for later
+  if (!loveMinAt) loveMinAt = now;
+  let k = Math.floor((now - loveMinAt) / 60000); if (k <= 0) return;
+  if (k > 3) { k = 3; loveMinAt = now; } else loveMinAt += k * 60000; // a throttled timer catches up a minute or two (and keeps the remainder); a laptop that slept does not mint a pile
+  while (k--) minuteTogether();
+}
+setInterval(loveClock, 5000);
 function tick11(dt, t) {
   tickRoast(me, meMesh, t); tickRoast(them, themMesh, t); starTick(t);
   for (let i = lsparks.length - 1; i >= 0; i--) { const k = lsparks[i], e = t - k.t0; k.m.position.y += dt * .3; k.m.scale.setScalar(.022 * Math.max(0, 1 - e / 1.2)); if (e > 1.2) { scene.remove(k.m); lsparks.splice(i, 1); } }
@@ -3571,16 +3616,17 @@ function tick11(dt, t) {
   if (lv >= 3) for (const q of [me, them]) if (q && q.walking && Math.random() < dt * 12) loveSpark(q, lv >= 7);
   if (lv >= 5 && them && t > auraAt && Math.hypot(me.x - them.x, me.z - them.z) < 1.4) { auraAt = t + 1.6; addHeart(me, 'mine', true); }
   if (me.walking && me.vy === 0 && me.seat < 0 && t > stepAt) { stepAt = t + (keys.shift ? .26 : .38); sfx('step'); }
-  if (t > loveMinT) { loveMinT = t + 60; minuteTogether(); }
 }
 function onFun11(m) {
   switch (m.t) {
-    case 'hello': send({ t: 'love', s: love }); if (radio && isHost) send({ t: 'radio', st: radio.st }); return false;
+    case 'hello': send({ t: 'love', s: love }); if (!isHost) send({ t: 'radioHave', st: radio ? radio.st : '' }); else if (radio) send({ t: 'radio', st: radio.st }); return false;
+    case 'radioHave': if (isHost && !radio && m.st && STATIONS[m.st]) { radioOn(m.st, false); if (!radio) send({ t: 'radio', st: '' }); } return true; // a host with nothing on (it reloaded) picks up what they are still hearing; if its sound cannot start, theirs stops too
     case 'love': { const o = m.s || {}; love.xp = Math.max(love.xp, o.xp || 0); love.ach = { ...(o.ach || {}), ...love.ach }; for (const k of ['days', 'places']) love[k] = [...new Set([...(love[k] || []), ...(o[k] || [])])];
       love.matches = Math.max(love.matches || 0, o.matches || 0); love.watchMin = Math.max(love.watchMin || 0, o.watchMin || 0); love.rally = Math.max(love.rally || 0, +o.rally || 0); saveLove(); checkLevel(); return true; }
     case 'lovexp': loveAdd(m.n, true); return true;
+    case 'day': if (typeof m.d === 'string' && /^\d{4}-\d\d-\d\d$/.test(m.d)) markDay(m.d); return true;
     case 'ach': achieve(m.id, true); return true;
-    case 'radio': if (m.st && radio && radio.st === m.st) return true; if (m.st) { radioOn(m.st, false); toast(`📻 ${them ? them.name : 'They'} put on ${STATIONS[m.st].name}`); } else radioOff(false); return true;
+    case 'radio': if (m.st && (!STATIONS[m.st] || (radio && radio.st === m.st))) return true; if (m.st) { radioOn(m.st, false); toast(`📻 ${them ? them.name : 'They'} put on ${STATIONS[m.st].name}`); } else radioOff(false); return true;
     case 'roast': if (!them) return true; if (m.on) them.roast = { t0: clock.elapsedTime }; else { them.roast = null; if (m.res) smoreFx(them, m.res); } return true;
     case 'sstar': shootStar(m.s); return true;
     case 'wished': if (them) floatText(them, '🌠 made a wish', '#ffcf6b'); return true;
@@ -3720,7 +3766,7 @@ function tickSnack(p, mesh, t) {
 }
 function openSnacks() {
   if (panel.dataset.k === 'snacks') return closePanel();
-  if (decorating) toggleDecorate();
+  claimPanel();
   panel.dataset.k = 'snacks'; panel.classList.remove('side');
   panel.innerHTML = `<h3>🍔 Snacks</h3><div class="grid">${SNACKS.map(([k, e, n]) => `<button class="tile item" data-sn="${k}"><span class="ie">${e}</span><span class="il">${n}</span></button>`).join('')}</div><div class="row"><button class="pill${feedMode ? ' on' : ''}" id="feedT">🥄 Feed them instead</button><span class="hintrow">${feedMode ? 'walk up close, then pick one' : 'tap one to eat it'}</span></div>`;
   panel.style.display = 'block';
@@ -3755,7 +3801,7 @@ function dimLights() {
 function setLights(v, tell = true, id = place.id) { lightsOf[id] = v; try { localStorage.setItem('ols-lights', JSON.stringify(lightsOf)); } catch {} if (id === place.id) applyGlow(); if (tell) send({ t: 'lights', id, v }); $('lightb').classList.toggle('on', lightV() < .995); }
 function openLights() {
   if (panel.dataset.k === 'lights') return closePanel();
-  if (decorating) toggleDecorate();
+  claimPanel();
   panel.dataset.k = 'lights'; panel.classList.remove('side');
   const P = [[1, '☀️ On'], [.55, '🌆 Dim'], [.28, '🕯 Cozy'], [.08, '🌑 Off']], v = lightV();
   panel.innerHTML = `<h3>💡 Lights</h3><div class="row" style="margin-top:0">${P.map(([x, n]) => `<button class="pill${Math.abs(v - x) < .02 ? ' on' : ''}" data-lv="${x}">${n}</button>`).join('')}</div><div class="row"><span style="width:60px">Dimmer</span><input type="range" id="lightR" min=".08" max="1" step=".02" value="${v}"></div><div class="row hintrow">Changes it for both of you. Fires and the big screen stay on</div>`;
@@ -3797,12 +3843,15 @@ function tick12(dt, t) {
   tickKarts(dt, t); tickSnack(me, meMesh, t); tickSnack(them, themMesh, t);
   if (me.emote && me.emote.k === 'cuddle' && isHost && t > (me.cudAt || 0)) { if (me.cudAt) loveAdd(2); me.cudAt = t + 25; }
 }
+const kartSeen = {}; // where the host's karts are parked in a place I have not built yet
+function kartsTell(id) { const pl = built[id]; if (isHost && pl && pl.karts) send({ t: 'karts', id, s: pl.karts.map(k => [k.x, k.z, k.ry]) }); }
+function kartsApply(pl, s) { if (pl.karts) s.forEach((q, i) => { const k = pl.karts[i]; if (k && Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1]) && Number.isFinite(q[2]) && !(pl === place && (me.car === i || (them && them.car === i)))) [k.x, k.z, k.ry] = q; }); } // never a kart someone is sitting in
 function onFun12(m) {
   switch (m.t) {
-    case 'hello': if (isHost) { send({ t: 'lightsAll', all: lightsOf }); if (place.karts) send({ t: 'karts', id: place.id, s: place.karts.map(k => [k.x, k.z, k.ry]) }); } return false;
+    case 'hello': if (isHost) { send({ t: 'lightsAll', all: lightsOf }); for (const id in built) kartsTell(id); } return false; // every place I have built, not only this one: they may get there later
     case 'lights': setLights(m.v, false, m.id); return true;
     case 'lightsAll': lightsOf = { ...lightsOf, ...(m.all || {}) }; try { localStorage.setItem('ols-lights', JSON.stringify(lightsOf)); } catch {} applyGlow(); $('lightb').classList.toggle('on', lightV() < .995); return true;
-    case 'karts': if (place.karts && m.id === place.id) m.s.forEach((q, i) => { const k = place.karts[i]; if (k && me.car !== i && !(them && them.car === i)) [k.x, k.z, k.ry] = q; }); return true;
+    case 'karts': if (!Array.isArray(m.s)) return true; if (built[m.id]) kartsApply(built[m.id], m.s); else kartSeen[m.id] = m.s; return true; // (it comes before their 'place', so I am usually not there yet: kept until I arrive)
     case 'honk': if (them) honk(them); return true;
     case 'raceg': if (game && game.mode === 'race') game.their = m.n; return true;
     case 'racew': raceEnd(false); return true;
@@ -3868,7 +3917,7 @@ function openHelp() {
   panel.dataset.k = 'help'; panel.classList.remove('side');
   const K = [['WASD', 'move'], ['Space', 'jump (run + jump = flip)'], ['Shift', 'run'], ['drag / 2-finger drag', 'turn the camera'], ['scroll', 'zoom · all the way in = 1st person'], ['C', 'crouch · slide while running'], ['X', 'sit → lie on back → lie on stomach'],
     ['E', 'hold hands · pet · bong · tea · hold E together to light a lantern · telescope · answer a high five · catch'], ['Space (riding)', 'hop off'], ['Q (carrying)', 'toss your rider'], ['B', 'throw the ball for your pet'], ['F', 'throw popcorn'], ['Q / G', 'push / smack'], ['H', 'hearts'], ['1-9', 'emotes'], ['Enter', 'chat'], ['T', 'watch mode (theater / split)'], ['L', 'camera lock'], ['V', '1st / 3rd person']];
-  const NEW = ['🎈 Games → Keep it up: walk or jump under the balloon', '🎞 next to 📸: four prompts, three seconds each, one film strip', '🏮 Us → Light a lantern (outdoors, both hold E)', '🔭 Stars: press E at the telescope', '📼 Leave the screen idle for a minute', '🌧 If it rains, go outside and stand close', '🙌 Us → High five, Trust fall, Piggyback: they only work if the other one answers with E in time'];
+  const NEW = ['🎈 Games → Keep it up: walk or jump under the balloon', '🎞 next to 📸: four prompts, three seconds each, one film strip', `🏮 Us → Light a lantern (outdoors, both hold ${kE})`, `🔭 Stars: press ${kE} at the telescope`, '📼 Leave the screen idle for a minute', '🌧 If it rains, go outside and stand close', `🙌 Us → High five, Trust fall, Piggyback: they only work if the other one answers with ${kE} in time`];
   panel.innerHTML = `<h3>⌨️ Controls</h3><div class="keys">${K.map(([k, d]) => `<kbd>${k}</kbd><span>${d}</span>`).join('')}</div>
     <h3 style="margin-top:14px">✨ New things to try</h3>${NEW.map(s => `<div class="row hintrow" style="margin-top:4px">${s}</div>`).join('')}`;
   panel.style.display = 'block';
@@ -3971,7 +4020,7 @@ function openCouple() {
   panel.dataset.k = 'couple'; panel.classList.remove('side');
   const G = [['wyr', 'Both pick, see if you match'], ['deep', 'Cards to talk about real stuff'], ['tod', 'Take turns, cute dares'], ['rps', 'First to 3 wins'], ['stare', 'Face each other, first to move loses']];
   panel.innerHTML = `<h3>💞 Just us</h3><div class="grid">${G.map(([k, d]) => `<button class="tile" data-cg="${k}"><b>${CG_NAME[k]}</b><span>${d}</span></button>`).join('')}</div>
-    <h3 style="margin-top:14px">💗 Couple moves</h3><div class="grid"><button class="tile" data-mv="cuddle"><b>🫂 Cuddle</b><span>on the nearest couch, or next to them if they're lying down</span></button><button class="tile" data-mv="smooch"><b>💋 Kiss</b><span>walk up close first</span></button><button class="tile" data-mv="slowdance"><b>💃 Slow dance</b><span>pull them in for a sway</span></button><button class="tile" data-mv="hug"><b>🤗 Hug</b><span>a big squeeze</span></button><button class="tile" data-mv="massage"><b>💆 Massage</b><span>shoulders or back rub</span></button><button class="tile" data-st="five"><b>🙌 High five</b><span>they have 2 seconds to slap it (E)</span></button><button class="tile" data-st="fall"><b>🫣 Trust fall</b><span>fall backwards… they catch you with E</span></button><button class="tile" data-st="pig"><b>🐒 Piggyback</b><span>hop on their back · Space hops off</span></button><button class="tile" id="lanTile"><b>🏮 Light a lantern</b><span>outside · write a few words · you both hold E to send it up</span></button></div>
+    <h3 style="margin-top:14px">💗 Couple moves</h3><div class="grid"><button class="tile" data-mv="cuddle"><b>🫂 Cuddle</b><span>on the nearest couch, or next to them if they're lying down</span></button><button class="tile" data-mv="smooch"><b>💋 Kiss</b><span>walk up close first</span></button><button class="tile" data-mv="slowdance"><b>💃 Slow dance</b><span>pull them in for a sway</span></button><button class="tile" data-mv="hug"><b>🤗 Hug</b><span>a big squeeze</span></button><button class="tile" data-mv="massage"><b>💆 Massage</b><span>shoulders or back rub</span></button><button class="tile" data-st="five"><b>🙌 High five</b><span>they have 2 seconds to slap it (${kE})</span></button><button class="tile" data-st="fall"><b>🫣 Trust fall</b><span>fall backwards… they catch you with ${kE}</span></button><button class="tile" data-st="pig"><b>🐒 Piggyback</b><span>hop on their back · ${kJump} hops off</span></button><button class="tile" id="lanTile"><b>🏮 Light a lantern</b><span>outside · write a few words · you both hold E to send it up</span></button></div>
     <h3 style="margin-top:14px">✉️ Love letter</h3><div class="row" style="margin-top:0"><input id="noteIn" maxlength="220" placeholder="write them something sweet…" value="${esc(noteDraft)}" style="flex:1;border:0;border-radius:999px;padding:10px 16px;background:#ffffff14;color:var(--ink);font:inherit"><button class="pill on" id="noteSend">Send ✉️</button></div>
     ${notes.length ? `<div class="row hintrow">📬 letters you got: ${notes.slice(-6).reverse().map((n, i) => `<button class="pill" data-note="${notes.length - 1 - i}">${esc(n.from)} · ${new Date(n.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</button>`).join('')}</div>` : ''}`;
   panel.style.display = 'block';
@@ -4111,7 +4160,7 @@ function rallyOver(n, mine, x, z) { // mine: I dropped it. The one who did NOT d
 const STRIP_PROMPTS = ['kiss!', 'back to back', 'JUMP!', 'silliest emote', 'one of you lies down', 'hug it out', 'look away dramatically', 'strike a pose', 'heart hands', 'freeze like statues', 'crouch + stand tall', 'point at each other'];
 const STRIP_MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'], STRIP_LIE = ['back', 'belly', 'floor'];
 const STRIP_READY = 1, STRIP_STEP = 3.6, STRIP_COUNT = 3; // 1 s 'get ready', then per frame a 3 s count, the shutter and a .6 s breath: 15.4 s in all
-let strip = null, stripShot = false, lastStrip = null, stripGrain = null;
+let strip = null, stripShot = false, lastStrip = null, stripGrain = null, stripPending = null, heldSnap = null; // stripPending: a finished strip waiting for the game to end before its viewer opens · heldSnap: my polaroid their strip closed, given back afterwards
 const stripSeed = v => Math.abs(Math.floor(+v || 0)) % 2147483646 || 1;
 function stripHud(p, n, s) { $('stripP').textContent = p; $('stripN').textContent = n; $('stripS').textContent = s; $('stripHud').style.display = 'block'; } // only called when the step changes, never per frame
 function startStrip(seed, mine) {
@@ -4124,8 +4173,11 @@ function startStrip(seed, mine) {
   idx.length = 4;
   if (strip) for (const c of strip.frames) if (c) c.width = c.height = 0; // restarting (their seed won): drop what was shot so far
   strip = { seed, mine: !!mine, w0: performance.now(), i: 0, c: -1, idx, prompts: idx.map(i => STRIP_PROMPTS[i]), frames: [], stars: [], leak: Math.floor(rr() * 4), edge: Math.floor(rr() * 4) };
-  stripShot = false; hanging = null; hangAr = undefined; viewPic = null; $('photo').style.display = 'none';
-  $('strip').classList.add('on'); stripHud('get ready…', '', 'PHOTO STRIP');
+  stripShot = false; stripPending = null;
+  if (mine) { hanging = null; hangAr = undefined; } // (a strip they started leaves the photo I was about to stick up alone)
+  else if (!heldSnap && lastSnap && !viewPic && $('photo').style.display === 'flex') heldSnap = { img: lastSnap, ar: lastAr, src: $('photoImg').src, name: $('photoSave').download }; // their strip closes the photo I was looking at: keep it for afterwards
+  viewPic = null; $('photo').style.display = 'none';
+  $('strip').classList.add('on'); $('stage').classList.add('stripping'); stripHud('get ready…', '', 'PHOTO STRIP');
   return true;
 }
 function stripPose(pi) { // did we do what the prompt said? Judged here, at the shutter, from what this screen sees
@@ -4198,18 +4250,28 @@ function composeStrip(s) { // once, at the end: dark film, sprocket holes, four 
   x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
   return out;
 }
-function finishStrip() {
-  const s = strip; strip = null; stripShot = false; $('stripHud').style.display = 'none'; $('strip').classList.remove('on');
-  if (!s.frames.some(Boolean)) return; // the tab slept through all four: nothing to show, nothing to award
+function showStrip(v) { // the strip in the photo viewer
   unlockMouse(); // 1st person / shift lock: hand the cursor back for Close, Save and Stick on a wall
+  lastSnap = v.snap; lastAr = v.ar; viewPic = null;
+  $('photoImg').src = v.url; $('photoSave').href = v.url; $('photoSave').download = 'our-strip.png'; $('photo').style.display = 'flex'; $('photoHang').style.display = ''; $('photoDown').style.display = 'none';
+}
+function snapBack() { // the photo their strip closed on me comes back once the strip has been looked at
+  const h = heldSnap; if (!h || strip || stripPending) return; heldSnap = null;
+  unlockMouse(); lastSnap = h.img; lastAr = h.ar; viewPic = null;
+  $('photoImg').src = h.src; $('photoSave').href = h.src; $('photoSave').download = h.name; $('photo').style.display = 'flex'; $('photoHang').style.display = ''; $('photoDown').style.display = 'none';
+  toast('📸 Your photo from before');
+}
+function finishStrip() {
+  const s = strip; strip = null; stripShot = false; $('stripHud').style.display = 'none'; $('strip').classList.remove('on'); $('stage').classList.remove('stripping');
+  if (!s.frames.some(Boolean)) { snapBack(); return; } // the tab slept through all four: nothing to show, nothing to award
   const stars = s.stars.filter(Boolean).length, out = composeStrip(s), url = out.toDataURL('image/png');
   const sm = document.createElement('canvas'); sm.width = 200; sm.height = Math.round(200 * out.height / out.width);
   const sx = sm.getContext('2d'); sx.fillStyle = '#0d0906'; sx.fillRect(0, 0, sm.width, sm.height); sx.drawImage(out, 0, 0, sm.width, sm.height); // the small one that goes on a wall (and to them)
-  lastSnap = sm.toDataURL('image/jpeg', .8); lastAr = +(sm.height / sm.width).toFixed(3); viewPic = null;
+  const v = { url, snap: sm.toDataURL('image/jpeg', .8), ar: +(sm.height / sm.width).toFixed(3) }, busy = !!game || me.car >= 0; // mid rally, mid race, at the wheel: the viewer would cover the balloon or the track, so it waits (tick13)
   lastStrip = { w: out.width, h: out.height, stars };
   for (const c of s.frames) if (c) c.width = c.height = 0; out.width = out.height = 0; sm.width = sm.height = 0; // hand the canvas memory back
-  $('photoImg').src = url; $('photoSave').href = url; $('photoSave').download = 'our-strip.png'; $('photo').style.display = 'flex'; $('photoHang').style.display = ''; $('photoDown').style.display = 'none';
-  toast(stars ? `🎞 ${stars} of 4 poses nailed` : '🎞 Your strip is ready'); sfx('win');
+  if (busy) stripPending = v; else showStrip(v);
+  toast((stars ? `🎞 ${stars} of 4 poses nailed` : '🎞 Your strip is ready') + (busy ? ' · it opens after the game' : '')); sfx('win');
   if (s.mine) { loveAdd(4); logMem('a photo strip'); } // only the one who started it: it reaches them as 'lovexp' and 'mem'
   achieve('strip'); if (stars === 4) achieve('strip4');
 }
@@ -4253,8 +4315,8 @@ function lanLabel(text) { // the words, handwritten in ink on the paper: two lin
   });
   tex.userData.own = true; return tex; // own: disposeTree frees it with the lantern
 }
-function lanSet(id, x, z, ry, text) { // both sides build the same little paper lantern between the two of you
-  const g = new THREE.Group(); g.name = 'lantern'; g.position.set(x, .32, z); g.rotation.y = ry;
+function lanSet(id, x, z, ry, text, y = .32) { // both sides build the same little paper lantern between the two of you. y: .32 on the ground, higher when it sits on what is between you (the car you are both in, a side table)
+  const g = new THREE.Group(); g.name = 'lantern'; g.position.set(x, y, z); g.rotation.y = ry;
   const bodyMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: .86 }), flameMat = new THREE.MeshBasicMaterial();
   const flame = put(new THREE.Mesh(SPH, flameMat), 0, -.1, 0, g), body = put(ell(.17, .21, .17, bodyMat), 0, 0, 0, g);
   put(cyl(.1, .11, .03, '#2a1810', 16), 0, -.2, 0, g);
@@ -4263,7 +4325,7 @@ function lanSet(id, x, z, ry, text) { // both sides build the same little paper 
   const dotMats = [new THREE.MeshBasicMaterial(), new THREE.MeshBasicMaterial()]; // on the ground beside it: host orange, guest violet, lit while that one is holding
   const dots = dotMats.map((m, i) => { const d = put(new THREE.Mesh(SPH, m), .3, -.305, i ? -.08 : .08, g); d.scale.set(.035, .012, .035); return d; });
   scene.add(g);
-  lanPending = { id, pl: place.id, x, z, text, mesh: g, body, flame, bodyMat, flameMat, lblMat, lbls, dots, dotMats, ring: null, c: 0, mine: false, theirs: false, t0: clock.elapsedTime, single: 0, hinted: false, humAt: 0, farT: 0, full: false, go: 0, out: 0, spot: { x, z, seat: -1, jy: -.1 } };
+  lanPending = { id, pl: place.id, x, y, z, text, mesh: g, body, flame, bodyMat, flameMat, lblMat, lbls, dots, dotMats, ring: null, c: 0, mine: false, theirs: false, t0: clock.elapsedTime, single: 0, hinted: false, humAt: 0, farT: 0, full: false, go: 0, out: 0, spot: { x, z, seat: -1, jy: y - .42 } };
   lanGlow(lanPending, 0, 0); lanDots(lanPending); sfx('pop');
 }
 function lanGlow(L, c, t) { // ember to gold: k is how far past white the paper burns, so bloom does the glowing
@@ -4286,9 +4348,9 @@ function lanGuard() {
 function lanPlace(text) { // set one down at the midpoint of the two of you
   if (!lanGuard()) return false;
   text = String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) || '♥';
-  const id = Math.random().toString(36).slice(2, 10).padEnd(8, '0'), x = +((me.x + them.x) / 2).toFixed(3), z = +((me.z + them.z) / 2).toFixed(3), ry = +Math.atan2(them.x - me.x, them.z - me.z).toFixed(3);
-  send({ t: 'lan', a: 'new', id, pl: place.id, x, z, ry, text });
-  lanSet(id, x, z, ry, text); toast('🏮 Now both hold E next to it'); return true;
+  const id = Math.random().toString(36).slice(2, 10).padEnd(8, '0'), x = +((me.x + them.x) / 2).toFixed(3), z = +((me.z + them.z) / 2).toFixed(3), ry = +Math.atan2(them.x - me.x, them.z - me.z).toFixed(3), y = +(Math.min(3.68, solidTop(x, z)) + .32).toFixed(3); // on top of whatever stands at that spot, never inside it (it goes along in the message so both see it at the same height)
+  send({ t: 'lan', a: 'new', id, pl: place.id, x, z, ry, text, y });
+  lanSet(id, x, z, ry, text, y); toast('🏮 Now both hold E next to it'); return true;
 }
 function openLantern() {
   if (!lanGuard()) return;
@@ -4310,7 +4372,7 @@ function lanRelease() { // host only: where in the sky it ends up, and when
 function lanGo(sx, sy, at, by) {
   const L = lanPending, t = clock.elapsedTime; lanPending = null; lanForce = null;
   L.go = t; L.mine = L.theirs = false; L.dots.forEach(d => d.visible = false); lanFx.push(L);
-  L.ring = put(new THREE.Mesh(GEO.lanRing ||= shared(new THREE.RingGeometry(.9, 1, 48)), new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffb060').multiplyScalar(2.5), transparent: true, opacity: .9, depthWrite: false, side: THREE.DoubleSide })), L.x, .04, L.z, scene);
+  L.ring = put(new THREE.Mesh(GEO.lanRing ||= shared(new THREE.RingGeometry(.9, 1, 48)), new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffb060').multiplyScalar(2.5), transparent: true, opacity: .9, depthWrite: false, side: THREE.DoubleSide })), L.x, L.y - .28, L.z, scene);
   L.ring.rotation.x = -PI / 2; L.ring.scale.setScalar(.01);
   for (let i = 0; i < 6; i++) loveSpark(L, true);
   sfx('chime'); const a = au(); if (a && a.state === 'running') tone(392, a.currentTime, 2.5, 'sine', .05, 's', 784);
@@ -4344,7 +4406,7 @@ function rebuildLanSky(id) { // ONE Points per outdoor place: a warm dot for eve
 }
 function tickLan(dt, t) {
   if (lanSkyMat) lanSkyMat.opacity = .8 + .2 * Math.sin(t * .7); // the whole sky of them breathes together: one uniform, no per-vertex work
-  if (!telHinted && nearTel()) { telHinted = true; floatText(me, '🔭 E', '#ffcf6b'); }
+  if (!telHinted && nearTel()) { telHinted = true; floatText(me, '🔭 ' + kE, '#ffcf6b'); }
   if (scopeOn && me.input) closeScope();
   const L = lanPending;
   if (L) {
@@ -4368,7 +4430,7 @@ function tickLan(dt, t) {
     if (F.go) { // up it goes: faster as it climbs, a slow sway, smaller and smaller
       const e = t - F.go; g.position.y += (.5 + .3 * e) * dt;
       g.position.x = F.x + Math.sin(e * .6) * Math.min(.5, e * .08); g.position.z = F.z + Math.sin(e * .43 + 1) * Math.min(.4, e * .06); g.rotation.y += dt * .25;
-      g.scale.setScalar(1 - .75 * Math.min(1, (g.position.y - .32) / 13.68)); lanGlow(F, 1, t);
+      g.scale.setScalar(1 - .75 * Math.min(1, (g.position.y - F.y) / 13.68)); lanGlow(F, 1, t);
       if (F.ring) { const a = e / 1.2; if (a >= 1) { scene.remove(F.ring); F.ring.material.dispose(); F.ring = null; } else { F.ring.scale.setScalar(.01 + 2 * a); F.ring.material.opacity = .9 * (1 - a); } }
       if (g.position.y > 16) { lanFx.splice(i, 1); lanDrop(F); rebuildLanSky(F.pl); }
     } else {
@@ -4378,7 +4440,7 @@ function tickLan(dt, t) {
     }
   }
 }
-$('hands').addEventListener('pointerdown', e => { touchE = true; touchEId = e.pointerId; touchLan = atLan(); }); // 🤝 is E on touch: a press still runs useE (its click), and holding it holds the lantern (that press's click is then swallowed)
+$('hands').addEventListener('pointerdown', e => { touchE = true; touchEId = e.pointerId; touchLan = atLan() && !(stunt && stunt.role === 'ans'); }); // 🤝 is E on touch: a press still runs useE (its click), and holding it holds the lantern (that press's click is then swallowed). A stunt waiting for my answer is answered by the tap, as the E key does: that click is not swallowed
 for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, e => { if (e.pointerId === touchEId) { touchE = false; if (ev === 'pointercancel') touchLan = false; } }, true); // only the finger that pressed it lets go (the joystick thumb does not)
 addEventListener('blur', () => { touchE = false; });
 document.addEventListener('visibilitychange', () => { // a hidden tab stops ticking, so tickLan can't let go for me: do it here, or they could finish the charge alone
@@ -4392,7 +4454,7 @@ function onLan(m) {
       if (typeof m.id !== 'string' || !m.id || m.id.length > 16 || !Number.isFinite(m.x) || !Number.isFinite(m.z)) return;
       if (m.pl !== place.id || !place.outdoor) { send({ t: 'lan', a: 'off', id: m.id }); return; } // I am already somewhere else
       if (lanPending) { if (isHost) return; lanDrop(lanPending); lanPending = null; } // both set one down at once: the host's stays, the guest swaps its own for it
-      lanSet(m.id, m.x, m.z, Number.isFinite(m.ry) ? m.ry : 0, String(m.text ?? '').slice(0, 40) || '♥');
+      lanSet(m.id, m.x, m.z, Number.isFinite(m.ry) ? m.ry : 0, String(m.text ?? '').slice(0, 40) || '♥', Number.isFinite(m.y) ? Math.min(4, Math.max(.32, m.y)) : .32);
       toast(`🏮 ${them ? them.name : 'They'} set a lantern down · hold E next to it together`); return;
     case 'hold': if (L) L.theirs = !!m.on; return;
     case 'full': if (L && isHost && L.c >= .85) lanRelease(); return;
@@ -4873,7 +4935,7 @@ function stuntStart(k) { // the three tiles (and dbg.stunt): true when it really
   if (me.car >= 0) { toast('Hop out of the car first 🚗'); return false; }
   if (me.ko) { toast('Get back up first 😵'); return false; }
   if (game || quizOn()) { toast('Finish the game first 🎲'); return false; }
-  if (stunt || pig) { toast(pig ? (riding() ? 'Hop off first (Space) 🐒' : 'Put them down first (Q) 🐒') : 'One stunt at a time ✋'); return false; }
+  if (stunt || pig) { toast(pig ? (riding() ? `Hop off first (${kJump}) 🐒` : `Put them down first (${kToss}) 🐒`) : 'One stunt at a time ✋'); return false; }
   if (k === 'pig') {
     if (d > 1.6) { toast('Stand right next to them for a piggyback 🐒'); return false; }
     if (them.seat >= 0 || them.car >= 0 || them.ko || ['floor', 'back', 'belly', 'slide'].includes(them.pose)) { toast('They need to be on their feet for that 🐒'); return false; }
@@ -4896,7 +4958,8 @@ function stuntAnswer() { // E while a stunt waits for my answer. True: the press
   const s = stunt; if (!s || s.role !== 'ans' || !them || them.away || me.ko || me.car >= 0) return false;
   const el = sNow() - s.t0, dx = me.x - them.x, dz = me.z - them.z, d = Math.hypot(dx, dz), t = clock.elapsedTime;
   if (s.k === 'five') {
-    if (el > 2 || d > 2.5) return false;
+    if (d > 2.5) return false;
+    if (el > 2) { floatText(me, 'too late…', '#7ad8ff'); return true; } // just missed it, right next to them: not a hand taken or a kart instead
     const q = Math.abs(el - 1) < .25 ? 'perfect' : 'ok', n = d || 1;
     stunt = null; stuntUp();
     me.ry = Math.atan2(-dx, -dz); me.tx = them.x + dx / n * .55; me.tz = them.z + dz / n * .55; // step in, like a hug
@@ -4906,7 +4969,7 @@ function stuntAnswer() { // E while a stunt waits for my answer. True: the press
   }
   if (s.k === 'fall') {
     if (s.sent) return true; // already under them: a second press is not hands
-    if (el > 2.1) return false;
+    if (el > 2.1) return d < 2.5; // (too late to catch: next to them the press ends here, anywhere else E is E)
     if (!(dx * -Math.sin(them.ry) + dz * -Math.cos(them.ry) > .3 && d < 1.4)) { floatText(me, 'get behind them!', '#ffcf6b'); return true; } // judged here, where my own position is exact (they are rooted)
     s.sent = true; stuntUp(); me.ry = Math.atan2(-dx, -dz);
     me.emote = { k: 'catch', t0: t }; send({ t: 'emote', k: 'catch' }); send({ t: 'stunt', k: 'fall', a: 'ok' });
@@ -4939,7 +5002,8 @@ function pigOn(rider) { // both sides, at the 'ok': the rider hops up from where
   const r = rider === myRole() ? me : them, now = sNow(); breakHands(); me.want = -1; me.floor = false; me.slide = null;
   if (me.emote && EPAIR[me.emote.k]) { me.emote = null; send({ t: 'emote', k: null }); } // a hug or a slow dance ends here
   pig = { rider, t0: now, n: 0, seen: now + 1.5, fx: r.x, fz: r.z, fy: r.jy || 0 };
-  sfx('jump'); floatText(r, '🐒', '#ffcf6b'); toast(r === me ? '🐒 Up you go · Space hops off' : '🐒 You are carrying them · Q tosses them off');
+  sfx('jump'); floatText(r, '🐒', '#ffcf6b'); toast(r === me ? `🐒 Up you go · ${kJump} hops off` : `🐒 You are carrying them · ${kToss} tosses them off`);
+  if (isTouch && r !== me && $('more').style.display === 'none') $('moreb').click(); // the toss lives behind ⋯ on a phone: open it while you carry
 }
 function pigOff(tell, hop, quiet) { // quiet: something else already decided where I am (a ragdoll, a new place)
   if (!pig) return; const mine = riding(); pig = null;
@@ -5015,8 +5079,9 @@ function onStunt(m) { // safe with nobody here and with nothing going on: whatev
   if (a === 'ask') {
     if (!them || them.away || pig) return;
     if (s && s.role === 'ask') { if (isHost) return; stuntCancel(false); } // both asked at once: the host's ask stands, the guest answers it
+    if (scopeOn) closeScope(); // the ask is out in the room, behind the eyepiece
     stunt = { k, role: 'ans', t0: sNow() }; // my clock starts when it gets here, so the ring I see is the one I am judged on
-    floatText(them, k === 'five' ? '✋ (E)' : k === 'fall' ? 'catch me! (E)' : '🐒 piggyback? (E)', '#ffcf6b');
+    floatText(them, k === 'five' ? `✋ (${kE})` : k === 'fall' ? `catch me! (${kE})` : `🐒 piggyback? (${kE})`, '#ffcf6b');
   } else if (a === 'ok') {
     if (k === 'five') { if (s && s.k === 'five' && s.role === 'ask') { stunt = null; fiveFx(m.q === 'perfect' ? 'perfect' : 'ok', me); } } // (one that comes after I called it a miss is too late)
     else if (k === 'fall') { if (s && s.k === 'fall') { if (s.role === 'ask') s.ok = true; else if (s.sent) { stunt = null; fallFx(me); } } }
@@ -5034,7 +5099,7 @@ function onStunt(m) { // safe with nobody here and with nothing going on: whatev
   }
 }
 
-function tick13(dt, t) { if (strip) tickStrip(); tickLan(dt, t); tickTape(); tickWeather(dt, t); tickStunt(); } // per-frame hook for the newest features (the rally balloon ticks inside tickGame, next to the other little games)
+function tick13(dt, t) { if (strip) tickStrip(); else if (stripPending && !game && me.car < 0 && $('photo').style.display !== 'flex') { const v = stripPending; stripPending = null; showStrip(v); } tickLan(dt, t); tickTape(); tickWeather(dt, t); tickStunt(); } // per-frame hook for the newest features (the rally balloon ticks inside tickGame, next to the other little games)
 function onFun13(m) {
   switch (m.t) {
     case 'hello': send({ t: 'lanAll', all: lanterns }); send({ t: 'memAll', all: mem }); // both sides send theirs: the two skies (and the two memory logs) become the union
