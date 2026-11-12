@@ -3219,7 +3219,7 @@ function watchFps() {
   const fps = qN * 1000 / qAcc; qAcc = 0; qN = 0; const t = clock.elapsedTime;
   let to = qLevel;
   if (fps < 45 && qLevel < QUALITY.length - 1) { to = qLevel + 1; qTooSlow = Math.min(qTooSlow, qLevel); }
-  else if (fps > 100 && qLevel > 0 && qLevel - 1 > qTooSlow && t - qLastT > 20) to = qLevel - 1; // only go prettier if that level never proved too slow
+  else if (fps > 100 && qLevel > 0 && qLevel - 1 > qTooSlow && t - qLastT > 20 && !(me.share && qLevel <= 2)) to = qLevel - 1; // only go prettier if that level never proved too slow
   if (to !== qLevel) { qLevel = to; qLastT = t; applyQuality(); try { localStorage.setItem('ols-q2', qLevel); } catch {} }
 }
 applyQuality();
@@ -3341,13 +3341,22 @@ function showStream(s, mine = false) {
   $('watch').style.display = s ? '' : 'none'; if (!s) setWatch('world'); else if (!mine) toast('📺 Press T for theater mode: the video big, you two in the corner');
 }
 addEventListener('pointerdown', () => { if (screenLive && vid.paused) vid.play(); if (voiceAudio.srcObject && voiceAudio.paused) voiceAudio.play().catch(() => {}); if (actx && actx.state !== 'running') actx.resume().catch(() => {}); });
-function startCall() { if (conn && myStream) { if (call) call.close(); call = peer.call(conn.peer, myStream); } }
+function startCall() { if (conn && myStream) { if (call) call.close(); call = peer.call(conn.peer, myStream); tuneShare(call, 0); } }
+// smooth over sharp: keep the frame rate when the link or the laptop is busy, and give the video enough bitrate that it never has to stall
+function tuneShare(c, n) {
+  if (c !== call || !myStream) return;
+  const pc = c.peerConnection, sn = pc && pc.getSenders().find(x => x.track && x.track.kind === 'video');
+  if (!sn) { if (n < 20) setTimeout(() => tuneShare(c, n + 1), 250); return; }
+  try { const p = sn.getParameters(); if (!p.encodings || !p.encodings.length) p.encodings = [{}]; p.encodings[0].maxBitrate = 3e6; p.encodings[0].maxFramerate = 30; p.degradationPreference = 'maintain-framerate'; sn.setParameters(p).catch(() => {}); } catch {}
+}
 async function share() {
   if (myStream) return stopShare();
   if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) { toast('Sharing needs Chrome on a computer. You can still watch here ♥'); return; }
-  try { myStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: true, selfBrowserSurface: 'exclude', surfaceSwitching: 'include', preferCurrentTab: false }); }
+  try { myStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30, max: 30 }, width: { max: 1280 }, height: { max: 720 } }, audio: true, selfBrowserSurface: 'exclude', surfaceSwitching: 'include', preferCurrentTab: false }); }
   catch { return; }
   myStream.getVideoTracks()[0].onended = () => stopShare();
+  try { myStream.getVideoTracks()[0].contentHint = 'motion'; } catch {} // a show, not a slide deck: drop sharpness before dropping frames
+  if (qMode === 'auto' && qLevel < 2) { qLevel = 2; qLastT = clock.elapsedTime; applyQuality(); } // the laptop is now also filming and sending a video: leave it some room
   me.share = true; $('share').classList.add('on'); $('share').textContent = '🎮 Stop sharing';
   showStream(myStream, true); startCall(); send({ t: 'share', on: true });
   if (!myStream.getAudioTracks().length) { toast('🔇 No sound in this share! Stop, share again, pick a Chrome TAB and turn on "Also share tab audio"'); setTimeout(() => myStream && !myStream.getAudioTracks().length && toast('🔇 Still no sound: only a Chrome tab with "share tab audio" sends sound'), 6000); }
