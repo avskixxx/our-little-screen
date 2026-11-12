@@ -4772,7 +4772,7 @@ function wxStrike(delay) { // a flash now, the thunder a moment later (softer in
   if (!actx || actx.state !== 'running' || !AU.noise) return;
   const v = (screenLive ? .5 : 1) * (place.outdoor ? 1 : place.id === 'cinema' ? .35 : .6);
   nz(actx.currentTime + delay, 2.2, 'lowpass', 180, .35 * v, 'a', .7, 60);
-  setTimeout(() => { if (!document.hidden) boom(.12 * v * Math.min(1, AU.vol.a / .55)); }, delay * 1000);
+  setTimeout(() => { if (!document.hidden) boom(.07 * v * Math.min(1, AU.vol.a / .55)); }, delay * 1000);
 }
 function weatherLight(dt) { // loop hook, right after place.tick: works out the intensity, then lets the sky close in (the loop resets hemi every frame, so this restores itself)
   if (!weather && wxW <= 0) return;
@@ -4851,13 +4851,13 @@ function wxUmbPose(g, lead, mesh, p, q, merged, k) { // standing close: the gues
   const P = g.position, S = g.userData.c.scale; P.x += (x - P.x) * k; P.y += (y - P.y) * k; P.z += (z - P.z) * k; S.x = S.z = S.x + (s - S.x) * k;
 }
 function wxSound(dt, w) { // one looping noise source on the ambience bus (kept apart from AU.amb, which every place change clears)
-  const mode = place.outdoor ? 0 : place.id === 'cinema' ? 2 : 1, target = (mode === 0 ? .1 : mode === 1 ? .07 : .03) * w;
+  const mode = place.outdoor ? 0 : place.id === 'cinema' ? 2 : 1, target = (mode === 0 ? .032 : mode === 1 ? .024 : .012) * w;
   if (!wxAudio) {
     if (target <= 0 || !actx || actx.state !== 'running' || !AU.noise) return;
     const src = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain(); src.buffer = AU.noise; src.loop = true; g.gain.value = 0; src.connect(f).connect(g).connect(AU.a); src.start(0, Math.random()); src.onended = () => g.disconnect();
     wxAudio = { src, f, g, mode: -1 }; wxGain = 0;
   }
-  if (wxAudio.mode !== mode) { wxAudio.mode = mode; const f = wxAudio.f; f.type = mode ? 'lowpass' : 'bandpass'; f.frequency.value = mode === 0 ? 2500 : mode === 1 ? 420 : 300; f.Q.value = mode ? .7 : .5; } // open air · muffled behind glass · a patter on the cinema roof
+  if (wxAudio.mode !== mode) { wxAudio.mode = mode; const f = wxAudio.f; f.type = mode ? 'lowpass' : 'bandpass'; f.frequency.value = mode === 0 ? 2000 : mode === 1 ? 420 : 300; f.Q.value = mode ? .7 : .5; } // open air · muffled behind glass · a patter on the cinema roof
   wxGain += (target - wxGain) * Math.min(1, dt * 1.2); wxAudio.g.gain.value = wxGain; // about three seconds to settle
   if (target <= 0 && wxGain < .0005) wxSilence(); // the rain is over: nothing keeps looping under the afterglow
 }
