@@ -3214,16 +3214,18 @@ function applyQuality() {
 function setGfx(m) { qMode = m; try { localStorage.setItem('ols-gfx', m); } catch {} if (m !== 'auto') { qLevel = GFX[m]; applyQuality(); } else qTooSlow = 99; }
 function watchFps() {
   const now = performance.now(), d = now - qPrevT; qPrevT = now;
-  if (qMode !== 'auto' || d > 250 || document.hidden || clock.elapsedTime < 5) return; // tab was asleep, or still warming up
+  if (qMode !== 'auto' || d > 250 || document.hidden || clock.elapsedTime < 5 || me.share) { qAcc = 0; qN = 0; return; } // tab was asleep, or still warming up
   qAcc += d; qN++; if (qAcc < 2500) return;
   const fps = qN * 1000 / qAcc; qAcc = 0; qN = 0; const t = clock.elapsedTime;
   let to = qLevel;
   if (fps < 45 && qLevel < QUALITY.length - 1) { to = qLevel + 1; qTooSlow = Math.min(qTooSlow, qLevel); }
-  else if (fps > 100 && qLevel > 0 && qLevel - 1 > qTooSlow && t - qLastT > 20 && !(me.share && qLevel <= 2)) to = qLevel - 1; // only go prettier if that level never proved too slow
+  else if (fps > 100 && qLevel > 0 && qLevel - 1 > qTooSlow && t - qLastT > 20) to = qLevel - 1; // only go prettier if that level never proved too slow
   if (to !== qLevel) { qLevel = to; qLastT = t; applyQuality(); try { localStorage.setItem('ols-q2', qLevel); } catch {} }
 }
 applyQuality();
+let shareQ = -1, shareSkip = 0;
 function loop() {
+  if (me.share && (shareSkip ^= 1)) return requestAnimationFrame(loop); // sharing: the game draws 30 times a second so the video gets the rest
   const raw = clock.getDelta(), dt = Math.min(.05, raw), t = clock.elapsedTime; watchFps();
   step(dt);
   placeChar(meMesh, me); animChar(meMesh, me, t);
@@ -3341,7 +3343,21 @@ function showStream(s, mine = false) {
   $('watch').style.display = s ? '' : 'none'; if (!s) setWatch('world'); else if (!mine) toast('📺 Press T for theater mode: the video big, you two in the corner');
 }
 addEventListener('pointerdown', () => { if (screenLive && vid.paused) vid.play(); if (voiceAudio.srcObject && voiceAudio.paused) voiceAudio.play().catch(() => {}); if (actx && actx.state !== 'running') actx.resume().catch(() => {}); });
-function startCall() { if (conn && myStream) { if (call) call.close(); call = peer.call(conn.peer, myStream); tuneShare(call, 0); } }
+function startCall() { if (conn && myStream) { if (call) call.close(); call = peer.call(conn.peer, myStream, { sdpTransform: preferH264 }); tuneShare(call, 0); } }
+// H.264 first: a Mac (and an iPad on the other end) encodes and decodes it in hardware, where the default VP8 is done by the processor
+function preferH264(sdp) {
+  try {
+    const L = sdp.split('\r\n'), mi = L.findIndex(l => l.startsWith('m=video')); if (mi < 0) return sdp;
+    let end = L.findIndex((l, i) => i > mi && l.startsWith('m=')); if (end < 0) end = L.length;
+    const h = [], rtx = [];
+    for (let i = mi; i < end; i++) { const m = /^a=rtpmap:(\d+) H264\//.exec(L[i]); if (m) h.push(m[1]); }
+    if (!h.length) return sdp;
+    for (let i = mi; i < end; i++) { const m = /^a=fmtp:(\d+) apt=(\d+)/.exec(L[i]); if (m && h.includes(m[2])) rtx.push(m[1]); }
+    const parts = L[mi].split(' '), head = parts.slice(0, 3), pts = parts.slice(3), first = pts.filter(x => h.includes(x) || rtx.includes(x));
+    L[mi] = [...head, ...first, ...pts.filter(x => !first.includes(x))].join(' ');
+    return L.join('\r\n');
+  } catch { return sdp; }
+}
 // smooth over sharp: keep the frame rate when the link or the laptop is busy, and give the video enough bitrate that it never has to stall
 function tuneShare(c, n) {
   if (c !== call || !myStream) return;
@@ -3356,7 +3372,7 @@ async function share() {
   catch { return; }
   myStream.getVideoTracks()[0].onended = () => stopShare();
   try { myStream.getVideoTracks()[0].contentHint = 'motion'; } catch {} // a show, not a slide deck: drop sharpness before dropping frames
-  if (qMode === 'auto' && qLevel < 2) { qLevel = 2; qLastT = clock.elapsedTime; applyQuality(); } // the laptop is now also filming and sending a video: leave it some room
+  if (qMode === 'auto') { shareQ = qLevel; if (qLevel < 3) { qLevel = 3; applyQuality(); } } // the laptop is now also filming and sending a video: leave it room (and the game draws every other frame, see loop)
   me.share = true; $('share').classList.add('on'); $('share').textContent = '🎮 Stop sharing';
   showStream(myStream, true); startCall(); send({ t: 'share', on: true });
   if (!myStream.getAudioTracks().length) { toast('🔇 No sound in this share! Stop, share again, pick a Chrome TAB and turn on "Also share tab audio"'); setTimeout(() => myStream && !myStream.getAudioTracks().length && toast('🔇 Still no sound: only a Chrome tab with "share tab audio" sends sound'), 6000); }
@@ -3365,6 +3381,7 @@ async function share() {
 function stopShare(tell = true) {
   if (myStream) myStream.getTracks().forEach(tr => tr.stop());
   myStream = null; if (call) { call.close(); call = null; }
+  if (shareQ >= 0) { if (qMode === 'auto' && qLevel !== shareQ) { qLevel = shareQ; applyQuality(); } shareQ = -1; }
   me.share = false; $('share').classList.remove('on'); $('share').textContent = '🎮 Share a tab';
   showStream(null); if (tell) send({ t: 'share', on: false });
 }
@@ -3381,7 +3398,8 @@ setInterval(async () => {
     const now = performance.now(), kb = shareB ? Math.round((o.bytesSent - shareB) * 8 / (now - shareBT)) : 0; shareB = o.bytesSent; shareBT = now;
     const lc = pair && by[pair.localCandidateId], rc = pair && by[pair.remoteCandidateId], relay = (lc && lc.candidateType === 'relay') || (rc && rc.candidateType === 'relay');
     const lim = o.qualityLimitationReason, why = lim === 'cpu' ? 'this laptop is busy' : lim === 'bandwidth' ? 'the connection is slow' : 'nothing';
-    el.textContent = `📡 ${o.frameHeight || '?'}p · ${Math.round(o.framesPerSecond || 0)} fps · ${(kb / 1000).toFixed(1)} Mbps · ${pair ? (relay ? 'relayed' : 'direct') : '…'} · held back by: ${why}`;
+    const cd = by[o.codecId], codec = cd && cd.mimeType ? cd.mimeType.split('/')[1] : '';
+    el.textContent = `📡 ${codec} ${o.frameHeight || '?'}p · ${Math.round(o.framesPerSecond || 0)} fps · ${(kb / 1000).toFixed(1)} Mbps · ${pair ? (relay ? 'relayed' : 'direct') : '…'} · held back by: ${why}`;
     el.style.display = 'block';
   } catch {}
 }, 2000);
@@ -5191,6 +5209,6 @@ $('go').onclick = () => {
   }, 980);
 };
 $('name').addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); });
-window.dbg = { stunt: stuntStart, stuntAnswer, get stuntState() { return { stunt, pig } }, get weather() { return weather }, wxStart: wxBegin, wxStop: wxEnd, get wxW() { return wxW }, get wxAfter() { return wxAfter }, get wxMerged() { return wxMerged }, get wxRain() { return wxRain }, get wxGlass() { return rainGlassMat }, get wxFlashK() { return wxFlashK }, hemi, tape: { get on() { return tapeOn }, start: tapePlay, stop: tapeHalt, get i() { return tapeI }, get seed() { return tapeSeed }, get draws() { return tapeDraws }, get deck() { return tapeDeck.map(c => c.k === 'pic' ? { k: c.k, picId: c.picId } : { k: c.k, text: c.text }) } }, logMem, get mem() { return mem }, dayKey, lan: { get pending() { return lanPending }, get all() { return lanterns }, place: lanPlace, hold(on) { lanForce = on ? true : null; }, go: lanRelease }, get lanSky() { return (place && place.lanSky) || null }, openScope, closeScope, nearTel, startStrip, shootFrame, get stripRun() { return strip && { seed: strip.seed, i: strip.i, prompts: strip.prompts } }, get lastStrip() { return lastStrip }, get rally() { return game && game.mode === 'rally' ? game : null }, rallyHit, rallyDrop, GATES, carE, exitCar, driveStep, get karts() { return place.karts }, newGame, kartBlocked, eatSnack, setLights, lightV, startCuddle, seatPair, iceServers, get peer() { return peer }, setGfx, get qMode() { return qMode }, get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: (v, ar) => (hangAr = ar, hanging = v), doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
+window.dbg = { preferH264, stunt: stuntStart, stuntAnswer, get stuntState() { return { stunt, pig } }, get weather() { return weather }, wxStart: wxBegin, wxStop: wxEnd, get wxW() { return wxW }, get wxAfter() { return wxAfter }, get wxMerged() { return wxMerged }, get wxRain() { return wxRain }, get wxGlass() { return rainGlassMat }, get wxFlashK() { return wxFlashK }, hemi, tape: { get on() { return tapeOn }, start: tapePlay, stop: tapeHalt, get i() { return tapeI }, get seed() { return tapeSeed }, get draws() { return tapeDraws }, get deck() { return tapeDeck.map(c => c.k === 'pic' ? { k: c.k, picId: c.picId } : { k: c.k, text: c.text }) } }, logMem, get mem() { return mem }, dayKey, lan: { get pending() { return lanPending }, get all() { return lanterns }, place: lanPlace, hold(on) { lanForce = on ? true : null; }, go: lanRelease }, get lanSky() { return (place && place.lanSky) || null }, openScope, closeScope, nearTel, startStrip, shootFrame, get stripRun() { return strip && { seed: strip.seed, i: strip.i, prompts: strip.prompts } }, get lastStrip() { return lastStrip }, get rally() { return game && game.mode === 'rally' ? game : null }, rallyHit, rallyDrop, GATES, carE, exitCar, driveStep, get karts() { return place.karts }, newGame, kartBlocked, eatSnack, setLights, lightV, startCuddle, seatPair, iceServers, get peer() { return peer }, setGfx, get qMode() { return qMode }, get love() { return love }, loveAdd, achieve, radioOn, radioOff, shootStar, roastE, nearFire, sfx, showStream, goPlace, setWatch, startCG, beginCG, get cg() { return cg }, onFun10, showLetter, key, renderer, composer, petMesh, scene, tossBall, get petObj() { return me.petObj }, layDown, hangClick, get picsState() { return picsState }, setHanging: (v, ar) => (hangAr = ar, hanging = v), doEmote, drinkTea, bongHit, weedLvl, tripLvl, get qLevel() { return qLevel }, pvSet, pv, say, get themMesh() { return themMesh }, solidTop, leaveSeat, attack, knocked, startSlide, camera, get meMesh() { return meMesh }, blockAction, undoBlock, toggleBuild, get bKind() { return bKind }, set bKind(v) { bKind = v }, groundAt, faceFor, get lava() { return lava }, say, toggleHands, launchFireworks, startQuiz, answerQuiz, get quiz() { return quiz }, get hand() { return hand }, toggleDoodle, inkLine, doEmote, takePhoto, get found() { return found }, openHats, newGame, throwPop, toggleDecorate, pickCatalog, get decoState() { return decoState }, get game() { return game }, me, get them() { return them }, setPlace, togglePov, turn, jump, keys, get pov() { return pov }, share, cam, get place() { return place } };
 </script>
 </body></html>
